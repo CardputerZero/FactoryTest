@@ -1,0 +1,58 @@
+/*
+ * SPDX-FileCopyrightText: 2026 M5Stack Technology CO LTD
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
+#pragma once
+
+#include <cstdint>
+
+#include "base_screen.h"
+#include "lcd_test_viewmodel.h"
+
+namespace screen {
+
+class LcdTestPage : public BaseScreen {
+ public:
+  LcdTestPage(viewmodel::AppViewModel& app_view_model,
+              viewmodel::LcdTestViewModel& lcd_view_model,
+              app::AssetManager& assets);
+  ~LcdTestPage() override;
+
+ protected:
+  void build_content(lv_obj_t* content) override;
+  void apply_color_index_(int32_t index);
+  void apply_brightness_active_(bool active);
+  void apply_brightness_percent_(int32_t percent);
+  void apply_brightness_theme_(bool dark_mode);
+  void schedule_brightness_commit_();
+  void begin_brightness_transition_();
+  void step_brightness_transition_();
+  static void color_observer(lv_observer_t* observer, lv_subject_t* subject);
+  static void brightness_active_observer(lv_observer_t* observer, lv_subject_t* subject);
+  static void brightness_percent_observer(lv_observer_t* observer, lv_subject_t* subject);
+  static void theme_observer(lv_observer_t* observer, lv_subject_t* subject);
+  static void brightness_commit_timer_cb(lv_timer_t* timer);
+  static void brightness_smooth_timer_cb(lv_timer_t* timer);
+
+ private:
+  viewmodel::LcdTestViewModel& lcd_view_model_;
+  lv_obj_t* prompt_{nullptr};
+  lv_obj_t* color_layer_{nullptr};
+  lv_obj_t* brightness_group_{nullptr};
+  lv_obj_t* brightness_label_{nullptr};
+  lv_obj_t* brightness_slider_{nullptr};
+  lv_observer_t* color_observer_handle_{nullptr};
+  lv_observer_t* brightness_active_observer_handle_{nullptr};
+  lv_observer_t* brightness_percent_observer_handle_{nullptr};
+  lv_observer_t* theme_observer_handle_{nullptr};
+  lv_timer_t* brightness_commit_timer_{nullptr};
+  lv_timer_t* brightness_smooth_timer_{nullptr};
+  int32_t requested_brightness_percent_{model::LcdTestModel::K_INITIAL_BRIGHTNESS_PERCENT};
+  int32_t hardware_brightness_percent_{model::LcdTestModel::K_INITIAL_BRIGHTNESS_PERCENT};
+  int32_t target_brightness_percent_{model::LcdTestModel::K_INITIAL_BRIGHTNESS_PERCENT};
+  bool hardware_brightness_loaded_{false};
+};
+
+}  // namespace screen

@@ -1,0 +1,8 @@
+// Allow the factory test app to trigger passive Wi-Fi scans through NetworkManager.
+// This only grants org.freedesktop.NetworkManager.wifi.scan, not connection changes.
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.freedesktop.NetworkManager.wifi.scan" &&
+        (subject.user == "root" || subject.isInGroup("sudo") || subject.isInGroup("netdev"))) {
+        return polkit.Result.YES;
+    }
+});

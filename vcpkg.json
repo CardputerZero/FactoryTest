@@ -1,0 +1,38 @@
+{
+  "name": "factory-test-app-simulator-on-windows",
+  "version": "1.0.0",
+  "dependencies": [
+    "fmt",
+    "libpng",
+    "libjpeg-turbo",
+    "zlib",
+    "sdl2",
+    "freetype"
+  ],
+  "overrides": [
+    {
+      "name": "fmt",
+      "version": "12.1.0"
+    },
+    {
+      "name": "libpng",
+      "version": "1.6.48"
+    },
+    {
+      "name": "libjpeg-turbo",
+      "version": "3.1.3"
+    },
+    {
+      "name": "zlib",
+      "version": "1.3.1"
+    },
+    {
+      "name": "sdl2",
+      "version": "2.32.54"
+    },
+    {
+      "name": "freetype",
+      "version": "2.13.3"
+    }
+  ]
+}
