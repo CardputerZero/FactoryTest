@@ -145,9 +145,9 @@ void NavBar::update_icon_buttons_() {
   std::array<IconSpec, 5> keyboard_icons = {{
       {ICON_ARROW_U_UP_LEFT, request_back_or_quit_cb, LV_EVENT_LONG_PRESSED, this},
       {"", nullptr, LV_EVENT_CLICKED, nullptr},
-      {ICON_CHECK_SQUARE, complete_test_cb, LV_EVENT_LONG_PRESSED, &app_view_model_},
       {"", nullptr, LV_EVENT_CLICKED, nullptr},
-      {ICON_X_SQUARE, complete_test_cb, LV_EVENT_LONG_PRESSED, &app_view_model_},
+      {"", nullptr, LV_EVENT_CLICKED, nullptr},
+      {"", nullptr, LV_EVENT_CLICKED, nullptr},
   }};
   std::array<IconSpec, 5> start_icons    = {{
       {ICON_SIGN_OUT, start_exit_confirm_cb, LV_EVENT_LONG_PRESSED, this},

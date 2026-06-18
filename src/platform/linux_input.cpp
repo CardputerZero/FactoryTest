@@ -30,19 +30,24 @@
 namespace platform {
 namespace {
 
-constexpr uint32_t K_EVDEV_KEY_BASE   = 0x100000U;
-constexpr uint32_t K_SPECIAL_KEY_BASE = 0x200000U;
-constexpr uint32_t K_KEY_CTRL         = K_SPECIAL_KEY_BASE | 1U;
-constexpr uint32_t K_KEY_SHIFT        = K_SPECIAL_KEY_BASE | 2U;
-constexpr uint32_t K_KEY_SUPER        = K_SPECIAL_KEY_BASE | 3U;
-constexpr uint32_t K_KEY_ALT          = K_SPECIAL_KEY_BASE | 4U;
-constexpr uint32_t K_KEY_FN           = K_SPECIAL_KEY_BASE | 5U;
-constexpr uint32_t K_KEY_SYM          = K_SPECIAL_KEY_BASE | 6U;
-constexpr uint32_t K_KEY_INSERT       = K_SPECIAL_KEY_BASE | 7U;
-constexpr uint32_t K_KEY_PAGE_UP      = K_SPECIAL_KEY_BASE | 8U;
-constexpr uint32_t K_KEY_PAGE_DOWN    = K_SPECIAL_KEY_BASE | 9U;
-constexpr uint32_t K_KEY_F_BASE       = K_SPECIAL_KEY_BASE | 0x100U;
-constexpr uint32_t K_LONG_PRESS_MS    = 700;
+constexpr uint32_t K_EVDEV_KEY_BASE      = 0x100000U;
+constexpr uint32_t K_SPECIAL_KEY_BASE    = 0x200000U;
+constexpr uint32_t K_KEY_CTRL            = K_SPECIAL_KEY_BASE | 1U;
+constexpr uint32_t K_KEY_SHIFT           = K_SPECIAL_KEY_BASE | 2U;
+constexpr uint32_t K_KEY_SUPER           = K_SPECIAL_KEY_BASE | 3U;
+constexpr uint32_t K_KEY_ALT             = K_SPECIAL_KEY_BASE | 4U;
+constexpr uint32_t K_KEY_FN              = K_SPECIAL_KEY_BASE | 5U;
+constexpr uint32_t K_KEY_SYM             = K_SPECIAL_KEY_BASE | 6U;
+constexpr uint32_t K_KEY_INSERT          = K_SPECIAL_KEY_BASE | 7U;
+constexpr uint32_t K_KEY_PAGE_UP         = K_SPECIAL_KEY_BASE | 8U;
+constexpr uint32_t K_KEY_PAGE_DOWN       = K_SPECIAL_KEY_BASE | 9U;
+constexpr uint32_t K_KEY_VOLUME_MUTE     = K_SPECIAL_KEY_BASE | 10U;
+constexpr uint32_t K_KEY_VOLUME_DOWN     = K_SPECIAL_KEY_BASE | 11U;
+constexpr uint32_t K_KEY_VOLUME_UP       = K_SPECIAL_KEY_BASE | 12U;
+constexpr uint32_t K_KEY_BRIGHTNESS_DOWN = K_SPECIAL_KEY_BASE | 13U;
+constexpr uint32_t K_KEY_BRIGHTNESS_UP   = K_SPECIAL_KEY_BASE | 14U;
+constexpr uint32_t K_KEY_F_BASE          = K_SPECIAL_KEY_BASE | 0x100U;
+constexpr uint32_t K_LONG_PRESS_MS       = 700;
 
 struct KeyRouterState {
   std::array<lv_obj_t*, K_NAV_KEY_COUNT> nav_buttons{};
@@ -56,9 +61,92 @@ struct KeyRouterState {
   NavTriggerMode nav_trigger_mode{NavTriggerMode::CLICK};
   KeyListener key_listener{nullptr};
   void* key_listener_user_data{nullptr};
+  LongKeyListener long_key_listener{nullptr};
+  void* long_key_listener_user_data{nullptr};
   GlobalKeyListener global_key_listener{nullptr};
   void* global_key_listener_user_data{nullptr};
 };
+
+struct KeyMapEntry {
+  uint32_t source;
+  uint32_t key;
+};
+
+struct KeyNameEntry {
+  uint32_t key;
+  const char* name;
+};
+
+struct EventCodeNameEntry {
+  lv_event_code_t code;
+  const char* name;
+};
+
+struct NavKeyMapEntry {
+  uint32_t key;
+  size_t click_index;
+  size_t long_press_index;
+};
+
+constexpr std::array<EventCodeNameEntry, 7> K_EVENT_CODE_NAMES = {{
+    {LV_EVENT_PRESSED, "PRESSED"},
+    {LV_EVENT_PRESSING, "PRESSING"},
+    {LV_EVENT_RELEASED, "RELEASED"},
+    {LV_EVENT_CLICKED, "CLICKED"},
+    {LV_EVENT_LONG_PRESSED, "LONG_PRESSED"},
+    {LV_EVENT_LONG_PRESSED_REPEAT, "LONG_PRESSED_REPEAT"},
+    {LV_EVENT_KEY, "KEY"},
+}};
+
+constexpr std::array<NavKeyMapEntry, 13> K_NAV_KEY_MAP = {{
+    {'4', 0, 0},
+    {LV_KEY_ESC, 0, 0},
+    {'5', 1, 1},
+    {'z', 1, 1},
+    {'Z', 1, 1},
+    {LV_KEY_LEFT, 1, 1},
+    {'6', 2, 2},
+    {LV_KEY_ENTER, 2, 2},
+    {'7', 3, 3},
+    {'8', 4, 4},
+    {'c', 3, 4},
+    {'C', 3, 4},
+    {LV_KEY_RIGHT, 3, 4},
+}};
+
+constexpr std::array<KeyNameEntry, 12> K_LV_KEY_NAMES = {{
+    {LV_KEY_UP, "Up"},
+    {LV_KEY_DOWN, "Down"},
+    {LV_KEY_RIGHT, "Right"},
+    {LV_KEY_LEFT, "Left"},
+    {LV_KEY_ESC, "Esc"},
+    {LV_KEY_DEL, "Delete"},
+    {LV_KEY_BACKSPACE, "Backspace"},
+    {LV_KEY_ENTER, "Enter"},
+    {LV_KEY_NEXT, "Next"},
+    {LV_KEY_PREV, "Previous"},
+    {LV_KEY_HOME, "Home"},
+    {LV_KEY_END, "End"},
+}};
+
+constexpr std::array<KeyNameEntry, 16> K_SPECIAL_KEY_NAMES = {{
+    {' ', "Space"},
+    {'\t', "Tab"},
+    {K_KEY_CTRL, "Ctrl"},
+    {K_KEY_SHIFT, "Shift"},
+    {K_KEY_SUPER, "Super"},
+    {K_KEY_ALT, "Alt"},
+    {K_KEY_FN, "Fn"},
+    {K_KEY_SYM, "Sym"},
+    {K_KEY_INSERT, "Insert"},
+    {K_KEY_PAGE_UP, "PageUp"},
+    {K_KEY_PAGE_DOWN, "PageDown"},
+    {K_KEY_VOLUME_MUTE, "VolumeMute"},
+    {K_KEY_VOLUME_DOWN, "VolumeDown"},
+    {K_KEY_VOLUME_UP, "VolumeUp"},
+    {K_KEY_BRIGHTNESS_DOWN, "BrightnessDown"},
+    {K_KEY_BRIGHTNESS_UP, "BrightnessUp"},
+}};
 
 #if !USE_DESKTOP
 struct EvdevKeypad {
@@ -78,25 +166,33 @@ KeyRouterState& key_router_state() {
   return state;
 }
 
-const char* event_code_name(lv_event_code_t event_code) {
-  switch (event_code) {
-    case LV_EVENT_PRESSED:
-      return "PRESSED";
-    case LV_EVENT_PRESSING:
-      return "PRESSING";
-    case LV_EVENT_RELEASED:
-      return "RELEASED";
-    case LV_EVENT_CLICKED:
-      return "CLICKED";
-    case LV_EVENT_LONG_PRESSED:
-      return "LONG_PRESSED";
-    case LV_EVENT_LONG_PRESSED_REPEAT:
-      return "LONG_PRESSED_REPEAT";
-    case LV_EVENT_KEY:
-      return "KEY";
-    default:
-      return "OTHER";
+template <std::size_t N>
+uint32_t lookup_key(const std::array<KeyMapEntry, N>& entries, uint32_t source) {
+  for (const auto& entry : entries) {
+    if (entry.source == source) {
+      return entry.key;
+    }
   }
+  return 0;
+}
+
+template <std::size_t N>
+const char* lookup_name(const std::array<KeyNameEntry, N>& entries, uint32_t key) {
+  for (const auto& entry : entries) {
+    if (entry.key == key) {
+      return entry.name;
+    }
+  }
+  return nullptr;
+}
+
+const char* event_code_name(lv_event_code_t event_code) {
+  for (const auto& entry : K_EVENT_CODE_NAMES) {
+    if (entry.code == event_code) {
+      return entry.name;
+    }
+  }
+  return "OTHER";
 }
 
 const char* key_state_name(bool pressed) { return pressed ? "pressed" : "released"; }
@@ -104,30 +200,13 @@ const char* key_state_name(bool pressed) { return pressed ? "pressed" : "release
 std::string key_name(uint32_t key) { return describe_key(key); }
 
 size_t nav_key_to_index(uint32_t key) {
-  switch (key) {
-    case '4':
-    case LV_KEY_ESC:
-      return 0;
-    case '5':
-    case 'z':
-    case 'Z':
-    case LV_KEY_LEFT:
-      return 1;
-    case '6':
-      return 2;
-    case '7':
-      return 3;
-    case '8':
-      return 4;
-    case 'c':
-    case 'C':
-    case LV_KEY_RIGHT:
-      return key_router_state().nav_trigger_mode == NavTriggerMode::CLICK ? 3 : 4;
-    case LV_KEY_ENTER:
-      return 2;
-    default:
-      return K_NAV_KEY_COUNT;
+  for (const auto& entry : K_NAV_KEY_MAP) {
+    if (entry.key == key) {
+      return key_router_state().nav_trigger_mode == NavTriggerMode::CLICK ? entry.click_index
+                                                                          : entry.long_press_index;
+    }
   }
+  return K_NAV_KEY_COUNT;
 }
 
 void dispatch_nav_key(uint32_t key, lv_event_code_t event_code) {
@@ -172,6 +251,9 @@ void emit_long_key(uint32_t key) {
   const auto name = key_name(key);
   if (state.global_key_listener) {
     state.global_key_listener(key, name.c_str(), true, state.global_key_listener_user_data);
+  }
+  if (state.long_key_listener) {
+    state.long_key_listener(key, name.c_str(), state.long_key_listener_user_data);
   }
 }
 
@@ -268,23 +350,19 @@ void key_event_cb(lv_event_t* event) {
 }
 
 #if USE_DESKTOP
+constexpr std::array<KeyMapEntry, 8> K_SDL_MODIFIER_KEYS = {{
+    {SDLK_LCTRL, K_KEY_CTRL},
+    {SDLK_RCTRL, K_KEY_CTRL},
+    {SDLK_LSHIFT, K_KEY_SHIFT},
+    {SDLK_RSHIFT, K_KEY_SHIFT},
+    {SDLK_LGUI, K_KEY_SUPER},
+    {SDLK_RGUI, K_KEY_SUPER},
+    {SDLK_LALT, K_KEY_ALT},
+    {SDLK_RALT, K_KEY_ALT},
+}};
+
 uint32_t map_sdl_modifier_key(SDL_Keycode key) {
-  switch (key) {
-    case SDLK_LCTRL:
-    case SDLK_RCTRL:
-      return K_KEY_CTRL;
-    case SDLK_LSHIFT:
-    case SDLK_RSHIFT:
-      return K_KEY_SHIFT;
-    case SDLK_LGUI:
-    case SDLK_RGUI:
-      return K_KEY_SUPER;
-    case SDLK_LALT:
-    case SDLK_RALT:
-      return K_KEY_ALT;
-    default:
-      return 0;
-  }
+  return lookup_key(K_SDL_MODIFIER_KEYS, static_cast<uint32_t>(key));
 }
 
 int sdl_modifier_event_watch(void* user_data, SDL_Event* event) {
@@ -303,122 +381,184 @@ int sdl_modifier_event_watch(void* user_data, SDL_Event* event) {
 #endif
 
 const char* named_lv_key(uint32_t key) {
-  switch (key) {
-    case LV_KEY_UP:
-      return "Up";
-    case LV_KEY_DOWN:
-      return "Down";
-    case LV_KEY_RIGHT:
-      return "Right";
-    case LV_KEY_LEFT:
-      return "Left";
-    case LV_KEY_ESC:
-      return "Esc";
-    case LV_KEY_DEL:
-      return "Delete";
-    case LV_KEY_BACKSPACE:
-      return "Backspace";
-    case LV_KEY_ENTER:
-      return "Enter";
-    case LV_KEY_NEXT:
-      return "Next";
-    case LV_KEY_PREV:
-      return "Previous";
-    case LV_KEY_HOME:
-      return "Home";
-    case LV_KEY_END:
-      return "End";
-    default:
-      return nullptr;
-  }
+  return lookup_name(K_LV_KEY_NAMES, key);
 }
 
 #if !USE_DESKTOP
-uint32_t shifted_number_key(uint16_t code) {
-  switch (code) {
-    case KEY_1:
-      return '!';
-    case KEY_2:
-      return '@';
-    case KEY_3:
-      return '#';
-    case KEY_4:
-      return '$';
-    case KEY_5:
-      return '%';
-    case KEY_6:
-      return '^';
-    case KEY_7:
-      return '&';
-    case KEY_8:
-      return '*';
-    case KEY_9:
-      return '(';
-    case KEY_0:
-      return ')';
-    default:
-      return 0;
+struct EvdevPrintableKeyMapEntry {
+  uint16_t code;
+  uint32_t key;
+  uint32_t shifted_key;
+};
+
+struct EvdevAlphaKeyRange {
+  uint16_t first_code;
+  uint16_t last_code;
+  const char* keys;
+  const char* shifted_keys;
+};
+
+constexpr std::array<KeyMapEntry, 32> K_TCA8418_SYMBOL_KEYS = {{
+    {183, '!'},
+    {184, '@'},
+    {185, '#'},
+    {186, '$'},
+    {187, '%'},
+    {188, '^'},
+    {189, '&'},
+    {190, '*'},
+    {191, '('},
+    {192, ')'},
+    {193, '~'},
+    {194, '`'},
+    {195, '+'},
+    {196, '-'},
+    {197, '/'},
+    {198, '\\'},
+    {199, '{'},
+    {200, '}'},
+    {201, '['},
+    {202, ']'},
+    {231, ','},
+    {232, '.'},
+    {233, '|'},
+    {209, '='},
+    {210, ':'},
+    {211, ';'},
+    {212, '_'},
+    {213, '?'},
+    {214, '<'},
+    {215, '>'},
+    {216, '\''},
+    {217, '"'},
+}};
+
+constexpr std::array<EvdevPrintableKeyMapEntry, 22> K_PRINTABLE_SYMBOL_KEYS = {{
+    {KEY_1, '1', '!'},
+    {KEY_2, '2', '@'},
+    {KEY_3, '3', '#'},
+    {KEY_4, '4', '$'},
+    {KEY_5, '5', '%'},
+    {KEY_6, '6', '^'},
+    {KEY_7, '7', '&'},
+    {KEY_8, '8', '*'},
+    {KEY_9, '9', '('},
+    {KEY_0, '0', ')'},
+    {KEY_SPACE, ' ', ' '},
+    {KEY_MINUS, '-', '_'},
+    {KEY_EQUAL, '=', '+'},
+    {KEY_LEFTBRACE, '[', '{'},
+    {KEY_RIGHTBRACE, ']', '}'},
+    {KEY_BACKSLASH, '\\', '|'},
+    {KEY_SEMICOLON, ';', ':'},
+    {KEY_APOSTROPHE, '\'', '"'},
+    {KEY_GRAVE, '`', '~'},
+    {KEY_COMMA, ',', '<'},
+    {KEY_DOT, '.', '>'},
+    {KEY_SLASH, '/', '?'},
+}};
+
+constexpr std::array<KeyMapEntry, 5> K_KEYPAD_SYMBOL_KEYS = {{
+    {KEY_KPASTERISK, '*'},
+    {KEY_KPMINUS, '-'},
+    {KEY_KPPLUS, '+'},
+    {KEY_KPDOT, '.'},
+    {KEY_KPSLASH, '/'},
+}};
+
+constexpr std::array<KeyMapEntry, 28> K_SPECIAL_EVDEV_KEYS = {{
+    {KEY_ESC, LV_KEY_ESC},
+    {KEY_ENTER, LV_KEY_ENTER},
+    {KEY_BACKSPACE, LV_KEY_BACKSPACE},
+    {KEY_DELETE, LV_KEY_DEL},
+    {KEY_INSERT, K_KEY_INSERT},
+    {KEY_UP, LV_KEY_UP},
+    {KEY_DOWN, LV_KEY_DOWN},
+    {KEY_LEFT, LV_KEY_LEFT},
+    {KEY_RIGHT, LV_KEY_RIGHT},
+    {KEY_HOME, LV_KEY_HOME},
+    {KEY_END, LV_KEY_END},
+    {KEY_PAGEUP, K_KEY_PAGE_UP},
+    {KEY_PAGEDOWN, K_KEY_PAGE_DOWN},
+    {KEY_TAB, '\t'},
+    {KEY_FN, K_KEY_FN},
+    {KEY_LEFTCTRL, K_KEY_CTRL},
+    {KEY_RIGHTCTRL, K_KEY_CTRL},
+    {KEY_LEFTSHIFT, K_KEY_SHIFT},
+    {KEY_RIGHTSHIFT, K_KEY_SHIFT},
+    {KEY_LEFTMETA, K_KEY_SUPER},
+    {KEY_RIGHTMETA, K_KEY_SUPER},
+    {KEY_LEFTALT, K_KEY_ALT},
+    {KEY_RIGHTALT, K_KEY_ALT},
+    {KEY_MUTE, K_KEY_VOLUME_MUTE},
+    {KEY_VOLUMEDOWN, K_KEY_VOLUME_DOWN},
+    {KEY_VOLUMEUP, K_KEY_VOLUME_UP},
+    {KEY_BRIGHTNESSDOWN, K_KEY_BRIGHTNESS_DOWN},
+    {KEY_BRIGHTNESSUP, K_KEY_BRIGHTNESS_UP},
+}};
+
+constexpr std::array<KeyMapEntry, 12> K_FUNCTION_KEYS = {{
+    {KEY_F1, K_KEY_F_BASE | 1U},
+    {KEY_F2, K_KEY_F_BASE | 2U},
+    {KEY_F3, K_KEY_F_BASE | 3U},
+    {KEY_F4, K_KEY_F_BASE | 4U},
+    {KEY_F5, K_KEY_F_BASE | 5U},
+    {KEY_F6, K_KEY_F_BASE | 6U},
+    {KEY_F7, K_KEY_F_BASE | 7U},
+    {KEY_F8, K_KEY_F_BASE | 8U},
+    {KEY_F9, K_KEY_F_BASE | 9U},
+    {KEY_F10, K_KEY_F_BASE | 10U},
+    {KEY_F11, K_KEY_F_BASE | 11U},
+    {KEY_F12, K_KEY_F_BASE | 12U},
+}};
+
+constexpr std::array<KeyMapEntry, 2> K_SCAN_CODE_KEYS = {{
+    {66, K_KEY_FN},
+    {67, K_KEY_SYM},
+}};
+
+constexpr std::array<KeyMapEntry, 2> K_SHIFT_STATE_KEYS = {{
+    {KEY_LEFTSHIFT, 1U},
+    {KEY_RIGHTSHIFT, 1U},
+}};
+
+constexpr std::array<EvdevAlphaKeyRange, 3> K_ALPHA_KEY_RANGES = {{
+    {KEY_Q, KEY_P, "qwertyuiop", "QWERTYUIOP"},
+    {KEY_A, KEY_L, "asdfghjkl", "ASDFGHJKL"},
+    {KEY_Z, KEY_M, "zxcvbnm", "ZXCVBNM"},
+}};
+
+uint32_t lookup_printable_key(uint16_t code, bool shift_pressed) {
+  for (const auto& entry : K_PRINTABLE_SYMBOL_KEYS) {
+    if (entry.code == code) {
+      return shift_pressed ? entry.shifted_key : entry.key;
+    }
   }
+  return 0;
+}
+
+uint32_t lookup_alpha_key(uint16_t code, bool shift_pressed) {
+  for (const auto& range : K_ALPHA_KEY_RANGES) {
+    if (code >= range.first_code && code <= range.last_code) {
+      return static_cast<uint32_t>(
+          (shift_pressed ? range.shifted_keys : range.keys)[code - range.first_code]);
+    }
+  }
+  return 0;
 }
 
 uint32_t printable_evdev_key(uint16_t code, bool shift_pressed) {
-  if (code >= KEY_1 && code <= KEY_9) {
-    if (shift_pressed) {
-      return shifted_number_key(code);
-    }
-    return static_cast<uint32_t>('1' + (code - KEY_1));
+  if (const auto key = lookup_key(K_TCA8418_SYMBOL_KEYS, code)) {
+    return key;
   }
-  if (code == KEY_0) {
-    return shift_pressed ? ')' : '0';
+  if (const auto key = lookup_printable_key(code, shift_pressed)) {
+    return key;
   }
-  if (code >= KEY_Q && code <= KEY_P) {
-    return static_cast<uint32_t>((shift_pressed ? "QWERTYUIOP" : "qwertyuiop")[code - KEY_Q]);
-  }
-  if (code >= KEY_A && code <= KEY_L) {
-    return static_cast<uint32_t>((shift_pressed ? "ASDFGHJKL" : "asdfghjkl")[code - KEY_A]);
-  }
-  if (code >= KEY_Z && code <= KEY_M) {
-    return static_cast<uint32_t>((shift_pressed ? "ZXCVBNM" : "zxcvbnm")[code - KEY_Z]);
+  if (const auto key = lookup_alpha_key(code, shift_pressed)) {
+    return key;
   }
 
-  switch (code) {
-    case KEY_SPACE:
-      return ' ';
-    case KEY_MINUS:
-      return shift_pressed ? '_' : '-';
-    case KEY_EQUAL:
-      return shift_pressed ? '+' : '=';
-    case KEY_LEFTBRACE:
-      return shift_pressed ? '{' : '[';
-    case KEY_RIGHTBRACE:
-      return shift_pressed ? '}' : ']';
-    case KEY_BACKSLASH:
-      return shift_pressed ? '|' : '\\';
-    case KEY_SEMICOLON:
-      return shift_pressed ? ':' : ';';
-    case KEY_APOSTROPHE:
-      return shift_pressed ? '"' : '\'';
-    case KEY_GRAVE:
-      return shift_pressed ? '~' : '`';
-    case KEY_COMMA:
-      return shift_pressed ? '<' : ',';
-    case KEY_DOT:
-      return shift_pressed ? '>' : '.';
-    case KEY_SLASH:
-      return shift_pressed ? '?' : '/';
-    case KEY_KPASTERISK:
-      return '*';
-    case KEY_KPMINUS:
-      return '-';
-    case KEY_KPPLUS:
-      return '+';
-    case KEY_KPDOT:
-      return '.';
-    case KEY_KPSLASH:
-      return '/';
-    default:
-      return 0;
-  }
+  return lookup_key(K_KEYPAD_SYMBOL_KEYS, code);
 }
 
 uint32_t map_evdev_key(uint16_t code, bool shift_pressed) {
@@ -427,77 +567,18 @@ uint32_t map_evdev_key(uint16_t code, bool shift_pressed) {
     return printable;
   }
 
-  switch (code) {
-    case KEY_ESC:
-      return LV_KEY_ESC;
-    case KEY_ENTER:
-      return LV_KEY_ENTER;
-    case KEY_BACKSPACE:
-      return LV_KEY_BACKSPACE;
-    case KEY_DELETE:
-      return LV_KEY_DEL;
-    case KEY_INSERT:
-      return K_KEY_INSERT;
-    case KEY_UP:
-      return LV_KEY_UP;
-    case KEY_DOWN:
-      return LV_KEY_DOWN;
-    case KEY_LEFT:
-      return LV_KEY_LEFT;
-    case KEY_RIGHT:
-      return LV_KEY_RIGHT;
-    case KEY_HOME:
-      return LV_KEY_HOME;
-    case KEY_END:
-      return LV_KEY_END;
-    case KEY_PAGEUP:
-      return K_KEY_PAGE_UP;
-    case KEY_PAGEDOWN:
-      return K_KEY_PAGE_DOWN;
-    case KEY_TAB:
-      return '\t';
-    case KEY_F1:
-    case KEY_F2:
-    case KEY_F3:
-    case KEY_F4:
-    case KEY_F5:
-    case KEY_F6:
-    case KEY_F7:
-    case KEY_F8:
-    case KEY_F9:
-    case KEY_F10:
-      return K_KEY_F_BASE | static_cast<uint32_t>(code - KEY_F1 + 1);
-    case KEY_F11:
-    case KEY_F12:
-      return K_KEY_F_BASE | static_cast<uint32_t>(code - KEY_F11 + 11);
-    case KEY_FN:
-      return K_KEY_FN;
-    case KEY_LEFTCTRL:
-    case KEY_RIGHTCTRL:
-      return K_KEY_CTRL;
-    case KEY_LEFTSHIFT:
-    case KEY_RIGHTSHIFT:
-      return K_KEY_SHIFT;
-    case KEY_LEFTMETA:
-    case KEY_RIGHTMETA:
-      return K_KEY_SUPER;
-    case KEY_LEFTALT:
-    case KEY_RIGHTALT:
-      return K_KEY_ALT;
-    default:
-      return K_EVDEV_KEY_BASE | code;
+  if (const auto key = lookup_key(K_SPECIAL_EVDEV_KEYS, code)) {
+    return key;
   }
+  if (const auto key = lookup_key(K_FUNCTION_KEYS, code)) {
+    return key;
+  }
+
+  return K_EVDEV_KEY_BASE | code;
 }
 
 uint32_t map_evdev_scan(uint32_t scan_code) {
-  switch (scan_code) {
-    case 66:
-      return K_KEY_FN;
-    case 67:
-      return K_KEY_SYM;
-    default:
-      return 0;
-  }
+  return lookup_key(K_SCAN_CODE_KEYS, static_cast<uint16_t>(scan_code));
 }
 
 void queue_router_event(EvdevKeypad* keypad, uint32_t key, bool pressed, const char* source) {
@@ -577,7 +658,7 @@ void evdev_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
       continue;
     }
 
-    if (input.code == KEY_LEFTSHIFT || input.code == KEY_RIGHTSHIFT) {
+    if (lookup_key(K_SHIFT_STATE_KEYS, input.code)) {
       keypad->shift_pressed = input.value != 0;
     }
 
@@ -755,6 +836,20 @@ void clear_key_listener(KeyListener listener, void* user_data) {
   }
 }
 
+void set_long_key_listener(LongKeyListener listener, void* user_data) {
+  auto& state                       = key_router_state();
+  state.long_key_listener           = listener;
+  state.long_key_listener_user_data = user_data;
+}
+
+void clear_long_key_listener(LongKeyListener listener, void* user_data) {
+  auto& state = key_router_state();
+  if (state.long_key_listener == listener && state.long_key_listener_user_data == user_data) {
+    state.long_key_listener           = nullptr;
+    state.long_key_listener_user_data = nullptr;
+  }
+}
+
 void set_global_key_listener(GlobalKeyListener listener, void* user_data) {
   auto& state                         = key_router_state();
   state.global_key_listener           = listener;
@@ -787,42 +882,12 @@ const char* describe_key(uint32_t key) {
   if (const char* name = named_lv_key(key)) {
     return name;
   }
-  if (key == ' ') {
-    return "Space";
-  }
-  if (key == '\t') {
-    return "Tab";
+  if (const char* name = lookup_name(K_SPECIAL_KEY_NAMES, key)) {
+    return name;
   }
   if (key >= 32 && key <= 126) {
     std::snprintf(buffer, sizeof(buffer), "%c", static_cast<char>(key));
     return buffer;
-  }
-  if (key == K_KEY_CTRL) {
-    return "Ctrl";
-  }
-  if (key == K_KEY_SHIFT) {
-    return "Shift";
-  }
-  if (key == K_KEY_SUPER) {
-    return "Super";
-  }
-  if (key == K_KEY_ALT) {
-    return "Alt";
-  }
-  if (key == K_KEY_FN) {
-    return "Fn";
-  }
-  if (key == K_KEY_SYM) {
-    return "Sym";
-  }
-  if (key == K_KEY_INSERT) {
-    return "Insert";
-  }
-  if (key == K_KEY_PAGE_UP) {
-    return "PageUp";
-  }
-  if (key == K_KEY_PAGE_DOWN) {
-    return "PageDown";
   }
   if ((key & K_KEY_F_BASE) == K_KEY_F_BASE) {
     std::snprintf(buffer, sizeof(buffer), "F%u", key & ~K_KEY_F_BASE);

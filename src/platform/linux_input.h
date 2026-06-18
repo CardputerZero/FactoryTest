@@ -9,6 +9,7 @@ namespace platform {
 
 constexpr size_t K_NAV_KEY_COUNT = 5;
 using KeyListener                = void (*)(uint32_t key, const char* key_name, void* user_data);
+using LongKeyListener            = void (*)(uint32_t key, const char* key_name, void* user_data);
 using GlobalKeyListener          = void (*)(uint32_t    key,
                                             const char* key_name,
                                             bool        long_pressed,
@@ -25,6 +26,8 @@ void        register_nav_button(size_t index, lv_obj_t* button);
 void        unregister_nav_button(size_t index, lv_obj_t* button);
 void        set_key_listener(KeyListener listener, void* user_data);
 void        clear_key_listener(KeyListener listener, void* user_data);
+void        set_long_key_listener(LongKeyListener listener, void* user_data);
+void        clear_long_key_listener(LongKeyListener listener, void* user_data);
 void        set_global_key_listener(GlobalKeyListener listener, void* user_data);
 void        clear_global_key_listener(GlobalKeyListener listener, void* user_data);
 void        set_nav_trigger_mode(NavTriggerMode mode);
