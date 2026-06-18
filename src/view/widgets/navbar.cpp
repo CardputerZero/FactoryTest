@@ -36,12 +36,14 @@ NavBar::NavBar(lv_obj_t* parent,
                viewmodel::AppViewModel& app_view_model,
                app::AssetManager& assets,
                viewmodel::LcdTestViewModel* lcd_view_model,
-               viewmodel::StartMenuViewModel* start_menu_view_model)
+               viewmodel::StartMenuViewModel* start_menu_view_model,
+               viewmodel::ConnectivityTestViewModel* connectivity_view_model)
     : BaseWidgets(parent),
       app_view_model_(app_view_model),
       assets_(assets),
       lcd_view_model_(lcd_view_model),
-      start_menu_view_model_(start_menu_view_model) {}
+      start_menu_view_model_(start_menu_view_model),
+      connectivity_view_model_(connectivity_view_model) {}
 
 NavBar::~NavBar() {
   lv_async_call_cancel(update_icons_async_cb, this);
@@ -63,6 +65,10 @@ NavBar::~NavBar() {
   if (brightness_observer_) {
     lv_observer_remove(brightness_observer_);
     brightness_observer_ = nullptr;
+  }
+  if (connectivity_page_observer_) {
+    lv_observer_remove(connectivity_page_observer_);
+    connectivity_page_observer_ = nullptr;
   }
   if (start_exit_overlay_ && lv_obj_is_valid(start_exit_overlay_)) {
     lv_obj_delete(start_exit_overlay_);
@@ -102,6 +108,12 @@ void NavBar::build() {
                                                  lcd_view_model_->brightness_test_active_subject(),
                                                  update_icons_cb,
                                                  this);
+  }
+  if (connectivity_view_model_) {
+    connectivity_page_observer_ = reactive::observe_obj(core_obj_,
+                                                        connectivity_view_model_->active_page_subject(),
+                                                        update_icons_cb,
+                                                        this);
   }
   update_icon_buttons_();
 }
@@ -145,7 +157,7 @@ void NavBar::update_icon_buttons_() {
       {ICON_CHECK_SQUARE, confirm_start_menu_cb, LV_EVENT_CLICKED, this},
   }};
   const bool brightness_active = lcd_view_model_ && lcd_view_model_->is_brightness_test_active();
-  std::array<IconSpec, 5> lcd_icons         = {{
+  std::array<IconSpec, 5> lcd_icons          = {{
       {ICON_ARROW_U_UP_LEFT, request_back_or_quit_cb, LV_EVENT_CLICKED, this},
       {brightness_active ? ICON_MINUS : "",
        brightness_active ? decrease_lcd_brightness_cb : nullptr,
@@ -161,23 +173,42 @@ void NavBar::update_icon_buttons_() {
        this},
       {"", nullptr, LV_EVENT_CLICKED, nullptr},
   }};
-  std::array<IconSpec, 5> placeholder_icons = {{
+  std::array<IconSpec, 5> placeholder_icons  = {{
       {ICON_ARROW_U_UP_LEFT, request_back_or_quit_cb, LV_EVENT_CLICKED, this},
       {"", nullptr, LV_EVENT_CLICKED, nullptr},
       {"", nullptr, LV_EVENT_CLICKED, nullptr},
       {"", nullptr, LV_EVENT_CLICKED, nullptr},
       {ICON_CHECK_SQUARE, complete_test_cb, LV_EVENT_CLICKED, &app_view_model_},
   }};
+  std::array<IconSpec, 5> connectivity_icons = {{
+      {ICON_ARROW_U_UP_LEFT, request_back_or_quit_cb, LV_EVENT_CLICKED, this},
+      {"", nullptr, LV_EVENT_CLICKED, nullptr},
+      {"", nullptr, LV_EVENT_CLICKED, nullptr},
+      {"", nullptr, LV_EVENT_CLICKED, nullptr},
+      {ICON_CHECK_SQUARE, complete_test_cb, LV_EVENT_CLICKED, &app_view_model_},
+  }};
+  std::array<IconSpec, 5> link_test_icons = {{
+      {ICON_ARROW_U_UP_LEFT, request_back_or_quit_cb, LV_EVENT_CLICKED, this},
+      {ICON_ARROWS_CLOCKWISE, restart_link_test_cb, LV_EVENT_CLICKED, this},
+      {"", nullptr, LV_EVENT_CLICKED, nullptr},
+      {ICON_GEAR_FINE, show_link_settings_cb, LV_EVENT_CLICKED, this},
+      {ICON_CHECK_SQUARE, complete_test_cb, LV_EVENT_CLICKED, &app_view_model_},
+  }};
 
   const auto current_page  = app_view_model_.current_page();
   const bool keyboard_page = current_page == model::AppPage::KEYBOARD_TEST;
+  const bool link_test_page =
+      current_page == model::AppPage::CONNECTIVITY_TEST && connectivity_view_model_ &&
+      connectivity_view_model_->active_page() == model::ConnectivitySubPage::LINK_TEST;
   if (current_page != model::AppPage::START) {
     reset_start_exit_hold_();
   }
-  const auto& icons = current_page == model::AppPage::START           ? start_icons
-                      : current_page == model::AppPage::KEYBOARD_TEST ? keyboard_icons
-                      : current_page == model::AppPage::LCD_TEST      ? lcd_icons
-                                                                      : placeholder_icons;
+  const auto& icons = current_page == model::AppPage::START               ? start_icons
+                      : current_page == model::AppPage::KEYBOARD_TEST     ? keyboard_icons
+                      : current_page == model::AppPage::LCD_TEST          ? lcd_icons
+                      : link_test_page                                    ? link_test_icons
+                      : current_page == model::AppPage::CONNECTIVITY_TEST ? connectivity_icons
+                                                                          : placeholder_icons;
   for (size_t i = 0; i < icon_buttons_.size(); ++i) {
     auto& button = icon_buttons_[i];
     if (!button) {
@@ -199,6 +230,8 @@ void NavBar::update_icon_buttons_() {
     lv_obj_remove_event_cb(button->root(), advance_lcd_color_cb);
     lv_obj_remove_event_cb(button->root(), decrease_lcd_brightness_cb);
     lv_obj_remove_event_cb(button->root(), increase_lcd_brightness_cb);
+    lv_obj_remove_event_cb(button->root(), restart_link_test_cb);
+    lv_obj_remove_event_cb(button->root(), show_link_settings_cb);
     lv_obj_remove_event_cb(button->root(), start_hold_progress_cb);
     lv_obj_remove_event_cb(button->root(), reset_hold_progress_cb);
 
@@ -271,7 +304,7 @@ bool NavBar::can_trigger_lcd_brightness_() {
 
 bool NavBar::can_complete_lcd_test_() {
   return !has_lcd_color_trigger_ ||
-      lv_tick_elaps(last_lcd_color_trigger_at_) >= K_LCD_COMPLETE_LOCKOUT_MS;
+         lv_tick_elaps(last_lcd_color_trigger_at_) >= K_LCD_COMPLETE_LOCKOUT_MS;
 }
 
 bool NavBar::can_start_exit_() const {
@@ -429,6 +462,20 @@ void NavBar::increase_lcd_brightness_cb(lv_event_t* event) {
   auto* nav_bar = static_cast<NavBar*>(lv_event_get_user_data(event));
   if (nav_bar && nav_bar->lcd_view_model_ && nav_bar->can_trigger_lcd_brightness_()) {
     nav_bar->lcd_view_model_->increase_brightness();
+  }
+}
+
+void NavBar::restart_link_test_cb(lv_event_t* event) {
+  auto* nav_bar = static_cast<NavBar*>(lv_event_get_user_data(event));
+  if (nav_bar && nav_bar->connectivity_view_model_) {
+    nav_bar->connectivity_view_model_->request_link_restart();
+  }
+}
+
+void NavBar::show_link_settings_cb(lv_event_t* event) {
+  auto* nav_bar = static_cast<NavBar*>(lv_event_get_user_data(event));
+  if (nav_bar && nav_bar->connectivity_view_model_) {
+    nav_bar->connectivity_view_model_->request_link_settings();
   }
 }
 

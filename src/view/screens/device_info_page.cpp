@@ -29,6 +29,7 @@ constexpr int32_t K_BOUNCE_OFFSET   = 14;
 constexpr uint32_t K_REFRESH_MS     = 5000;
 constexpr uint32_t K_BOUNCE_BACK_MS = 120;
 constexpr const char* K_EMPTY_VALUE = "--";
+constexpr std::size_t K_SERIAL_NUMBER_FIELD_INDEX = 2;
 
 const char* field_icon(std::size_t index) {
   static constexpr const char* ICONS[] = {
@@ -114,7 +115,8 @@ void DeviceInfoPage::build_content(lv_obj_t* content) {
         key_font ? key_font : &lv_font_montserrat_12,
         value_font ? value_font : &lv_font_montserrat_12,
         K_CARD_WIDTH,
-        K_CARD_HEIGHT);
+        K_CARD_HEIGHT,
+        i == K_SERIAL_NUMBER_FIELD_INDEX ? LV_LABEL_LONG_SCROLL : LV_LABEL_LONG_CLIP);
     card->build();
     cards_.push_back(std::move(card));
   }

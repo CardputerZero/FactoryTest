@@ -16,7 +16,7 @@
 #include <utility>
 
 #ifndef APP_NAME
-#define APP_NAME "factory_test_app"
+#define APP_NAME "factory_test"
 #endif
 
 #ifndef APP_CMAKE_ASSETS_ROOT

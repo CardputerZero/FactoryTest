@@ -49,6 +49,20 @@ bool read_text_file(const std::filesystem::path& path, std::string& value) {
   return !value.empty();
 }
 
+bool read_devicetree_string(const std::filesystem::path& path, std::string& value) {
+  std::ifstream file(path, std::ios::binary);
+  if (!file) {
+    return false;
+  }
+
+  std::ostringstream buffer;
+  buffer << file.rdbuf();
+  value = buffer.str();
+  value.erase(std::remove(value.begin(), value.end(), '\0'), value.end());
+  value = trim(value);
+  return !value.empty();
+}
+
 std::string read_or_empty(const std::filesystem::path& path) {
   std::string value;
   return read_text_file(path, value) ? value : K_EMPTY_VALUE;
@@ -56,37 +70,15 @@ std::string read_or_empty(const std::filesystem::path& path) {
 
 std::string read_device_model() { return "CardputerZero"; }
 
-std::string read_device_sn() { return "0608106478"; }
-
-std::string read_cpuinfo_field(const std::string& key) {
-  std::ifstream file("/proc/cpuinfo");
-  std::string line;
-  while (std::getline(file, line)) {
-    const auto colon = line.find(':');
-    if (colon == std::string::npos) {
-      continue;
-    }
-
-    if (trim(line.substr(0, colon)) == key) {
-      return trim(line.substr(colon + 1));
-    }
+std::string read_soc_serial_number() {
+  std::string value;
+  if (read_devicetree_string("/sys/firmware/devicetree/base/serial-number", value)) {
+    return value;
   }
   return K_EMPTY_VALUE;
 }
 
 std::string read_hardware_revision() { return read_or_empty("/proc/cardputerzero_hw_id"); }
-
-std::string read_soc_id() {
-  std::string value;
-  if (read_text_file("/sys/devices/soc0/soc_id", value)) {
-    return value;
-  }
-  if (read_text_file("/sys/devices/soc0/machine", value)) {
-    return value;
-  }
-  value = read_cpuinfo_field("Hardware");
-  return value.empty() ? K_EMPTY_VALUE : value;
-}
 
 std::string format_bytes(double bytes) {
   constexpr const char* units[] = {"B", "KB", "MB", "GB", "TB"};
@@ -252,8 +244,7 @@ std::vector<DeviceInfoField> read_device_info_fields() {
   return {
       {"Model", read_device_model()},
       {"Hardware Rev", read_hardware_revision()},
-      {"Serial Number", read_device_sn()},
-      {"SoC ID", read_soc_id()},
+      {"Serial Number", read_soc_serial_number()},
       {"RAM", read_ram()},
       {"Storage", read_storage()},
       {"MAC", read_mac()},

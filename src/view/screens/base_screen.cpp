@@ -15,11 +15,13 @@ namespace screen {
 BaseScreen::BaseScreen(viewmodel::AppViewModel& app_view_model,
                        app::AssetManager& assets,
                        viewmodel::LcdTestViewModel* lcd_view_model,
-                       viewmodel::StartMenuViewModel* start_menu_view_model)
+                       viewmodel::StartMenuViewModel* start_menu_view_model,
+                       viewmodel::ConnectivityTestViewModel* connectivity_view_model)
     : app_view_model_(app_view_model),
       assets_(assets),
       lcd_view_model_(lcd_view_model),
-      start_menu_view_model_(start_menu_view_model) {}
+      start_menu_view_model_(start_menu_view_model),
+      connectivity_view_model_(connectivity_view_model) {}
 
 BaseScreen::~BaseScreen() {
   title_bar_.reset();
@@ -48,7 +50,8 @@ void BaseScreen::init() {
                                                      app_view_model_,
                                                      assets_,
                                                      lcd_view_model_,
-                                                     start_menu_view_model_);
+                                                     start_menu_view_model_,
+                                                     connectivity_view_model_);
   nav_bar_->build();
 
   content_ = lv_obj_create(root_);

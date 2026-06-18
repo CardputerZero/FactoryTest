@@ -7,13 +7,13 @@ This repository holds the factory test application of CardputerZero.
 + Download the debian release
 
 ```
-wget https://github.com/CardputerZero/FactoryTest/releases/download/0.0.1/FactoryTestApp_0.0.1_m5stack1_arm64.deb
+wget https://github.com/CardputerZero/FactoryTest/releases/download/0.0.1/FactoryTest_0.0.1_m5stack1_arm64.deb
 ```
 
 + Install the package
 
 ```
-sudo dpkg -i FactoryTestApp_0.0.1_m5stack1_arm64.deb
+sudo dpkg -i FactoryTest_0.0.1_m5stack1_arm64.deb
 ```
 
 + Fix dependency issue

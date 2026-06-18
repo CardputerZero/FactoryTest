@@ -40,6 +40,8 @@ const char* icon_for_page(model::ConnectivitySubPage page) {
       return view::ICON_SCAN;
     case model::ConnectivitySubPage::SPI:
       return view::ICON_LINK_SIMPLE_HOR;
+    case model::ConnectivitySubPage::LINK_TEST:
+      return view::ICON_GLOBE;
     case model::ConnectivitySubPage::MENU:
     default:
       return "";
@@ -52,7 +54,7 @@ ConnectivityTestPage::ConnectivityTestPage(
     viewmodel::AppViewModel& app_view_model,
     viewmodel::ConnectivityTestViewModel& connectivity_view_model,
     app::AssetManager& assets)
-    : BaseScreen(app_view_model, assets),
+    : BaseScreen(app_view_model, assets, nullptr, nullptr, &connectivity_view_model),
       connectivity_view_model_(connectivity_view_model) {
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
   connectivity_view_model_.show_menu();
@@ -72,6 +74,14 @@ ConnectivityTestPage::~ConnectivityTestPage() {
     lv_observer_remove(active_page_observer_handle_);
     active_page_observer_handle_ = nullptr;
   }
+  if (link_restart_observer_handle_) {
+    lv_observer_remove(link_restart_observer_handle_);
+    link_restart_observer_handle_ = nullptr;
+  }
+  if (link_settings_observer_handle_) {
+    lv_observer_remove(link_settings_observer_handle_);
+    link_settings_observer_handle_ = nullptr;
+  }
   if (loading_modal_timer_) {
     lv_timer_delete(loading_modal_timer_);
     loading_modal_timer_ = nullptr;
@@ -84,6 +94,7 @@ ConnectivityTestPage::~ConnectivityTestPage() {
   usb_view_.reset();
   i2c_view_.reset();
   spi_view_.reset();
+  link_view_.reset();
 }
 
 void ConnectivityTestPage::build_content(lv_obj_t* content) {
@@ -155,6 +166,16 @@ void ConnectivityTestPage::build_content(lv_obj_t* content) {
                             connectivity_view_model_.active_page_subject(),
                             active_page_observer,
                             this);
+  link_restart_observer_handle_ =
+      reactive::observe_obj(plane_,
+                            connectivity_view_model_.link_restart_request_subject(),
+                            link_restart_request_observer,
+                            this);
+  link_settings_observer_handle_ =
+      reactive::observe_obj(plane_,
+                            connectivity_view_model_.link_settings_request_subject(),
+                            link_settings_request_observer,
+                            this);
   show_page_(connectivity_view_model_.active_page(), false);
 }
 
@@ -181,6 +202,8 @@ std::size_t ConnectivityTestPage::viewport_index_(model::ConnectivitySubPage pag
       return 5;
     case model::ConnectivitySubPage::SPI:
       return 6;
+    case model::ConnectivitySubPage::LINK_TEST:
+      return 7;
     case model::ConnectivitySubPage::MENU:
     default:
       return 0;
@@ -259,6 +282,9 @@ void ConnectivityTestPage::reset_subpage_views_(model::ConnectivitySubPage keep_
   if (keep_page != model::ConnectivitySubPage::SPI) {
     spi_view_.reset();
   }
+  if (keep_page != model::ConnectivitySubPage::LINK_TEST) {
+    link_view_.reset();
+  }
 }
 
 void ConnectivityTestPage::ensure_subpage_view_(model::ConnectivitySubPage page) {
@@ -294,6 +320,11 @@ void ConnectivityTestPage::ensure_subpage_view_(model::ConnectivitySubPage page)
       break;
     case model::ConnectivitySubPage::SPI:
       if (spi_view_) {
+        return;
+      }
+      break;
+    case model::ConnectivitySubPage::LINK_TEST:
+      if (link_view_) {
         return;
       }
       break;
@@ -339,6 +370,11 @@ void ConnectivityTestPage::build_subpage_view_(lv_obj_t* viewport,
       spi_view_ = std::make_unique<SpiConnectivityView>(connectivity_view_model_.spi_view_model());
       spi_view_->build(viewport, app_view_model_ref_(), assets_ref_());
       break;
+    case model::ConnectivitySubPage::LINK_TEST:
+      link_view_ =
+          std::make_unique<LinkConnectivityView>(connectivity_view_model_.link_view_model());
+      link_view_->build(viewport, root(), app_view_model_ref_(), assets_ref_());
+      break;
     case model::ConnectivitySubPage::MENU:
     default:
       break;
@@ -362,10 +398,11 @@ void ConnectivityTestPage::show_loading_modal_(model::ConnectivitySubPage page) 
                        reactive::ThemeRole::BUTTON);
 
   auto* label       = lv_label_create(loading_modal_);
-  const char* title = page == model::ConnectivitySubPage::I2C        ? "Scanning I2C..."
-                      : page == model::ConnectivitySubPage::SPI      ? "Scanning SPI..."
-                      : page == model::ConnectivitySubPage::ETHERNET ? "Reading Ethernet..."
-                                                                     : "Scanning...";
+  const char* title = page == model::ConnectivitySubPage::I2C         ? "Scanning I2C..."
+                      : page == model::ConnectivitySubPage::SPI       ? "Scanning SPI..."
+                      : page == model::ConnectivitySubPage::LINK_TEST ? "Testing Link..."
+                      : page == model::ConnectivitySubPage::ETHERNET  ? "Reading Ethernet..."
+                                                                      : "Scanning...";
   lv_label_set_text(label, title);
   auto* font = assets_ref_().load_font("inter-semibold.ttf", 12);
   lv_obj_set_style_text_font(label, font ? font : &lv_font_montserrat_12, 0);
@@ -395,6 +432,22 @@ void ConnectivityTestPage::key_listener(uint32_t key, const char* key_name, void
   auto* page = static_cast<ConnectivityTestPage*>(user_data);
   if (!page) {
     return;
+  }
+
+  const bool link_page_active =
+      page->connectivity_view_model_.active_page() == model::ConnectivitySubPage::LINK_TEST;
+  if (link_page_active && page->link_view_) {
+    if (page->link_view_->handle_key(key)) {
+      return;
+    }
+    if (key == '5' || key == 'r' || key == 'R') {
+      page->link_view_->restart();
+      return;
+    }
+    if (key == '7' || key == 's' || key == 'S') {
+      page->link_view_->show_config_dialog();
+      return;
+    }
   }
 
   switch (key) {
@@ -454,6 +507,28 @@ void ConnectivityTestPage::active_page_observer(lv_observer_t* observer, lv_subj
   auto* page = static_cast<ConnectivityTestPage*>(lv_observer_get_user_data(observer));
   if (page) {
     page->show_page_(static_cast<model::ConnectivitySubPage>(lv_subject_get_int(subject)));
+  }
+}
+
+void ConnectivityTestPage::link_restart_request_observer(lv_observer_t* observer,
+                                                         lv_subject_t* subject) {
+  LV_UNUSED(subject);
+
+  auto* page = static_cast<ConnectivityTestPage*>(lv_observer_get_user_data(observer));
+  if (page && page->link_view_ && !page->link_view_->dialog_visible() &&
+      page->connectivity_view_model_.active_page() == model::ConnectivitySubPage::LINK_TEST) {
+    page->link_view_->restart();
+  }
+}
+
+void ConnectivityTestPage::link_settings_request_observer(lv_observer_t* observer,
+                                                          lv_subject_t* subject) {
+  LV_UNUSED(subject);
+
+  auto* page = static_cast<ConnectivityTestPage*>(lv_observer_get_user_data(observer));
+  if (page && page->link_view_ &&
+      page->connectivity_view_model_.active_page() == model::ConnectivitySubPage::LINK_TEST) {
+    page->link_view_->show_config_dialog();
   }
 }
 

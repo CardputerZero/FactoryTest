@@ -15,12 +15,17 @@
 #include "linux_input.h"
 #include "logger.h"
 #include "screen_manager.h"
+#include "screenshot_service.h"
 #include "start_menu_viewmodel.h"
 #include "theme.h"
+
+#include <cstddef>
+#include <cstring>
 
 #if !USE_DESKTOP
 #if APP_USE_DRM
 #include "src/drivers/display/drm/lv_linux_drm.h"
+#include <unistd.h>
 #else
 #include "src/drivers/display/fb/lv_linux_fbdev.h"
 #endif
@@ -31,7 +36,7 @@
 #endif
 
 #ifndef APP_DRM_DEVICE
-#define APP_DRM_DEVICE "/dev/dri/card0"
+#define APP_DRM_DEVICE "/dev/dri/card1"
 #endif
 
 #ifndef APP_DRM_CONNECTOR_ID
@@ -56,20 +61,92 @@ void dark_mode_observer(lv_observer_t* observer, lv_subject_t* subject) {
 
 bool is_theme_toggle_key(uint32_t key) { return key == 't' || key == 'T'; }
 
+bool is_screenshot_key(uint32_t key) { return key == 'p' || key == 'P'; }
+
+#if !USE_DESKTOP && APP_USE_DRM
+bool is_duplicate_candidate(const char* candidate, const char* const* candidates, std::size_t count) {
+  if (!candidate || candidate[0] == '\0') {
+    return true;
+  }
+
+  for (std::size_t i = 0; i < count; ++i) {
+    if (candidates[i] && std::strcmp(candidate, candidates[i]) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+lv_display_t* try_drm_display(const char* device_path) {
+  if (!device_path || device_path[0] == '\0') {
+    return nullptr;
+  }
+
+  if (access(device_path, R_OK | W_OK) != 0) {
+    LOG_DEBUG("DRM display device is not accessible: {}", device_path);
+    return nullptr;
+  }
+
+  auto* display = lv_linux_drm_create();
+  if (!display) {
+    LOG_ERROR("failed to create DRM display object for {}", device_path);
+    return nullptr;
+  }
+
+  LOG_INFO("trying DRM display device: {} connector={}", device_path, APP_DRM_CONNECTOR_ID);
+  if (lv_linux_drm_set_file(display, device_path, APP_DRM_CONNECTOR_ID) == LV_RESULT_OK) {
+    LOG_INFO("using DRM display device: {} connector={}", device_path, APP_DRM_CONNECTOR_ID);
+    return display;
+  }
+
+  lv_display_delete(display);
+  LOG_WARN("DRM display device failed: {}", device_path);
+  return nullptr;
+}
+
+lv_display_t* init_drm_display() {
+  const char* candidates[] = {
+      APP_DRM_DEVICE,
+      "/dev/dri/card1",
+      "/dev/dri/card0",
+      "/dev/dri/card2",
+      "/dev/dri/card3",
+  };
+  const char* tried[sizeof(candidates) / sizeof(candidates[0])] = {};
+  std::size_t tried_count = 0;
+
+  for (const char* candidate : candidates) {
+    if (is_duplicate_candidate(candidate, tried, tried_count)) {
+      continue;
+    }
+    tried[tried_count++] = candidate;
+
+    if (auto* display = try_drm_display(candidate)) {
+      return display;
+    }
+  }
+
+  return nullptr;
+}
+#endif
+
 void global_key_listener(uint32_t key, const char* key_name, bool long_pressed, void* user_data) {
   LV_UNUSED(key_name);
 
   auto* app_view_model = static_cast<viewmodel::AppViewModel*>(user_data);
-  if (!app_view_model || !is_theme_toggle_key(key)) {
+  if (!app_view_model) {
     return;
   }
 
   const bool keyboard_page = app_view_model->current_page() == model::AppPage::KEYBOARD_TEST;
-  if ((keyboard_page && long_pressed) || (!keyboard_page && !long_pressed)) {
+  const bool should_handle = (keyboard_page && long_pressed) || (!keyboard_page && !long_pressed);
+  if (is_theme_toggle_key(key) && should_handle) {
     app_view_model->toggle_dark_mode();
     LOG_DEBUG("theme toggled from {} T key, dark_mode={}",
               keyboard_page ? "keyboard long-press" : "global",
               app_view_model->is_dark_mode());
+  } else if (is_screenshot_key(key) && should_handle) {
+    platform::screenshot::capture_active_screen_with_overlay();
   }
 }
 
@@ -87,13 +164,8 @@ lv_display_t* init_display() {
   platform::attach_key_router(keyboard);
   return display;
 #elif APP_USE_DRM
-  auto* display = lv_linux_drm_create();
+  auto* display = init_drm_display();
   if (!display) {
-    return nullptr;
-  }
-
-  if (lv_linux_drm_set_file(display, APP_DRM_DEVICE, APP_DRM_CONNECTOR_ID) != LV_RESULT_OK) {
-    lv_display_delete(display);
     return nullptr;
   }
 

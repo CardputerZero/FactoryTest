@@ -84,6 +84,18 @@ class SpiConnectivityViewModel {
   model::SpiConnectivityModel model_{};
 };
 
+class LinkConnectivityViewModel {
+ public:
+  const char* title_text() const;
+  bool refresh(bool force_refresh = false);
+  const model::LinkTestSnapshot& snapshot() const;
+  const model::LinkTestSettings& settings() const;
+  void set_settings(model::LinkTestSettings settings);
+
+ private:
+  model::LinkConnectivityModel model_{};
+};
+
 class ConnectivityTestViewModel {
  public:
   ConnectivityTestViewModel();
@@ -94,6 +106,8 @@ class ConnectivityTestViewModel {
 
   lv_subject_t* selected_index_subject();
   lv_subject_t* active_page_subject();
+  lv_subject_t* link_restart_request_subject();
+  lv_subject_t* link_settings_request_subject();
   const std::array<model::ConnectivityMenuItem, model::ConnectivityTestModel::K_ITEM_COUNT>& items()
       const;
   std::size_t selected_index() const;
@@ -106,6 +120,8 @@ class ConnectivityTestViewModel {
   void show_menu();
   bool request_back();
   bool refresh_active();
+  void request_link_restart();
+  void request_link_settings();
 
   WifiConnectivityViewModel& wifi_view_model();
   BluetoothConnectivityViewModel& bluetooth_view_model();
@@ -113,6 +129,7 @@ class ConnectivityTestViewModel {
   UsbConnectivityViewModel& usb_view_model();
   I2cConnectivityViewModel& i2c_view_model();
   SpiConnectivityViewModel& spi_view_model();
+  LinkConnectivityViewModel& link_view_model();
 
  protected:
   void publish_all_();
@@ -121,12 +138,17 @@ class ConnectivityTestViewModel {
   model::ConnectivityTestModel model_{};
   reactive::IntSubject selected_index_subject_;
   reactive::IntSubject active_page_subject_;
+  reactive::IntSubject link_restart_request_subject_{0};
+  reactive::IntSubject link_settings_request_subject_{0};
+  int32_t link_restart_request_count_{0};
+  int32_t link_settings_request_count_{0};
   WifiConnectivityViewModel wifi_view_model_{};
   BluetoothConnectivityViewModel bluetooth_view_model_{};
   EthernetConnectivityViewModel ethernet_view_model_{};
   UsbConnectivityViewModel usb_view_model_{};
   I2cConnectivityViewModel i2c_view_model_{};
   SpiConnectivityViewModel spi_view_model_{};
+  LinkConnectivityViewModel link_view_model_{};
 };
 
 }  // namespace viewmodel

@@ -11,6 +11,7 @@
 
 #include "app_viewmodel.h"
 #include "base_widget.h"
+#include "connectivity_test_viewmodel.h"
 #include "icon_button.h"
 #include "lcd_test_viewmodel.h"
 #include "start_menu_viewmodel.h"
@@ -27,7 +28,8 @@ class NavBar : public BaseWidgets {
          viewmodel::AppViewModel& app_view_model,
          app::AssetManager& assets,
          viewmodel::LcdTestViewModel* lcd_view_model          = nullptr,
-         viewmodel::StartMenuViewModel* start_menu_view_model = nullptr);
+         viewmodel::StartMenuViewModel* start_menu_view_model = nullptr,
+         viewmodel::ConnectivityTestViewModel* connectivity_view_model = nullptr);
   ~NavBar() override;
 
   void build() override;
@@ -54,6 +56,8 @@ class NavBar : public BaseWidgets {
   static void advance_lcd_color_cb(lv_event_t* event);
   static void decrease_lcd_brightness_cb(lv_event_t* event);
   static void increase_lcd_brightness_cb(lv_event_t* event);
+  static void restart_link_test_cb(lv_event_t* event);
+  static void show_link_settings_cb(lv_event_t* event);
   static void start_hold_progress_cb(lv_event_t* event);
   static void reset_hold_progress_cb(lv_event_t* event);
   static void update_icons_cb(lv_observer_t* observer, lv_subject_t* subject);
@@ -64,11 +68,13 @@ class NavBar : public BaseWidgets {
   app::AssetManager& assets_;
   viewmodel::LcdTestViewModel* lcd_view_model_{nullptr};
   viewmodel::StartMenuViewModel* start_menu_view_model_{nullptr};
+  viewmodel::ConnectivityTestViewModel* connectivity_view_model_{nullptr};
   std::array<std::unique_ptr<IconButton>, 5> icon_buttons_{};
   lv_font_t* icon_font_{nullptr};
   lv_observer_t* page_observer_{nullptr};
   lv_observer_t* app_theme_observer_{nullptr};
   lv_observer_t* brightness_observer_{nullptr};
+  lv_observer_t* connectivity_page_observer_{nullptr};
   bool icon_update_scheduled_{false};
   uint32_t last_lcd_color_trigger_at_{0};
   uint32_t last_lcd_brightness_trigger_at_{0};

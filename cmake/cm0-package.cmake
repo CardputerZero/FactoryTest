@@ -7,7 +7,7 @@
 
 include(GNUInstallDirs)
 
-set(APP_DISPLAY_NAME "Factory Test" CACHE STRING "Human-readable application name used by launchers and package filename")
+set(APP_DISPLAY_NAME "FactoryTest" CACHE STRING "Human-readable application name used by launchers and package filename")
 set(APP_DEBIAN_REVISION "m5stack1" CACHE STRING "Debian package revision/vendor suffix")
 set(APP_DEBIAN_ARCHITECTURE "arm64" CACHE STRING "Debian package architecture")
 set(APP_MAINTAINER "M5Stack <support@m5stack.com>" CACHE STRING "Debian package maintainer")
@@ -16,20 +16,20 @@ set(APP_INSTALL_SYSTEMD_SERVICE ON CACHE BOOL "Install a systemd service file fo
 
 set(APP_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/package")
 configure_file(
-    "${CMAKE_CURRENT_LIST_DIR}/templates/factory_test_app.desktop.in"
+    "${CMAKE_CURRENT_LIST_DIR}/templates/factory_test.desktop.in"
     "${APP_GENERATED_DIR}/${PROJECT_NAME}.desktop"
     @ONLY
 )
 
 if(APP_INSTALL_SYSTEMD_SERVICE)
     configure_file(
-        "${CMAKE_CURRENT_LIST_DIR}/templates/factory_test_app.service.in"
+        "${CMAKE_CURRENT_LIST_DIR}/templates/factory_test.service.in"
         "${APP_GENERATED_DIR}/${PROJECT_NAME}.service"
         @ONLY
     )
 endif()
 
-if(APP_USE_LIBNM)
+if(APP_USE_LIBNM OR APP_USE_LIBOPING)
     configure_file(
         "${CMAKE_CURRENT_LIST_DIR}/templates/factory-test-networkmanager.rules.in"
         "${APP_GENERATED_DIR}/50-${PROJECT_NAME}-networkmanager.rules"
@@ -72,7 +72,7 @@ if(APP_INSTALL_SYSTEMD_SERVICE)
     )
 endif()
 
-if(APP_USE_LIBNM)
+if(APP_USE_LIBNM OR APP_USE_LIBOPING)
     install(
         FILES "${APP_GENERATED_DIR}/50-${PROJECT_NAME}-networkmanager.rules"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/polkit-1/rules.d"
@@ -128,8 +128,17 @@ endif()
 if(APP_USE_LIBNM)
     list(APPEND APP_DEBIAN_PACKAGE_DEPENDS libnm0 network-manager polkitd)
 endif()
+if(APP_USE_LIBOPING)
+    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS polkitd)
+endif()
 if(APP_USE_LIBUDEV)
     list(APPEND APP_DEBIAN_PACKAGE_DEPENDS libudev1)
+endif()
+if(APP_USE_LIBIPERF)
+    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS libiperf0 libsctp1 "libssl3 | libssl3t64")
+endif()
+if(APP_USE_LIBOPING)
+    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS liboping0 iputils-ping)
 endif()
 if(APP_USE_BLUEZ)
     list(APPEND APP_DEBIAN_PACKAGE_DEPENDS bluez)

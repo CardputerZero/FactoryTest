@@ -6,7 +6,7 @@
 
 cmake_minimum_required(VERSION 3.23)
 
-project(factory_test_app VERSION 0.0.1 LANGUAGES C CXX)
+project(factory_test VERSION 0.0.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -18,7 +18,7 @@ set(APP_NAME "${PROJECT_NAME}" CACHE STRING "Application name used for installed
 set(APP_ASSETS_ROOT "" CACHE PATH "Optional runtime assets root. Expected subdirectories include fonts/")
 set(APP_KEY_INPUT_DEVICE "" CACHE STRING "Optional Linux evdev keyboard/keypad device path, e.g. /dev/input/event0")
 set(APP_FRAMEBUFFER_DEVICE "/dev/fb0" CACHE STRING "Linux framebuffer device path used by embedded builds")
-set(APP_DRM_DEVICE "/dev/dri/card0" CACHE STRING "Linux DRM device path used when APP_USE_DRM=ON")
+set(APP_DRM_DEVICE "/dev/dri/card1" CACHE STRING "Linux DRM device path used when APP_USE_DRM=ON")
 set(APP_DRM_CONNECTOR_ID "-1" CACHE STRING "DRM connector id used when APP_USE_DRM=ON; -1 auto-selects")
 set(APP_USE_DRM OFF CACHE BOOL "Enable LVGL Linux DRM/KMS backend for embedded Linux builds")
 set(CM0_ALLOW_FETCH_DEPS ON CACHE BOOL "Allow downloading missing CM0 BSP/dependencies during cross builds")
@@ -27,6 +27,8 @@ set(APP_USE_LIBNM 0)
 set(APP_USE_BLUEZ 0)
 set(APP_USE_LIBUDEV 0)
 set(APP_USE_PIPEWIRE 0)
+set(APP_USE_LIBIPERF 0)
+set(APP_USE_LIBOPING 0)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "Export compile_commands.json" FORCE)
 
 include(FetchContent)
@@ -148,6 +150,29 @@ if(USE_DESKTOP)
                 message(WARNING "libpipewire-0.3 was not found; audio service will use fallback messages")
             endif()
         endif()
+    endif()
+
+    find_path(LIBIPERF_INCLUDE_DIR iperf_api.h)
+    find_library(LIBIPERF_LIBRARY iperf)
+    find_library(LIBSCTP_LIBRARY sctp)
+    if(LIBIPERF_INCLUDE_DIR AND LIBIPERF_LIBRARY AND LIBSCTP_LIBRARY)
+        list(APPEND PLATFORM_INCLUDE_DIR "${LIBIPERF_INCLUDE_DIR}")
+        list(APPEND PLATFORM_LIBS "${LIBIPERF_LIBRARY}" "${LIBSCTP_LIBRARY}")
+        set(APP_USE_LIBIPERF 1)
+        message(STATUS "libiperf link throughput backend enabled")
+    else()
+        message(WARNING "libiperf headers/library or libsctp dependency not found; link throughput test will use fallback messages")
+    endif()
+
+    find_path(LIBOPING_INCLUDE_DIR oping.h)
+    find_library(LIBOPING_LIBRARY oping)
+    if(LIBOPING_INCLUDE_DIR AND LIBOPING_LIBRARY)
+        list(APPEND PLATFORM_INCLUDE_DIR "${LIBOPING_INCLUDE_DIR}")
+        list(APPEND PLATFORM_LIBS "${LIBOPING_LIBRARY}")
+        set(APP_USE_LIBOPING 1)
+        message(STATUS "liboping ping backend enabled")
+    else()
+        message(WARNING "liboping headers/library not found; link ping test will use fallback messages")
     endif()
 
     set(LVGL_DESKTOP_DEPS ZLIB::ZLIB PNG::PNG ${JPEG_TARGET} Freetype::Freetype ${SDL2_TARGET})
@@ -384,6 +409,32 @@ else()
         message(WARNING "libpipewire-0.3 headers/library not found; audio service will use fallback messages")
     endif()
 
+    cm0_find_header(LIBIPERF_INCLUDE_DIR iperf_api.h "${CM0_SYSROOT}/usr/include")
+    cm0_find_library(LIBIPERF_LIBRARY iperf libiperf.so libiperf.a)
+    cm0_find_library(LIBSCTP_LIBRARY sctp libsctp.so libsctp.so.1)
+    if(LIBIPERF_INCLUDE_DIR AND LIBIPERF_LIBRARY AND LIBSCTP_LIBRARY)
+        cm0_add_imported_library(CM0::Libiperf "${LIBIPERF_LIBRARY}" "${LIBIPERF_INCLUDE_DIR}")
+        cm0_add_imported_library(CM0::Libsctp "${LIBSCTP_LIBRARY}" "${LIBIPERF_INCLUDE_DIR}")
+        list(APPEND PLATFORM_INCLUDE_DIR "${LIBIPERF_INCLUDE_DIR}")
+        list(APPEND PLATFORM_LIBS CM0::Libiperf CM0::Libsctp)
+        set(APP_USE_LIBIPERF 1)
+        message(STATUS "libiperf link throughput backend enabled")
+    else()
+        message(WARNING "libiperf headers/library or libsctp dependency not found; link throughput test will use fallback messages")
+    endif()
+
+    cm0_find_header(LIBOPING_INCLUDE_DIR oping.h "${CM0_SYSROOT}/usr/include")
+    cm0_find_library(LIBOPING_LIBRARY oping liboping.so liboping.a)
+    if(LIBOPING_INCLUDE_DIR AND LIBOPING_LIBRARY)
+        cm0_add_imported_library(CM0::Liboping "${LIBOPING_LIBRARY}" "${LIBOPING_INCLUDE_DIR}")
+        list(APPEND PLATFORM_INCLUDE_DIR "${LIBOPING_INCLUDE_DIR}")
+        list(APPEND PLATFORM_LIBS CM0::Liboping)
+        set(APP_USE_LIBOPING 1)
+        message(STATUS "liboping ping backend enabled")
+    else()
+        message(WARNING "liboping headers/library not found; link ping test will use fallback messages")
+    endif()
+
     set(LVGL_INCLUDE_DIR ${FREETYPE_INCLUDE_DIR} ${PNG_INCLUDE_DIR} ${JPEG_INCLUDE_DIR} ${ZLIB_INCLUDE_DIR})
     set(LVGL_LIBS CM0::Freetype CM0::PNG CM0::JPEG ZLIB::ZLIB)
     if(APP_USE_DRM)
@@ -411,8 +462,11 @@ target_compile_definitions(${PROJECT_NAME}_platform PUBLIC
     APP_USE_BLUEZ=${APP_USE_BLUEZ}
     APP_USE_LIBUDEV=${APP_USE_LIBUDEV}
     APP_USE_PIPEWIRE=${APP_USE_PIPEWIRE}
+    APP_USE_LIBIPERF=${APP_USE_LIBIPERF}
+    APP_USE_LIBOPING=${APP_USE_LIBOPING}
     APP_FRAMEBUFFER_DEVICE="${APP_FRAMEBUFFER_DEVICE}"
     APP_DRM_DEVICE="${APP_DRM_DEVICE}"
+    APP_DRM_CONNECTOR_ID=${APP_DRM_CONNECTOR_ID}
 )
 target_link_libraries(${PROJECT_NAME}_platform PUBLIC lvgl fmt::fmt Threads::Threads ${PLATFORM_LIBS})
 
@@ -469,6 +523,7 @@ target_compile_definitions(${PROJECT_NAME}_core PUBLIC
     APP_SOURCE_ASSETS_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/assets"
     APP_FRAMEBUFFER_DEVICE="${APP_FRAMEBUFFER_DEVICE}"
     APP_DRM_DEVICE="${APP_DRM_DEVICE}"
+    APP_DRM_CONNECTOR_ID=${APP_DRM_CONNECTOR_ID}
 )
 target_link_libraries(${PROJECT_NAME}_core PUBLIC lvgl logger ${PROJECT_NAME}_view ${PROJECT_NAME}_viewmodel ${PROJECT_NAME}_platform)
 

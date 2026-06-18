@@ -8,6 +8,8 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <filesystem>
+#include <string>
 
 #include "asset_manager.h"
 #include "bindings.h"
@@ -43,6 +45,17 @@ constexpr std::array<AxisRow, 9> K_AXIS_ROWS = {{{view::ICON_VECTOR_THREE, "Acce
                                                  {view::ICON_SCAN, "Mag Y", "G"},
                                                  {view::ICON_SCAN, "Mag Z", "G"}}};
 
+std::string sensor_label(const std::string& name, const std::string& path) {
+  const auto device_node = std::filesystem::path(path).filename().string();
+  if (name.empty()) {
+    return device_node;
+  }
+  if (device_node.empty()) {
+    return name;
+  }
+  return name + " (" + device_node + ")";
+}
+
 }  // namespace
 
 ImuTestPage::ImuTestPage(viewmodel::AppViewModel& app_view_model, app::AssetManager& assets)
@@ -50,7 +63,8 @@ ImuTestPage::ImuTestPage(viewmodel::AppViewModel& app_view_model, app::AssetMana
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
   has_imu_ = platform::imu::find_bmi270_device(device_, status_message_);
   if (has_imu_) {
-    status_message_ = device_.display_name + " + " + device_.mag_display_name + " ready";
+    status_message_ = sensor_label(device_.display_name, device_.iio_path) + " + " +
+                      sensor_label(device_.mag_display_name, device_.mag_iio_path) + " ready";
   }
   init();
   platform::set_key_listener(key_listener, this);

@@ -117,23 +117,12 @@ bool find_i2c_node(std::string& i2c_path) {
 
 bool is_iio_bmi270_node(const std::filesystem::path& path) {
   std::string name;
-  if (read_text_file(path / "name", name) && contains_bmi270(name)) {
-    return true;
-  }
-
-  return std::filesystem::exists(path / K_IIO_ACCEL_X_RAW) &&
-         std::filesystem::exists(path / K_IIO_GYRO_X_RAW);
+  return read_text_file(path / "name", name) && contains_bmi270(name);
 }
 
 bool is_iio_bmm150_node(const std::filesystem::path& path) {
   std::string name;
-  if (read_text_file(path / "name", name) && contains_bmm150(name)) {
-    return true;
-  }
-
-  return std::filesystem::exists(path / K_IIO_MAGN_X_RAW) &&
-         std::filesystem::exists(path / K_IIO_MAGN_Y_RAW) &&
-         std::filesystem::exists(path / K_IIO_MAGN_Z_RAW);
+  return read_text_file(path / "name", name) && contains_bmm150(name);
 }
 
 bool read_iio_display_name(const std::filesystem::path& path,
@@ -145,20 +134,10 @@ bool read_iio_display_name(const std::filesystem::path& path,
   return true;
 }
 
-bool find_iio_node(const char* preferred_path,
-                   bool (*matches)(const std::filesystem::path&),
+bool find_iio_node(bool (*matches)(const std::filesystem::path&),
                    const char* fallback_name,
                    std::string& iio_path,
                    std::string& display_name) {
-  if (preferred_path && preferred_path[0] != '\0') {
-    const std::filesystem::path preferred(preferred_path);
-    if (std::filesystem::exists(preferred) && matches(preferred)) {
-      iio_path = preferred.string();
-      read_iio_display_name(preferred, fallback_name, display_name);
-      return true;
-    }
-  }
-
   const std::filesystem::path root(K_BMI270_IIO_SYSFS_ROOT);
   if (!std::filesystem::exists(root)) {
     return false;
@@ -196,8 +175,7 @@ bool read_scaled_axis(const std::filesystem::path& root,
 bool find_bmi270_device(ImuDevice& device, std::string& error_message) {
   find_i2c_node(device.i2c_path);
 
-  if (!find_iio_node(K_BMI270_IIO_DEVICE_PATH,
-                     is_iio_bmi270_node,
+  if (!find_iio_node(is_iio_bmi270_node,
                      K_BMI270_DEVICE_NAME,
                      device.iio_path,
                      device.display_name)) {
@@ -205,8 +183,7 @@ bool find_bmi270_device(ImuDevice& device, std::string& error_message) {
     return false;
   }
 
-  if (!find_iio_node(K_BMM150_IIO_DEVICE_PATH,
-                     is_iio_bmm150_node,
+  if (!find_iio_node(is_iio_bmm150_node,
                      K_BMM150_DEVICE_NAME,
                      device.mag_iio_path,
                      device.mag_display_name)) {

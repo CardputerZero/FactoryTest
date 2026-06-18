@@ -9,6 +9,7 @@
 #include <memory>
 
 #include "app_viewmodel.h"
+#include "connectivity_test_viewmodel.h"
 #include "lcd_test_viewmodel.h"
 #include "lvgl.h"
 #include "navbar.h"
@@ -26,7 +27,8 @@ class BaseScreen {
   BaseScreen(viewmodel::AppViewModel& app_view_model,
              app::AssetManager& assets,
              viewmodel::LcdTestViewModel* lcd_view_model          = nullptr,
-             viewmodel::StartMenuViewModel* start_menu_view_model = nullptr);
+             viewmodel::StartMenuViewModel* start_menu_view_model = nullptr,
+             viewmodel::ConnectivityTestViewModel* connectivity_view_model = nullptr);
   virtual ~BaseScreen();
 
   BaseScreen(const BaseScreen&)            = delete;
@@ -47,6 +49,7 @@ class BaseScreen {
   app::AssetManager& assets_;
   viewmodel::LcdTestViewModel* lcd_view_model_{nullptr};
   viewmodel::StartMenuViewModel* start_menu_view_model_{nullptr};
+  viewmodel::ConnectivityTestViewModel* connectivity_view_model_{nullptr};
   lv_obj_t* root_{nullptr};
   lv_obj_t* content_{nullptr};
   std::unique_ptr<view::widgets::TitleBar> title_bar_{};

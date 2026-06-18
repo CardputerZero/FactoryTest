@@ -31,6 +31,8 @@ class ConnectivityTestPage : public BaseScreen {
   static void menu_item_clicked(std::size_t index, void* user_data);
   static void selected_observer(lv_observer_t* observer, lv_subject_t* subject);
   static void active_page_observer(lv_observer_t* observer, lv_subject_t* subject);
+  static void link_restart_request_observer(lv_observer_t* observer, lv_subject_t* subject);
+  static void link_settings_request_observer(lv_observer_t* observer, lv_subject_t* subject);
   static void loading_modal_timer_cb(lv_timer_t* timer);
   std::size_t viewport_index_(model::ConnectivitySubPage page) const;
   void show_page_(model::ConnectivitySubPage page, bool animate = true);
@@ -52,10 +54,13 @@ class ConnectivityTestPage : public BaseScreen {
   std::unique_ptr<UsbConnectivityView> usb_view_{};
   std::unique_ptr<I2cConnectivityView> i2c_view_{};
   std::unique_ptr<SpiConnectivityView> spi_view_{};
+  std::unique_ptr<LinkConnectivityView> link_view_{};
   lv_obj_t* loading_modal_{nullptr};
   lv_timer_t* loading_modal_timer_{nullptr};
   lv_observer_t* selected_observer_handle_{nullptr};
   lv_observer_t* active_page_observer_handle_{nullptr};
+  lv_observer_t* link_restart_observer_handle_{nullptr};
+  lv_observer_t* link_settings_observer_handle_{nullptr};
 };
 
 }  // namespace screen

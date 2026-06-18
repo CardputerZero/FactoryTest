@@ -24,6 +24,7 @@ enum class ConnectivitySubPage {
   USB       = 4,
   I2C       = 5,
   SPI       = 6,
+  LINK_TEST = 7,
 };
 
 struct ConnectivityMenuItem {
@@ -68,9 +69,35 @@ struct ConnectivityI2cRefreshResult {
   std::string error_message;
 };
 
+enum class LinkTestStatus {
+  IDLE,
+  RUNNING,
+  SUCCESS,
+  FAILED,
+};
+
+struct LinkTestMetric {
+  LinkTestStatus status{LinkTestStatus::IDLE};
+  double value{0.0};
+  std::string detail;
+};
+
+struct LinkTestSettings {
+  std::string iperf_host{"192.168.10.187"};
+  int iperf_port{5201};
+};
+
+struct LinkTestSnapshot {
+  LinkTestMetric ping;
+  LinkTestMetric wifi_iperf;
+  LinkTestMetric ethernet_iperf;
+  LinkTestSettings settings;
+  bool running{false};
+};
+
 class ConnectivityTestModel {
  public:
-  static constexpr std::size_t K_ITEM_COUNT = 6;
+  static constexpr std::size_t K_ITEM_COUNT = 7;
 
   const std::array<ConnectivityMenuItem, K_ITEM_COUNT>& items() const;
   std::size_t selected_index() const;
@@ -181,6 +208,23 @@ class SpiConnectivityModel {
   std::string error_message_{};
   std::future<ConnectivityScanRefreshResult> refresh_task_{};
   std::chrono::steady_clock::time_point last_refresh_start_{};
+};
+
+class LinkConnectivityModel {
+ public:
+  const char* title() const;
+  bool refresh(bool force_refresh = false);
+  const LinkTestSnapshot& snapshot() const;
+  const LinkTestSettings& settings() const;
+  void set_settings(LinkTestSettings settings);
+
+ private:
+  bool set_snapshot_(LinkTestSnapshot snapshot);
+  LinkTestSnapshot running_snapshot_() const;
+
+  LinkTestSettings settings_{};
+  LinkTestSnapshot snapshot_{};
+  std::future<LinkTestSnapshot> refresh_task_{};
 };
 
 }  // namespace model

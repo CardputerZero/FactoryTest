@@ -108,6 +108,8 @@ constexpr const char* ICON_REPEAT             = "\uE3F6";
 constexpr const char* ICON_TAG                = "\uE478";
 constexpr const char* ICON_SCAN               = "\uEBB6";
 constexpr const char* ICON_LINK_SIMPLE_HOR    = "\uE2EA";
+constexpr const char* ICON_ARROWS_CLOCKWISE   = "\uE094";
+constexpr const char* ICON_GEAR_FINE          = "\uE87C";
 
 // Naive UI 3 Color Scheme
 // ====================

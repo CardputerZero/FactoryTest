@@ -28,6 +28,7 @@ const std::array<ConnectivityMenuItem, ConnectivityTestModel::K_ITEM_COUNT>& con
       {"USB", ConnectivitySubPage::USB},
       {"I2C", ConnectivitySubPage::I2C},
       {"SPI", ConnectivitySubPage::SPI},
+      {"Link Test", ConnectivitySubPage::LINK_TEST},
   }};
   return ITEMS;
 }
@@ -62,6 +63,21 @@ bool same_i2c_addresses(const std::vector<ConnectivityI2cAddressInfo>& left,
                         const std::vector<ConnectivityI2cAddressInfo>& right) {
   return left.size() == right.size() &&
          std::equal(left.begin(), left.end(), right.begin(), same_i2c_address);
+}
+
+bool same_link_metric(const LinkTestMetric& left, const LinkTestMetric& right) {
+  return left.status == right.status && left.value == right.value && left.detail == right.detail;
+}
+
+bool same_link_settings(const LinkTestSettings& left, const LinkTestSettings& right) {
+  return left.iperf_host == right.iperf_host && left.iperf_port == right.iperf_port;
+}
+
+bool same_link_snapshot(const LinkTestSnapshot& left, const LinkTestSnapshot& right) {
+  return same_link_metric(left.ping, right.ping) &&
+         same_link_metric(left.wifi_iperf, right.wifi_iperf) &&
+         same_link_metric(left.ethernet_iperf, right.ethernet_iperf) &&
+         same_link_settings(left.settings, right.settings) && left.running == right.running;
 }
 
 template <typename Result>
@@ -173,6 +189,37 @@ ConnectivityScanRefreshResult read_spi_refresh_result() {
     items.push_back({std::move(device.name), std::move(device.path), -1});
   }
   return {std::move(items), std::move(error)};
+}
+
+LinkTestMetric ping_metric(const platform::connectivity::LinkPingResult& result) {
+  return {result.success ? LinkTestStatus::SUCCESS : LinkTestStatus::FAILED,
+          static_cast<double>(result.ttl),
+          result.message};
+}
+
+LinkTestMetric iperf_metric(const platform::connectivity::LinkIperfResult& result) {
+  std::string detail = result.message;
+  if (!result.interface_name.empty()) {
+    detail = result.interface_name + (detail.empty() ? std::string{} : std::string{": "} + detail);
+  }
+  return {result.success ? LinkTestStatus::SUCCESS : LinkTestStatus::FAILED,
+          result.megabits_per_second,
+          std::move(detail)};
+}
+
+LinkTestSnapshot read_link_test_result(LinkTestSettings settings) {
+  platform::connectivity::LinkTestSettings platform_settings;
+  platform_settings.iperf_host = settings.iperf_host;
+  platform_settings.iperf_port = settings.iperf_port;
+
+  const auto result = platform::connectivity::run_link_test(platform_settings);
+  LinkTestSnapshot snapshot;
+  snapshot.settings       = std::move(settings);
+  snapshot.ping           = ping_metric(result.ping);
+  snapshot.wifi_iperf     = iperf_metric(result.wifi);
+  snapshot.ethernet_iperf = iperf_metric(result.ethernet);
+  snapshot.running        = false;
+  return snapshot;
 }
 
 }  // namespace
@@ -420,6 +467,56 @@ bool SpiConnectivityModel::set_devices_(std::vector<ConnectivityScanInfo> device
   devices_       = std::move(devices);
   error_message_ = std::move(error_message);
   return true;
+}
+
+const char* LinkConnectivityModel::title() const { return "Link Test"; }
+
+bool LinkConnectivityModel::refresh(bool force_refresh) {
+  bool changed = false;
+  if (future_ready(refresh_task_)) {
+    auto result = refresh_task_.get();
+    changed |= set_snapshot_(std::move(result));
+  }
+
+  if (!refresh_task_.valid() && (force_refresh || snapshot_.ping.status == LinkTestStatus::IDLE)) {
+    refresh_task_ = std::async(std::launch::async, read_link_test_result, settings_);
+    changed |= set_snapshot_(running_snapshot_());
+  }
+  return changed;
+}
+
+const LinkTestSnapshot& LinkConnectivityModel::snapshot() const { return snapshot_; }
+
+const LinkTestSettings& LinkConnectivityModel::settings() const { return settings_; }
+
+void LinkConnectivityModel::set_settings(LinkTestSettings settings) {
+  if (settings.iperf_host.empty()) {
+    settings.iperf_host = "192.168.10.187";
+  }
+  if (settings.iperf_port <= 0 || settings.iperf_port > 65535) {
+    settings.iperf_port = 5201;
+  }
+  settings_          = std::move(settings);
+  snapshot_.settings = settings_;
+}
+
+bool LinkConnectivityModel::set_snapshot_(LinkTestSnapshot snapshot) {
+  if (same_link_snapshot(snapshot_, snapshot)) {
+    return false;
+  }
+
+  snapshot_ = std::move(snapshot);
+  return true;
+}
+
+LinkTestSnapshot LinkConnectivityModel::running_snapshot_() const {
+  LinkTestSnapshot snapshot;
+  snapshot.settings       = settings_;
+  snapshot.running        = true;
+  snapshot.ping           = {LinkTestStatus::RUNNING, 0.0, "Pinging 8.8.8.8..."};
+  snapshot.wifi_iperf     = {LinkTestStatus::RUNNING, 0.0, "Waiting for iperf..."};
+  snapshot.ethernet_iperf = {LinkTestStatus::RUNNING, 0.0, "Waiting for iperf..."};
+  return snapshot;
 }
 
 }  // namespace model

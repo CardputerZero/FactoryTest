@@ -152,6 +152,7 @@
 
 #define LV_USE_SHADOW 1
 #define LV_USE_GRADIENTS 1
+#define LV_USE_SNAPSHOT 1
 
 /*====================
    DRAW BUFFER

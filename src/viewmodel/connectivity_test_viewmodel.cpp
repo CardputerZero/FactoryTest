@@ -6,6 +6,8 @@
 
 #include "connectivity_test_viewmodel.h"
 
+#include <utility>
+
 namespace viewmodel {
 namespace {
 
@@ -91,6 +93,24 @@ const std::string& SpiConnectivityViewModel::error_message() const {
   return model_.error_message();
 }
 
+const char* LinkConnectivityViewModel::title_text() const { return model_.title(); }
+
+bool LinkConnectivityViewModel::refresh(bool force_refresh) {
+  return model_.refresh(force_refresh);
+}
+
+const model::LinkTestSnapshot& LinkConnectivityViewModel::snapshot() const {
+  return model_.snapshot();
+}
+
+const model::LinkTestSettings& LinkConnectivityViewModel::settings() const {
+  return model_.settings();
+}
+
+void LinkConnectivityViewModel::set_settings(model::LinkTestSettings settings) {
+  model_.set_settings(std::move(settings));
+}
+
 ConnectivityTestViewModel::ConnectivityTestViewModel()
     : selected_index_subject_(static_cast<int32_t>(model_.selected_index())),
       active_page_subject_(page_to_int(model_.active_page())) {}
@@ -103,6 +123,14 @@ lv_subject_t* ConnectivityTestViewModel::selected_index_subject() {
 
 lv_subject_t* ConnectivityTestViewModel::active_page_subject() {
   return active_page_subject_.native();
+}
+
+lv_subject_t* ConnectivityTestViewModel::link_restart_request_subject() {
+  return link_restart_request_subject_.native();
+}
+
+lv_subject_t* ConnectivityTestViewModel::link_settings_request_subject() {
+  return link_settings_request_subject_.native();
 }
 
 const std::array<model::ConnectivityMenuItem, model::ConnectivityTestModel::K_ITEM_COUNT>&
@@ -180,10 +208,20 @@ bool ConnectivityTestViewModel::refresh_active() {
       return i2c_view_model_.refresh(true);
     case model::ConnectivitySubPage::SPI:
       return spi_view_model_.refresh(true);
+    case model::ConnectivitySubPage::LINK_TEST:
+      return link_view_model_.refresh(true);
     case model::ConnectivitySubPage::MENU:
     default:
       return false;
   }
+}
+
+void ConnectivityTestViewModel::request_link_restart() {
+  link_restart_request_subject_.set(++link_restart_request_count_);
+}
+
+void ConnectivityTestViewModel::request_link_settings() {
+  link_settings_request_subject_.set(++link_settings_request_count_);
 }
 
 WifiConnectivityViewModel& ConnectivityTestViewModel::wifi_view_model() { return wifi_view_model_; }
@@ -201,6 +239,8 @@ UsbConnectivityViewModel& ConnectivityTestViewModel::usb_view_model() { return u
 I2cConnectivityViewModel& ConnectivityTestViewModel::i2c_view_model() { return i2c_view_model_; }
 
 SpiConnectivityViewModel& ConnectivityTestViewModel::spi_view_model() { return spi_view_model_; }
+
+LinkConnectivityViewModel& ConnectivityTestViewModel::link_view_model() { return link_view_model_; }
 
 void ConnectivityTestViewModel::publish_all_() {
   selected_index_subject_.set(static_cast<int32_t>(model_.selected_index()));
