@@ -213,7 +213,7 @@ void dispatch_nav_key(uint32_t key, lv_event_code_t event_code) {
   auto& state      = key_router_state();
   const auto index = nav_key_to_index(key);
   if (index >= state.nav_buttons.size()) {
-    LOG_DEBUG("key router: no nav mapping key={} event={}",
+    LOG_VERBOSE("key router: no nav mapping key={} event={}",
               key_name(key),
               event_code_name(event_code));
     return;
@@ -221,14 +221,14 @@ void dispatch_nav_key(uint32_t key, lv_event_code_t event_code) {
 
   auto* button = state.nav_buttons[index];
   if (!button || !lv_obj_is_valid(button) || !lv_obj_has_flag(button, LV_OBJ_FLAG_CLICKABLE)) {
-    LOG_DEBUG("key router: nav target unavailable key={} index={} event={}",
+    LOG_VERBOSE("key router: nav target unavailable key={} index={} event={}",
               key_name(key),
               index,
               event_code_name(event_code));
     return;
   }
 
-  LOG_DEBUG("key router: dispatch key={} index={} event={}",
+  LOG_VERBOSE("key router: dispatch key={} index={} event={}",
             key_name(key),
             index,
             event_code_name(event_code));
@@ -270,7 +270,7 @@ void long_press_timer_cb(lv_timer_t* timer) {
   }
 
   state.long_press_sent = true;
-  LOG_DEBUG("key router: long press key={} elapsed={}ms",
+  LOG_VERBOSE("key router: long press key={} elapsed={}ms",
             key_name(state.pressed_key),
             lv_tick_elaps(state.press_started_at));
   emit_long_key(state.pressed_key);
@@ -287,7 +287,7 @@ void ensure_long_press_timer() {
 void route_key_state(uint32_t key, bool pressed, const char* source) {
   auto& state            = key_router_state();
   const bool is_new_hold = !state.last_key_pressed || key != state.pressed_key;
-  LOG_DEBUG("key router: input source={} key={} state={} last_key={} last_pressed={} mode={}",
+  LOG_VERBOSE("key router: input source={} key={} state={} last_key={} last_pressed={} mode={}",
             source ? source : "unknown",
             key_name(key),
             key_state_name(pressed),
@@ -313,7 +313,7 @@ void route_key_state(uint32_t key, bool pressed, const char* source) {
     dispatch_nav_key(key, LV_EVENT_RELEASED);
     state.pressed_key = 0;
   } else {
-    LOG_DEBUG("key router: ignored release key={} pressed_key={} last_pressed={}",
+    LOG_VERBOSE("key router: ignored release key={} pressed_key={} last_pressed={}",
               key_name(key),
               key_name(state.pressed_key),
               state.last_key_pressed);
@@ -466,9 +466,10 @@ constexpr std::array<KeyMapEntry, 5> K_KEYPAD_SYMBOL_KEYS = {{
     {KEY_KPSLASH, '/'},
 }};
 
-constexpr std::array<KeyMapEntry, 28> K_SPECIAL_EVDEV_KEYS = {{
+constexpr std::array<KeyMapEntry, 29> K_SPECIAL_EVDEV_KEYS = {{
     {KEY_ESC, LV_KEY_ESC},
     {KEY_ENTER, LV_KEY_ENTER},
+    {KEY_KPENTER, LV_KEY_ENTER},
     {KEY_BACKSPACE, LV_KEY_BACKSPACE},
     {KEY_DELETE, LV_KEY_DEL},
     {KEY_INSERT, K_KEY_INSERT},
@@ -589,7 +590,7 @@ void queue_router_event(EvdevKeypad* keypad, uint32_t key, bool pressed, const c
   keypad->router_event_pending = true;
   keypad->router_key           = key;
   keypad->router_pressed       = pressed;
-  LOG_DEBUG("evdev: queue router source={} key={} state={}",
+  LOG_VERBOSE("evdev: queue router source={} key={} state={}",
             source ? source : "unknown",
             key_name(key),
             key_state_name(pressed));
@@ -633,11 +634,11 @@ void evdev_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
 
   input_event input{};
   while (read(keypad->fd, &input, sizeof(input)) == sizeof(input)) {
-    LOG_DEBUG("evdev: raw type={} code={} value={}", input.type, input.code, input.value);
+    LOG_VERBOSE("evdev: raw type={} code={} value={}", input.type, input.code, input.value);
     if (input.type == EV_MSC && input.code == MSC_SCAN) {
       const auto scan_key = map_evdev_scan(static_cast<uint32_t>(input.value));
       if (!scan_key) {
-        LOG_DEBUG("evdev: ignored MSC_SCAN value={}", input.value);
+        LOG_VERBOSE("evdev: ignored MSC_SCAN value={}", input.value);
         continue;
       }
 
@@ -654,7 +655,7 @@ void evdev_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     }
 
     if (input.value == 2) {
-      LOG_DEBUG("evdev: ignored repeat code={}", input.code);
+      LOG_VERBOSE("evdev: ignored repeat code={}", input.code);
       continue;
     }
 
@@ -711,7 +712,7 @@ lv_indev_t* try_create_keypad(const char* path) {
     return nullptr;
   }
 
-  LOG_DEBUG("probing evdev input device: {}", path);
+  LOG_VERBOSE("probing evdev input device: {}", path);
   const int fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
   if (fd < 0) {
     LOG_WARN("failed to open input device {}: {}", path, strerror(errno));
@@ -720,7 +721,7 @@ lv_indev_t* try_create_keypad(const char* path) {
   }
 
   if (!has_keyboard_keys(fd)) {
-    LOG_DEBUG("input device does not expose expected keyboard keys: {}", path);
+    LOG_VERBOSE("input device does not expose expected keyboard keys: {}", path);
     close(fd);
     return nullptr;
   }
@@ -744,7 +745,7 @@ void discover_keypads(lv_display_t* display) {
     return;
   }
 
-  LOG_DEBUG("discovering key input devices under /dev/input");
+  LOG_VERBOSE("discovering key input devices under /dev/input");
   auto* dir = opendir("/dev/input");
   if (!dir) {
     LOG_WARN("failed to open /dev/input: {}", strerror(errno));
@@ -791,7 +792,7 @@ void attach_key_router(lv_indev_t* indev) {
   }
 
   lv_indev_add_event_cb(indev, key_event_cb, LV_EVENT_KEY, nullptr);
-  LOG_DEBUG("attached key router to keypad input device");
+  LOG_VERBOSE("attached key router to keypad input device");
 #if USE_DESKTOP
   static bool sdl_event_watch_added = false;
   if (!sdl_event_watch_added) {
@@ -866,7 +867,7 @@ void clear_global_key_listener(GlobalKeyListener listener, void* user_data) {
 
 void set_nav_trigger_mode(NavTriggerMode mode) {
   auto& state = key_router_state();
-  LOG_DEBUG("key router: trigger mode {} -> {}",
+  LOG_VERBOSE("key router: trigger mode {} -> {}",
             state.nav_trigger_mode == NavTriggerMode::CLICK ? "click" : "long",
             mode == NavTriggerMode::CLICK ? "click" : "long");
   state.nav_trigger_mode     = mode;

@@ -48,24 +48,24 @@ struct LayerMetrics {
   int32_t layout_height;
 };
 
-constexpr int32_t K_KEY_SIZE       = 32;
-constexpr int32_t K_KEY_STRIDE     = 26;
-constexpr int32_t K_ROW_STRIDE     = 20;
-constexpr int32_t K_LAYOUT_WIDTH   = K_KEY_SIZE + 10 * K_KEY_STRIDE;
-constexpr int32_t K_LAYOUT_HEIGHT  = K_KEY_SIZE + 4 * K_ROW_STRIDE;
+constexpr int32_t K_KEY_SIZE      = 32;
+constexpr int32_t K_KEY_STRIDE    = 26;
+constexpr int32_t K_ROW_STRIDE    = 20;
+constexpr int32_t K_LAYOUT_WIDTH  = K_KEY_SIZE + 10 * K_KEY_STRIDE;
+constexpr int32_t K_LAYOUT_HEIGHT = K_KEY_SIZE + 4 * K_ROW_STRIDE;
 
-constexpr const char* K_MATCH_0         = "0";
-constexpr const char* K_MATCH_1         = "1";
-constexpr const char* K_MATCH_2         = "2";
-constexpr const char* K_MATCH_3         = "3";
-constexpr const char* K_MATCH_4         = "4";
-constexpr const char* K_MATCH_5         = "5";
-constexpr const char* K_MATCH_6         = "6";
-constexpr const char* K_MATCH_7         = "7";
-constexpr const char* K_MATCH_8         = "8";
-constexpr const char* K_MATCH_9         = "9";
-constexpr const char* K_MATCH_A         = "a";
-constexpr const char* K_MATCH_ALT       = "alt";
+constexpr const char* K_MATCH_0               = "0";
+constexpr const char* K_MATCH_1               = "1";
+constexpr const char* K_MATCH_2               = "2";
+constexpr const char* K_MATCH_3               = "3";
+constexpr const char* K_MATCH_4               = "4";
+constexpr const char* K_MATCH_5               = "5";
+constexpr const char* K_MATCH_6               = "6";
+constexpr const char* K_MATCH_7               = "7";
+constexpr const char* K_MATCH_8               = "8";
+constexpr const char* K_MATCH_9               = "9";
+constexpr const char* K_MATCH_A               = "a";
+constexpr const char* K_MATCH_ALT             = "alt";
 constexpr const char* K_MATCH_B               = "b";
 constexpr const char* K_MATCH_BACKSPACE       = "backspace";
 constexpr const char* K_MATCH_BRIGHTNESS_DOWN = "brightnessdown";
@@ -129,53 +129,53 @@ constexpr const char* K_MATCH_X               = "x";
 constexpr const char* K_MATCH_Y               = "y";
 constexpr const char* K_MATCH_Z               = "z";
 
-constexpr const char* ICON_KB_APOSTROPHE     = "\uE01B";
-constexpr const char* ICON_KB_ARROW_DOWN      = "\uE01D";
-constexpr const char* ICON_KB_ARROW_LEFT      = "\uE01F";
-constexpr const char* ICON_KB_ARROW_RIGHT     = "\uE021";
-constexpr const char* ICON_KB_ARROW_UP        = "\uE023";
-constexpr const char* ICON_KB_ASTERISK        = "\uE034";
+constexpr const char* ICON_KB_APOSTROPHE         = "\uE01B";
+constexpr const char* ICON_KB_ARROW_DOWN         = "\uE01D";
+constexpr const char* ICON_KB_ARROW_LEFT         = "\uE01F";
+constexpr const char* ICON_KB_ARROW_RIGHT        = "\uE021";
+constexpr const char* ICON_KB_ARROW_UP           = "\uE023";
+constexpr const char* ICON_KB_ASTERISK           = "\uE034";
 constexpr const char* ICON_KB_BACKSPACE_ICON_ALT = "\uE03A";
-constexpr const char* ICON_KB_BRACKET_R      = "\uE03E";
-constexpr const char* ICON_KB_GREATER        = "\uE040";
-constexpr const char* ICON_KB_LESS           = "\uE042";
-constexpr const char* ICON_KB_BRACKET_L      = "\uE044";
-constexpr const char* ICON_KB_CARET          = "\uE04C";
-constexpr const char* ICON_KB_COLON          = "\uE04E";
-constexpr const char* ICON_KB_COMMA          = "\uE050";
-constexpr const char* ICON_KB_DELETE         = "\uE058";
-constexpr const char* ICON_KB_END            = "\uE05C";
-constexpr const char* ICON_KB_EQUALS         = "\uE060";
-constexpr const char* ICON_KB_EXCLAMATION    = "\uE064";
-constexpr const char* ICON_KB_F1             = "\uE067";
-constexpr const char* ICON_KB_F10            = "\uE068";
-constexpr const char* ICON_KB_F11            = "\uE06A";
-constexpr const char* ICON_KB_F12            = "\uE06C";
-constexpr const char* ICON_KB_F2             = "\uE06F";
-constexpr const char* ICON_KB_F3             = "\uE071";
-constexpr const char* ICON_KB_F4             = "\uE073";
-constexpr const char* ICON_KB_F5             = "\uE075";
-constexpr const char* ICON_KB_F6             = "\uE077";
-constexpr const char* ICON_KB_F7             = "\uE079";
-constexpr const char* ICON_KB_F8             = "\uE07B";
-constexpr const char* ICON_KB_F9             = "\uE07D";
-constexpr const char* ICON_KB_HOME           = "\uE086";
-constexpr const char* ICON_KB_INSERT         = "\uE08A";
-constexpr const char* ICON_KB_MINUS          = "\uE094";
-constexpr const char* ICON_KB_NUMPAD_ENTER   = "\uE09A";
-constexpr const char* ICON_KB_PAGE_DOWN      = "\uE0A5";
-constexpr const char* ICON_KB_PAGE_UP        = "\uE0A7";
-constexpr const char* ICON_KB_PERIOD         = "\uE0AD";
-constexpr const char* ICON_KB_PLUS           = "\uE0AF";
-constexpr const char* ICON_KB_QUESTION       = "\uE0B5";
-constexpr const char* ICON_KB_QUOTE          = "\uE0B7";
-constexpr const char* ICON_KB_SEMICOLON      = "\uE0C1";
-constexpr const char* ICON_KB_SHIFT_ICON     = "\uE0C4";
-constexpr const char* ICON_KB_SLASH_BACK     = "\uE0C7";
-constexpr const char* ICON_KB_SLASH          = "\uE0C9";
-constexpr const char* ICON_KB_SPACE_ICON     = "\uE0CC";
-constexpr const char* ICON_KB_TILDE          = "\uE0D7";
-constexpr const char* ICON_KB_UNDERSCORE     = "\uE0DB";
+constexpr const char* ICON_KB_BRACKET_R          = "\uE03E";
+constexpr const char* ICON_KB_GREATER            = "\uE040";
+constexpr const char* ICON_KB_LESS               = "\uE042";
+constexpr const char* ICON_KB_BRACKET_L          = "\uE044";
+constexpr const char* ICON_KB_CARET              = "\uE04C";
+constexpr const char* ICON_KB_COLON              = "\uE04E";
+constexpr const char* ICON_KB_COMMA              = "\uE050";
+constexpr const char* ICON_KB_DELETE             = "\uE058";
+constexpr const char* ICON_KB_END                = "\uE05C";
+constexpr const char* ICON_KB_EQUALS             = "\uE060";
+constexpr const char* ICON_KB_EXCLAMATION        = "\uE064";
+constexpr const char* ICON_KB_F1                 = "\uE067";
+constexpr const char* ICON_KB_F10                = "\uE068";
+constexpr const char* ICON_KB_F11                = "\uE06A";
+constexpr const char* ICON_KB_F12                = "\uE06C";
+constexpr const char* ICON_KB_F2                 = "\uE06F";
+constexpr const char* ICON_KB_F3                 = "\uE071";
+constexpr const char* ICON_KB_F4                 = "\uE073";
+constexpr const char* ICON_KB_F5                 = "\uE075";
+constexpr const char* ICON_KB_F6                 = "\uE077";
+constexpr const char* ICON_KB_F7                 = "\uE079";
+constexpr const char* ICON_KB_F8                 = "\uE07B";
+constexpr const char* ICON_KB_F9                 = "\uE07D";
+constexpr const char* ICON_KB_HOME               = "\uE086";
+constexpr const char* ICON_KB_INSERT             = "\uE08A";
+constexpr const char* ICON_KB_MINUS              = "\uE094";
+constexpr const char* ICON_KB_NUMPAD_ENTER       = "\uE09A";
+constexpr const char* ICON_KB_PAGE_DOWN          = "\uE0A5";
+constexpr const char* ICON_KB_PAGE_UP            = "\uE0A7";
+constexpr const char* ICON_KB_PERIOD             = "\uE0AD";
+constexpr const char* ICON_KB_PLUS               = "\uE0AF";
+constexpr const char* ICON_KB_QUESTION           = "\uE0B5";
+constexpr const char* ICON_KB_QUOTE              = "\uE0B7";
+constexpr const char* ICON_KB_SEMICOLON          = "\uE0C1";
+constexpr const char* ICON_KB_SHIFT_ICON         = "\uE0C4";
+constexpr const char* ICON_KB_SLASH_BACK         = "\uE0C7";
+constexpr const char* ICON_KB_SLASH              = "\uE0C9";
+constexpr const char* ICON_KB_SPACE_ICON         = "\uE0CC";
+constexpr const char* ICON_KB_TILDE              = "\uE0D7";
+constexpr const char* ICON_KB_UNDERSCORE         = "\uE0DB";
 
 constexpr const char* ICON_KB_EXTRA_AMPERSAND    = "\uEA01";
 constexpr const char* ICON_KB_EXTRA_AT_SIGN      = "\uEA03";
@@ -501,6 +501,12 @@ KeyboardTestPage::KeyboardTestPage(viewmodel::AppViewModel& app_view_model,
     : BaseScreen(app_view_model, assets),
       keyboard_view_model_(keyboard_view_model) {
   platform::set_nav_trigger_mode(platform::NavTriggerMode::LONG_PRESS);
+  set_nav_action_(
+      '4',
+      view::ICON_ARROW_U_UP_LEFT,
+      [this]() { app_view_model_ref_().request_back_or_quit(); },
+      LV_EVENT_LONG_PRESSED,
+      viewmodel::NavHoldTarget::ERROR);
   init();
   platform::set_key_listener(key_listener, this);
   platform::set_long_key_listener(long_key_listener, this);
@@ -584,7 +590,8 @@ void KeyboardTestPage::update_button_state_(std::size_t index) {
       break;
     case KeyState::IDLE:
     default:
-      key_buttons_[index]->set_color(view::palette(false).text_muted, view::palette(true).text_muted);
+      key_buttons_[index]->set_color(view::palette(false).text_muted,
+                                     view::palette(true).text_muted);
       break;
   }
 }
@@ -627,13 +634,13 @@ void KeyboardTestPage::build_layer_(KeyLayer layer) {
     }
 
     key_buttons_[i] = std::make_unique<view::widgets::IconButton>(layout,
-                                                                   app_view_model_ref_(),
-                                                                   metrics.width,
-                                                                   metrics.height,
-                                                                   spec.text,
-                                                                   font,
-                                                                   view::palette(false).text_muted,
-                                                                   view::palette(true).text_muted);
+                                                                  app_view_model_ref_(),
+                                                                  metrics.width,
+                                                                  metrics.height,
+                                                                  spec.text,
+                                                                  font,
+                                                                  view::palette(false).text_muted,
+                                                                  view::palette(true).text_muted);
     key_buttons_[i]->build();
     if (key_buttons_[i]->root()) {
       lv_obj_clear_flag(key_buttons_[i]->root(), LV_OBJ_FLAG_CLICKABLE);

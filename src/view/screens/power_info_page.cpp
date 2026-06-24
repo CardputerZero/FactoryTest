@@ -178,6 +178,7 @@ std::array<PowerField, PowerInfoPage::K_FIELD_COUNT> make_error_fields(
 PowerInfoPage::PowerInfoPage(viewmodel::AppViewModel& app_view_model, app::AssetManager& assets)
     : BaseScreen(app_view_model, assets) {
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
+  set_default_test_nav_();
   init();
   platform::set_key_listener(key_listener, this);
   refresh_();

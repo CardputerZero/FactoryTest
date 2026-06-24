@@ -15,6 +15,7 @@
 #include <ctime>
 #include <filesystem>
 #include <string>
+#include <utility>
 #include <vector>
 
 #if !defined(_WIN32)
@@ -25,15 +26,12 @@
 
 #include "logger.h"
 #include "lvgl.h"
+#include "popup.h"
 
 namespace platform::screenshot {
 namespace {
 
 constexpr uint32_t K_OVERLAY_HIDE_MS = 2600;
-
-struct OverlayState {
-  lv_obj_t* overlay{nullptr};
-};
 
 std::filesystem::path pictures_directory() {
   if (const char* home = std::getenv("HOME"); home && home[0] != '\0') {
@@ -183,56 +181,23 @@ bool capture_active_screen(std::string& output_path, std::string& error_message)
 #endif
 }
 
-void overlay_delete_cb(lv_timer_t* timer) {
-  auto* state = static_cast<OverlayState*>(lv_timer_get_user_data(timer));
-  if (state) {
-    if (state->overlay && lv_obj_is_valid(state->overlay)) {
-      lv_obj_delete(state->overlay);
-    }
-    delete state;
-  }
-}
-
 void show_overlay(const std::string& message, bool success) {
   auto* screen = lv_screen_active();
   if (!screen) {
     return;
   }
 
-  auto* overlay = lv_obj_create(screen);
-  lv_obj_remove_style_all(overlay);
-  lv_obj_set_size(overlay, 292, 56);
-  lv_obj_align(overlay, LV_ALIGN_CENTER, 0, 0);
-  lv_obj_set_style_radius(overlay, 12, 0);
-  lv_obj_set_style_bg_color(overlay, lv_color_hex(0x141414), 0);
-  lv_obj_set_style_bg_opa(overlay, LV_OPA_90, 0);
-  lv_obj_set_style_border_color(
-      overlay, success ? lv_color_hex(0x63E2B7) : lv_color_hex(0xE88080), 0);
-  lv_obj_set_style_border_width(overlay, 1, 0);
-  lv_obj_set_style_shadow_width(overlay, 14, 0);
-  lv_obj_set_style_shadow_opa(overlay, LV_OPA_30, 0);
-  lv_obj_clear_flag(overlay, LV_OBJ_FLAG_SCROLLABLE);
-
-  auto* label = lv_label_create(overlay);
-  lv_label_set_text(label, message.c_str());
-  lv_label_set_long_mode(label, LV_LABEL_LONG_SCROLL_CIRCULAR);
-  lv_obj_set_width(label, 268);
-  lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_style_text_color(label, lv_color_hex(0xE6E6E6), 0);
-  lv_obj_set_style_text_font(label, &lv_font_montserrat_12, 0);
-  lv_obj_center(label);
-  lv_obj_move_foreground(overlay);
-
-  auto* state = new OverlayState{overlay};
-  auto* timer = lv_timer_create(overlay_delete_cb, K_OVERLAY_HIDE_MS, state);
-  if (!timer) {
-    lv_obj_delete(overlay);
-    delete state;
-    return;
-  }
-
-  lv_timer_set_repeat_count(timer, 1);
-  lv_timer_set_auto_delete(timer, true);
+  view::widgets::PopupConfig config;
+  config.width       = 292;
+  config.height      = 56;
+  config.label_width = 268;
+  config.shadow_width = 14;
+  config.shadow_opa  = LV_OPA_30;
+  config.long_mode   = LV_LABEL_LONG_SCROLL_CIRCULAR;
+  config.font        = &lv_font_montserrat_12;
+  config.tone        = success ? view::widgets::PopupTone::SUCCESS : view::widgets::PopupTone::ERROR;
+  config.message     = message;
+  view::widgets::Popup::show_transient(screen, std::move(config), K_OVERLAY_HIDE_MS);
 }
 
 }  // namespace

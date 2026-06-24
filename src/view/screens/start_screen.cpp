@@ -7,6 +7,7 @@
 #include "start_screen.h"
 
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "asset_manager.h"
@@ -26,6 +27,7 @@ constexpr const char* K_MENU_ICONS[] = {
     view::ICON_MICROPHONE,
     view::ICON_CAMERA,
     view::ICON_PLUGS_CONNECTED,
+    view::ICON_BROADCAST,
     view::ICON_LIGHTNING,
     view::ICON_VECTOR_THREE,
     view::ICON_INFO,
@@ -36,9 +38,23 @@ constexpr const char* K_MENU_ICONS[] = {
 StartScreen::StartScreen(viewmodel::AppViewModel& app_view_model,
                          viewmodel::StartMenuViewModel& menu_view_model,
                          app::AssetManager& assets)
-    : BaseScreen(app_view_model, assets, nullptr, &menu_view_model),
+    : BaseScreen(app_view_model, assets),
       menu_view_model_(menu_view_model) {
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
+  set_nav_action_(
+      '4',
+      view::ICON_SIGN_OUT,
+      [this]() {
+        hide_exit_popup_();
+        app_view_model_ref_().request_quit();
+      },
+      LV_EVENT_LONG_PRESSED,
+      viewmodel::NavHoldTarget::ERROR);
+  viewmodel::NavAction exit_action = app_view_model_ref_().nav_actions()[0];
+  exit_action.press_action         = [this]() { show_exit_popup_(); };
+  exit_action.release_action       = [this]() { hide_exit_popup_(); };
+  app_view_model_ref_().set_keypad_nav_action('4', std::move(exit_action));
+  set_nav_action_('8', view::ICON_CHECK_SQUARE, [this]() { activate_selected_item_(); });
   init();
   platform::set_key_listener(key_listener, this);
 }
@@ -49,6 +65,7 @@ StartScreen::~StartScreen() {
     lv_observer_remove(selected_observer_handle_);
     selected_observer_handle_ = nullptr;
   }
+  exit_popup_.reset();
   list_.reset();
 }
 
@@ -105,6 +122,26 @@ void StartScreen::activate_selected_item_() {
   }
 
   app_view_model_ref_().show_single_test_page(item.target_page);
+}
+
+void StartScreen::show_exit_popup_() {
+  if (!root()) {
+    return;
+  }
+  if (!exit_popup_) {
+    view::widgets::PopupConfig config;
+    config.message = "Hold ESC/4 to Exit";
+    config.tone    = view::widgets::PopupTone::ERROR;
+    exit_popup_    = std::make_unique<view::widgets::Popup>(root(), app_view_model_ref_(), config);
+    exit_popup_->build();
+  }
+  exit_popup_->show();
+}
+
+void StartScreen::hide_exit_popup_() {
+  if (exit_popup_) {
+    exit_popup_->hide();
+  }
 }
 
 void StartScreen::key_listener(uint32_t key, const char* key_name, void* user_data) {

@@ -9,6 +9,7 @@
 #include <sys/statvfs.h>
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cerrno>
 #include <cstdio>
@@ -205,23 +206,8 @@ std::string read_uptime() {
   return out.str();
 }
 
-std::string read_rtc() {
 #if defined(__linux__)
-  int fd = open("/dev/rtc", O_RDONLY | O_CLOEXEC);
-  if (fd < 0) {
-    fd = open("/dev/rtc0", O_RDONLY | O_CLOEXEC);
-  }
-  if (fd < 0) {
-    return K_EMPTY_VALUE;
-  }
-
-  struct rtc_time rtc{};
-  const int result = ioctl(fd, RTC_RD_TIME, &rtc);
-  close(fd);
-  if (result < 0) {
-    return K_EMPTY_VALUE;
-  }
-
+std::string format_rtc_time(const rtc_time& rtc) {
   char buffer[24];
   std::snprintf(buffer,
                 sizeof(buffer),
@@ -233,9 +219,80 @@ std::string read_rtc() {
                 rtc.tm_min,
                 rtc.tm_sec);
   return buffer;
-#else
-  return K_EMPTY_VALUE;
+}
+
+std::string read_rtc_ioctl() {
+  int fd = open("/dev/rtc", O_RDONLY | O_CLOEXEC);
+  if (fd < 0) {
+    fd = open("/dev/rtc0", O_RDONLY | O_CLOEXEC);
+  }
+  if (fd < 0) {
+    return {};
+  }
+
+  struct rtc_time rtc{};
+  const int result = ioctl(fd, RTC_RD_TIME, &rtc);
+  close(fd);
+  if (result < 0) {
+    return {};
+  }
+
+  return format_rtc_time(rtc);
+}
+
+std::string read_rtc_sysfs() {
+  const std::array<const char*, 2> rtc_names = {"rtc0", "rtc"};
+  for (const auto* rtc_name : rtc_names) {
+    const auto root = std::filesystem::path("/sys/class/rtc") / rtc_name;
+    std::string date;
+    std::string time;
+    if (read_text_file(root / "date", date) && read_text_file(root / "time", time)) {
+      return date + " " + time;
+    }
+  }
+  return {};
+}
+
+std::string read_hwclock_command() {
+  const std::array<const char*, 3> commands = {
+      "/usr/sbin/hwclock -r 2>/dev/null",
+      "/sbin/hwclock -r 2>/dev/null",
+      "hwclock -r 2>/dev/null",
+  };
+
+  for (const auto* command : commands) {
+    FILE* pipe = popen(command, "r");
+    if (!pipe) {
+      continue;
+    }
+
+    char buffer[128] = {};
+    std::string output;
+    if (std::fgets(buffer, sizeof(buffer), pipe)) {
+      output = trim(buffer);
+    }
+    pclose(pipe);
+    if (!output.empty()) {
+      return output;
+    }
+  }
+  return {};
+}
 #endif
+
+std::string read_rtc() {
+#if defined(__linux__)
+  if (const auto value = read_rtc_ioctl(); !value.empty()) {
+    return value;
+  }
+  if (const auto value = read_rtc_sysfs(); !value.empty()) {
+    return value;
+  }
+  if (const auto value = read_hwclock_command(); !value.empty()) {
+    return value;
+  }
+#endif
+  return K_EMPTY_VALUE;
 }
 
 }  // namespace

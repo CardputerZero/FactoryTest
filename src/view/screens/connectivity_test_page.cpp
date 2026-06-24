@@ -8,10 +8,12 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "asset_manager.h"
 #include "bindings.h"
+#include "gpio_service.h"
 #include "linux_input.h"
 #include "theme.h"
 #include "ui_const.h"
@@ -25,6 +27,7 @@ constexpr int32_t K_MENU_WIDTH        = 300;
 constexpr int32_t K_MENU_HEIGHT       = 106;
 constexpr int32_t K_SCROLL_STEP       = 34;
 constexpr uint32_t K_LOADING_MODAL_MS = 900;
+constexpr uint32_t K_UART_SETTINGS_SUPPRESS_MS = 300;
 
 const char* icon_for_page(model::ConnectivitySubPage page) {
   switch (page) {
@@ -36,10 +39,14 @@ const char* icon_for_page(model::ConnectivitySubPage page) {
       return view::ICON_ETHERNET;
     case model::ConnectivitySubPage::USB:
       return view::ICON_USB;
+    case model::ConnectivitySubPage::HDMI:
+      return view::ICON_MONITOR;
     case model::ConnectivitySubPage::I2C:
       return view::ICON_SCAN;
     case model::ConnectivitySubPage::SPI:
       return view::ICON_LINK_SIMPLE_HOR;
+    case model::ConnectivitySubPage::UART:
+      return view::ICON_BROADCAST;
     case model::ConnectivitySubPage::LINK_TEST:
       return view::ICON_GLOBE;
     case model::ConnectivitySubPage::MENU:
@@ -54,10 +61,11 @@ ConnectivityTestPage::ConnectivityTestPage(
     viewmodel::AppViewModel& app_view_model,
     viewmodel::ConnectivityTestViewModel& connectivity_view_model,
     app::AssetManager& assets)
-    : BaseScreen(app_view_model, assets, nullptr, nullptr, &connectivity_view_model),
+    : BaseScreen(app_view_model, assets),
       connectivity_view_model_(connectivity_view_model) {
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
   connectivity_view_model_.show_menu();
+  set_default_test_nav_();
   app_view_model_ref_().set_back_request_handler(back_request_handler, this);
   init();
   platform::set_key_listener(key_listener, this);
@@ -82,6 +90,10 @@ ConnectivityTestPage::~ConnectivityTestPage() {
     lv_observer_remove(link_settings_observer_handle_);
     link_settings_observer_handle_ = nullptr;
   }
+  if (uart_settings_observer_handle_) {
+    lv_observer_remove(uart_settings_observer_handle_);
+    uart_settings_observer_handle_ = nullptr;
+  }
   if (loading_modal_timer_) {
     lv_timer_delete(loading_modal_timer_);
     loading_modal_timer_ = nullptr;
@@ -92,8 +104,10 @@ ConnectivityTestPage::~ConnectivityTestPage() {
   bluetooth_view_.reset();
   ethernet_view_.reset();
   usb_view_.reset();
+  hdmi_view_.reset();
   i2c_view_.reset();
   spi_view_.reset();
+  uart_view_.reset();
   link_view_.reset();
 }
 
@@ -176,6 +190,11 @@ void ConnectivityTestPage::build_content(lv_obj_t* content) {
                             connectivity_view_model_.link_settings_request_subject(),
                             link_settings_request_observer,
                             this);
+  uart_settings_observer_handle_ =
+      reactive::observe_obj(plane_,
+                            connectivity_view_model_.uart_settings_request_subject(),
+                            uart_settings_request_observer,
+                            this);
   show_page_(connectivity_view_model_.active_page(), false);
 }
 
@@ -198,12 +217,16 @@ std::size_t ConnectivityTestPage::viewport_index_(model::ConnectivitySubPage pag
       return 3;
     case model::ConnectivitySubPage::USB:
       return 4;
-    case model::ConnectivitySubPage::I2C:
+    case model::ConnectivitySubPage::HDMI:
       return 5;
-    case model::ConnectivitySubPage::SPI:
+    case model::ConnectivitySubPage::I2C:
       return 6;
-    case model::ConnectivitySubPage::LINK_TEST:
+    case model::ConnectivitySubPage::SPI:
       return 7;
+    case model::ConnectivitySubPage::UART:
+      return 8;
+    case model::ConnectivitySubPage::LINK_TEST:
+      return 9;
     case model::ConnectivitySubPage::MENU:
     default:
       return 0;
@@ -216,7 +239,9 @@ void ConnectivityTestPage::show_page_(model::ConnectivitySubPage page, bool anim
   }
 
   reset_subpage_views_(page);
+  switch_external_bus_(page);
   ensure_subpage_view_(page);
+  update_nav_actions_();
   const auto index = viewport_index_(page);
   if (menu_list_) {
     menu_list_->set_focused(page == model::ConnectivitySubPage::MENU);
@@ -228,6 +253,28 @@ void ConnectivityTestPage::show_page_(model::ConnectivitySubPage page, bool anim
     show_loading_modal_(page);
   }
   LV_UNUSED(animate);
+}
+
+void ConnectivityTestPage::switch_external_bus_(model::ConnectivitySubPage page) {
+  if (page == model::ConnectivitySubPage::I2C || page == model::ConnectivitySubPage::UART) {
+    std::string error;
+    platform::gpio::set_external_bus_i2c_mode(page == model::ConnectivitySubPage::I2C, error);
+  }
+
+  if (page == model::ConnectivitySubPage::UART) {
+    uart_page_entered_at_          = lv_tick_get();
+    suppress_uart_settings_once_   = true;
+  } else {
+    suppress_uart_settings_once_ = false;
+  }
+}
+
+bool ConnectivityTestPage::should_suppress_uart_settings_() {
+  if (!suppress_uart_settings_once_) {
+    return false;
+  }
+  suppress_uart_settings_once_ = false;
+  return lv_tick_elaps(uart_page_entered_at_) < K_UART_SETTINGS_SUPPRESS_MS;
 }
 
 void ConnectivityTestPage::update_selection_(std::size_t index) {
@@ -264,27 +311,28 @@ lv_obj_t* ConnectivityTestPage::viewport_for_page_(model::ConnectivitySubPage pa
 }
 
 void ConnectivityTestPage::reset_subpage_views_(model::ConnectivitySubPage keep_page) {
-  if (keep_page != model::ConnectivitySubPage::WIFI) {
-    wifi_view_.reset();
-  }
-  if (keep_page != model::ConnectivitySubPage::BLUETOOTH) {
-    bluetooth_view_.reset();
-  }
-  if (keep_page != model::ConnectivitySubPage::ETHERNET) {
-    ethernet_view_.reset();
-  }
-  if (keep_page != model::ConnectivitySubPage::USB) {
-    usb_view_.reset();
-  }
-  if (keep_page != model::ConnectivitySubPage::I2C) {
-    i2c_view_.reset();
-  }
-  if (keep_page != model::ConnectivitySubPage::SPI) {
-    spi_view_.reset();
-  }
-  if (keep_page != model::ConnectivitySubPage::LINK_TEST) {
-    link_view_.reset();
-  }
+  const auto reset_page = [this, keep_page](model::ConnectivitySubPage page, auto& view) {
+    if (keep_page == page) {
+      return;
+    }
+
+    view.reset();
+    auto* viewport = viewport_for_page_(page);
+    if (viewport && lv_obj_is_valid(viewport)) {
+      lv_obj_clean(viewport);
+      lv_obj_scroll_to_y(viewport, 0, LV_ANIM_OFF);
+    }
+  };
+
+  reset_page(model::ConnectivitySubPage::WIFI, wifi_view_);
+  reset_page(model::ConnectivitySubPage::BLUETOOTH, bluetooth_view_);
+  reset_page(model::ConnectivitySubPage::ETHERNET, ethernet_view_);
+  reset_page(model::ConnectivitySubPage::USB, usb_view_);
+  reset_page(model::ConnectivitySubPage::HDMI, hdmi_view_);
+  reset_page(model::ConnectivitySubPage::I2C, i2c_view_);
+  reset_page(model::ConnectivitySubPage::SPI, spi_view_);
+  reset_page(model::ConnectivitySubPage::UART, uart_view_);
+  reset_page(model::ConnectivitySubPage::LINK_TEST, link_view_);
 }
 
 void ConnectivityTestPage::ensure_subpage_view_(model::ConnectivitySubPage page) {
@@ -313,6 +361,11 @@ void ConnectivityTestPage::ensure_subpage_view_(model::ConnectivitySubPage page)
         return;
       }
       break;
+    case model::ConnectivitySubPage::HDMI:
+      if (hdmi_view_) {
+        return;
+      }
+      break;
     case model::ConnectivitySubPage::I2C:
       if (i2c_view_) {
         return;
@@ -320,6 +373,11 @@ void ConnectivityTestPage::ensure_subpage_view_(model::ConnectivitySubPage page)
       break;
     case model::ConnectivitySubPage::SPI:
       if (spi_view_) {
+        return;
+      }
+      break;
+    case model::ConnectivitySubPage::UART:
+      if (uart_view_) {
         return;
       }
       break;
@@ -362,6 +420,11 @@ void ConnectivityTestPage::build_subpage_view_(lv_obj_t* viewport,
       usb_view_ = std::make_unique<UsbConnectivityView>(connectivity_view_model_.usb_view_model());
       usb_view_->build(viewport, app_view_model_ref_(), assets_ref_());
       break;
+    case model::ConnectivitySubPage::HDMI:
+      hdmi_view_ =
+          std::make_unique<HdmiConnectivityView>(connectivity_view_model_.hdmi_view_model());
+      hdmi_view_->build(viewport, app_view_model_ref_(), assets_ref_());
+      break;
     case model::ConnectivitySubPage::I2C:
       i2c_view_ = std::make_unique<I2cConnectivityView>(connectivity_view_model_.i2c_view_model());
       i2c_view_->build(viewport, app_view_model_ref_(), assets_ref_());
@@ -369,6 +432,10 @@ void ConnectivityTestPage::build_subpage_view_(lv_obj_t* viewport,
     case model::ConnectivitySubPage::SPI:
       spi_view_ = std::make_unique<SpiConnectivityView>(connectivity_view_model_.spi_view_model());
       spi_view_->build(viewport, app_view_model_ref_(), assets_ref_());
+      break;
+    case model::ConnectivitySubPage::UART:
+      uart_view_ = std::make_unique<UartConnectivityView>();
+      uart_view_->build(viewport, root(), app_view_model_ref_(), assets_ref_());
       break;
     case model::ConnectivitySubPage::LINK_TEST:
       link_view_ =
@@ -381,8 +448,38 @@ void ConnectivityTestPage::build_subpage_view_(lv_obj_t* viewport,
   }
 }
 
+void ConnectivityTestPage::update_nav_actions_() {
+  app_view_model_ref_().clear_nav_actions();
+  set_nav_action_('4', view::ICON_ARROW_U_UP_LEFT, [this]() {
+    app_view_model_ref_().request_back_or_quit();
+  });
+
+  const auto page = connectivity_view_model_.active_page();
+  if (page == model::ConnectivitySubPage::LINK_TEST) {
+    set_nav_action_('5', view::ICON_ARROWS_CLOCKWISE, [this]() {
+      connectivity_view_model_.request_link_restart();
+    });
+    set_nav_action_('7', view::ICON_GEAR_FINE, [this]() {
+      connectivity_view_model_.request_link_settings();
+    });
+  } else if (page == model::ConnectivitySubPage::UART) {
+    set_nav_action_('6', view::ICON_GEAR_FINE, [this]() {
+      connectivity_view_model_.request_uart_settings();
+    });
+  }
+
+  set_nav_action_('8', view::ICON_CHECK_SQUARE, [this]() {
+    app_view_model_ref_().complete_current_test();
+  });
+}
+
 void ConnectivityTestPage::show_loading_modal_(model::ConnectivitySubPage page) {
   if (!root()) {
+    return;
+  }
+
+  if (page == model::ConnectivitySubPage::I2C) {
+    hide_loading_modal_();
     return;
   }
 
@@ -401,7 +498,9 @@ void ConnectivityTestPage::show_loading_modal_(model::ConnectivitySubPage page) 
   const char* title = page == model::ConnectivitySubPage::I2C         ? "Scanning I2C..."
                       : page == model::ConnectivitySubPage::SPI       ? "Scanning SPI..."
                       : page == model::ConnectivitySubPage::LINK_TEST ? "Testing Link..."
+                      : page == model::ConnectivitySubPage::UART      ? "Opening UART..."
                       : page == model::ConnectivitySubPage::ETHERNET  ? "Reading Ethernet..."
+                      : page == model::ConnectivitySubPage::HDMI      ? "Reading HDMI..."
                                                                       : "Scanning...";
   lv_label_set_text(label, title);
   auto* font = assets_ref_().load_font("inter-semibold.ttf", 12);
@@ -434,10 +533,16 @@ void ConnectivityTestPage::key_listener(uint32_t key, const char* key_name, void
     return;
   }
 
+  const bool uart_page_active =
+      page->connectivity_view_model_.active_page() == model::ConnectivitySubPage::UART;
+  if (uart_page_active && page->uart_view_ && page->uart_view_->handle_key(key, key_name)) {
+    return;
+  }
+
   const bool link_page_active =
       page->connectivity_view_model_.active_page() == model::ConnectivitySubPage::LINK_TEST;
   if (link_page_active && page->link_view_) {
-    if (page->link_view_->handle_key(key)) {
+    if (page->link_view_->handle_key(key, key_name)) {
       return;
     }
     if (key == '5' || key == 'r' || key == 'R') {
@@ -529,6 +634,20 @@ void ConnectivityTestPage::link_settings_request_observer(lv_observer_t* observe
   if (page && page->link_view_ &&
       page->connectivity_view_model_.active_page() == model::ConnectivitySubPage::LINK_TEST) {
     page->link_view_->show_config_dialog();
+  }
+}
+
+void ConnectivityTestPage::uart_settings_request_observer(lv_observer_t* observer,
+                                                          lv_subject_t* subject) {
+  LV_UNUSED(subject);
+
+  auto* page = static_cast<ConnectivityTestPage*>(lv_observer_get_user_data(observer));
+  if (page && page->uart_view_ &&
+      page->connectivity_view_model_.active_page() == model::ConnectivitySubPage::UART) {
+    if (page->should_suppress_uart_settings_()) {
+      return;
+    }
+    page->uart_view_->show_config_dialog();
   }
 }
 

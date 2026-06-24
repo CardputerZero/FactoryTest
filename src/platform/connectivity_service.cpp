@@ -8,14 +8,15 @@
 
 #include <algorithm>
 #include <array>
-#include <cerrno>
 #include <cctype>
+#include <cerrno>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <optional>
 #include <sstream>
 #include <utility>
@@ -43,6 +44,7 @@
 #include <linux/i2c.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
+#include <termios.h>
 #include <unistd.h>
 #endif
 
@@ -96,6 +98,12 @@ bool same_spi_result(const std::vector<SpiDeviceInfo>& left,
          std::equal(left.begin(), left.end(), right.begin(), same_spi_device);
 }
 
+bool same_hdmi_info(const HdmiInfo& left, const HdmiInfo& right) {
+  return left.connector_name == right.connector_name && left.status == right.status &&
+         left.enabled == right.enabled && left.resolution == right.resolution &&
+         left.sys_path == right.sys_path && left.connected == right.connected;
+}
+
 bool wireless_result_sort_less(const WirelessScanItem& left, const WirelessScanItem& right) {
   if (left.strength_percent != right.strength_percent) {
     return left.strength_percent > right.strength_percent;
@@ -117,9 +125,9 @@ std::string trim(const std::string& value) {
   const auto begin = std::find_if_not(value.begin(), value.end(), [](unsigned char ch) {
     return std::isspace(ch) != 0;
   });
-  const auto end = std::find_if_not(value.rbegin(), value.rend(), [](unsigned char ch) {
+  const auto end   = std::find_if_not(value.rbegin(), value.rend(), [](unsigned char ch) {
                      return std::isspace(ch) != 0;
-                   }).base();
+                     }).base();
   return begin < end ? std::string(begin, end) : std::string{};
 }
 
@@ -150,6 +158,12 @@ struct I2cLogSnapshot {
 struct SpiLogSnapshot {
   bool initialized{false};
   std::vector<SpiDeviceInfo> devices{};
+  std::string error_message{};
+};
+
+struct HdmiLogSnapshot {
+  bool initialized{false};
+  HdmiInfo info{};
   std::string error_message{};
 };
 
@@ -223,6 +237,20 @@ bool update_spi_log_snapshot(SpiLogSnapshot& snapshot,
   return true;
 }
 
+bool update_hdmi_log_snapshot(HdmiLogSnapshot& snapshot,
+                              const HdmiInfo& info,
+                              const std::string& error_message) {
+  if (snapshot.initialized && snapshot.error_message == error_message &&
+      same_hdmi_info(snapshot.info, info)) {
+    return false;
+  }
+
+  snapshot.initialized   = true;
+  snapshot.info          = info;
+  snapshot.error_message = error_message;
+  return true;
+}
+
 void log_wireless_result(const char* source,
                          const std::vector<WirelessScanItem>& items,
                          const std::string& error_message,
@@ -265,6 +293,23 @@ void log_ethernet_result(const EthernetInfo& info, const std::string& error_mess
       info.connection_name,
       info.ip4_address,
       info.hw_address);
+}
+
+void log_hdmi_result(const HdmiInfo& info, const std::string& error_message, bool changed) {
+  if (!changed) {
+    LOG_TRACE("connectivity HDMI result unchanged");
+    return;
+  }
+
+  if (!error_message.empty()) {
+    LOG_WARN("connectivity HDMI result message: {}", error_message);
+  }
+
+  LOG_INFO("connectivity HDMI result: connector='{}' status='{}' enabled='{}' resolution='{}'",
+           info.connector_name,
+           info.status,
+           info.enabled,
+           info.resolution);
 }
 
 void log_usb_result(const std::vector<UsbDeviceInfo>& devices,
@@ -1187,6 +1232,59 @@ std::string read_first_line(const std::filesystem::path& path) {
   return line;
 }
 
+bool is_hdmi_connector_name(const std::string& name) {
+  return lower_copy(name).find("hdmi") != std::string::npos;
+}
+
+std::string connector_display_name(const std::filesystem::path& path) {
+  auto name       = path.filename().string();
+  const auto dash = name.find('-');
+  if (dash != std::string::npos && dash + 1 < name.size()) {
+    return name.substr(dash + 1);
+  }
+  return name;
+}
+
+std::string first_hdmi_mode(const std::filesystem::path& connector_path) {
+  std::ifstream file(connector_path / "modes");
+  std::string line;
+  while (std::getline(file, line)) {
+    line = trim(line);
+    if (!line.empty()) {
+      return line;
+    }
+  }
+  return {};
+}
+
+std::optional<std::filesystem::path> choose_hdmi_connector(std::string& error_message) {
+  std::error_code ec;
+  std::vector<std::filesystem::path> candidates;
+  for (const auto& entry : std::filesystem::directory_iterator("/sys/class/drm", ec)) {
+    const auto name = entry.path().filename().string();
+    if (is_hdmi_connector_name(name) && std::filesystem::exists(entry.path() / "status")) {
+      candidates.push_back(entry.path());
+    }
+  }
+
+  if (ec) {
+    error_message = std::string("failed to enumerate DRM connectors: ") + ec.message();
+    return std::nullopt;
+  }
+  if (candidates.empty()) {
+    error_message = "No HDMI connector found";
+    return std::nullopt;
+  }
+
+  std::sort(candidates.begin(), candidates.end());
+  for (const auto& candidate : candidates) {
+    if (trim(read_first_line(candidate / "status")) == "connected") {
+      return candidate;
+    }
+  }
+  return candidates.front();
+}
+
 struct LinkInterfaceSelection {
   std::optional<std::string> name{};
   std::string unavailable_message{};
@@ -1560,10 +1658,9 @@ LinkIperfResult run_iperf_for_interface(const LinkTestSettings& settings,
   iperf_set_test_bind_dev(test, interface_selection.name->c_str());
 
   if (iperf_run_client(test) < 0) {
-    result.message = iperf_strerror(i_errno) ? iperf_strerror(i_errno) : "iperf failed";
+    result.message   = iperf_strerror(i_errno) ? iperf_strerror(i_errno) : "iperf failed";
     const auto lower = lower_copy(result.message);
-    if (lower.find("connect") != std::string::npos ||
-        lower.find("refused") != std::string::npos ||
+    if (lower.find("connect") != std::string::npos || lower.find("refused") != std::string::npos ||
         lower.find("timed out") != std::string::npos ||
         lower.find("unreachable") != std::string::npos ||
         lower.find("no route") != std::string::npos) {
@@ -1589,7 +1686,277 @@ LinkIperfResult run_iperf_for_interface(const LinkTestSettings& settings,
   return result;
 }
 
+#if defined(__linux__)
+std::optional<speed_t> baud_to_speed(int baud_rate) {
+  switch (baud_rate) {
+    case 9600:
+      return B9600;
+    case 19200:
+      return B19200;
+    case 38400:
+      return B38400;
+    case 57600:
+      return B57600;
+    case 115200:
+      return B115200;
+#ifdef B230400
+    case 230400:
+      return B230400;
+#endif
+#ifdef B460800
+    case 460800:
+      return B460800;
+#endif
+#ifdef B921600
+    case 921600:
+      return B921600;
+#endif
+    default:
+      return std::nullopt;
+  }
+}
+
+std::string read_text_file(const std::filesystem::path& path) {
+  std::ifstream file(path, std::ios::binary);
+  if (!file) {
+    return {};
+  }
+  std::ostringstream stream;
+  stream << file.rdbuf();
+  return stream.str();
+}
+
+std::string basename_from_path(const std::string& path) {
+  const auto pos = path.find_last_of('/');
+  return pos == std::string::npos ? path : path.substr(pos + 1);
+}
+
+bool kernel_console_references_uart(const std::string& path) {
+  const auto tty_name = lower_copy(basename_from_path(path));
+  const auto cmdline  = lower_copy(read_text_file("/proc/cmdline"));
+  if (!cmdline.empty() && (cmdline.find("console=" + tty_name) != std::string::npos ||
+                           cmdline.find("console=serial0") != std::string::npos)) {
+    return true;
+  }
+
+  std::istringstream consoles(read_text_file("/proc/consoles"));
+  std::string line;
+  while (std::getline(consoles, line)) {
+    if (lower_copy(line).find(tty_name) != std::string::npos) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool login_process_uses_uart(const std::string& path) {
+  const auto tty_name = lower_copy(basename_from_path(path));
+  std::error_code ec;
+  const auto proc_root = std::filesystem::path{"/proc"};
+  for (const auto& entry : std::filesystem::directory_iterator(proc_root, ec)) {
+    if (ec || !entry.is_directory(ec)) {
+      continue;
+    }
+
+    const auto pid = entry.path().filename().string();
+    if (pid.empty() || !std::all_of(pid.begin(), pid.end(), [](unsigned char ch) {
+          return std::isdigit(ch) != 0;
+        })) {
+      continue;
+    }
+
+    const auto cmdline = lower_copy(read_text_file(entry.path() / "cmdline"));
+    const bool login_service =
+        cmdline.find("getty") != std::string::npos || cmdline.find("login") != std::string::npos;
+    if (login_service && cmdline.find(tty_name) != std::string::npos) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool uart_occupied_by_console(const std::string& path) {
+  return kernel_console_references_uart(path) || login_process_uses_uart(path);
+}
+
+bool configure_uart_fd(int fd, int baud_rate, std::string& error_message) {
+  auto speed = baud_to_speed(baud_rate);
+  if (!speed) {
+    error_message = "Unsupported baud rate";
+    return false;
+  }
+
+  termios options{};
+  if (tcgetattr(fd, &options) != 0) {
+    error_message = std::string{"tcgetattr failed: "} + std::strerror(errno);
+    return false;
+  }
+
+  cfmakeraw(&options);
+  options.c_cflag &= static_cast<tcflag_t>(~PARENB);
+  options.c_cflag &= static_cast<tcflag_t>(~CSTOPB);
+  options.c_cflag &= static_cast<tcflag_t>(~CSIZE);
+  options.c_cflag |= CS8 | CLOCAL | CREAD;
+#ifdef CRTSCTS
+  options.c_cflag &= static_cast<tcflag_t>(~CRTSCTS);
+#endif
+  options.c_iflag &= static_cast<tcflag_t>(~(IXON | IXOFF | IXANY));
+  options.c_cc[VMIN]  = 0;
+  options.c_cc[VTIME] = 0;
+  cfsetispeed(&options, *speed);
+  cfsetospeed(&options, *speed);
+
+  if (tcsetattr(fd, TCSANOW, &options) != 0) {
+    error_message = std::string{"tcsetattr failed: "} + std::strerror(errno);
+    return false;
+  }
+  tcflush(fd, TCIOFLUSH);
+  return true;
+}
+#endif
+
 }  // namespace
+
+UartDebugSession::UartDebugSession(int fd, std::string path, int baud_rate)
+    : fd_(fd),
+      path_(std::move(path)),
+      baud_rate_(baud_rate) {}
+
+UartDebugSession::~UartDebugSession() {
+#if defined(__linux__)
+  if (fd_ >= 0) {
+    close(fd_);
+    fd_ = -1;
+  }
+#endif
+}
+
+std::unique_ptr<UartDebugSession> UartDebugSession::open(const std::string& path,
+                                                         int baud_rate,
+                                                         UartOpenResult& result) {
+  result = {};
+#if defined(__linux__)
+  if (uart_occupied_by_console(path)) {
+    result.status  = UartOpenStatus::OCCUPIED_BY_CONSOLE;
+    result.message = "UART is used by console. Disable serial login in raspi-config.";
+    return nullptr;
+  }
+
+  const int fd = ::open(path.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
+  if (fd < 0) {
+    result.status  = UartOpenStatus::OPEN_FAILED;
+    result.message = std::string{"Open failed: "} + std::strerror(errno);
+    return nullptr;
+  }
+
+  std::string error;
+  if (!configure_uart_fd(fd, baud_rate, error)) {
+    close(fd);
+    result.status  = UartOpenStatus::OPEN_FAILED;
+    result.message = error.empty() ? "Configure UART failed" : error;
+    return nullptr;
+  }
+
+  result.status  = UartOpenStatus::OK;
+  result.message = "OK";
+  LOG_INFO("UART debug opened path={} baud={} mode=8N1", path, baud_rate);
+  return std::unique_ptr<UartDebugSession>(new UartDebugSession(fd, path, baud_rate));
+#else
+  (void)path;
+  (void)baud_rate;
+  result.status  = UartOpenStatus::UNSUPPORTED;
+  result.message = "UART is only supported on Linux";
+  return nullptr;
+#endif
+}
+
+int UartDebugSession::baud_rate() const { return baud_rate_; }
+
+bool UartDebugSession::set_baud_rate(int baud_rate, std::string& error_message) {
+  error_message.clear();
+#if defined(__linux__)
+  if (fd_ < 0) {
+    error_message = "UART is not open";
+    return false;
+  }
+  if (!configure_uart_fd(fd_, baud_rate, error_message)) {
+    return false;
+  }
+  baud_rate_ = baud_rate;
+  LOG_INFO("UART debug baud changed path={} baud={} mode=8N1", path_, baud_rate_);
+  return true;
+#else
+  (void)baud_rate;
+  error_message = "UART is only supported on Linux";
+  return false;
+#endif
+}
+
+std::string UartDebugSession::read_available(std::string& error_message) {
+  error_message.clear();
+  std::string output;
+#if defined(__linux__)
+  if (fd_ < 0) {
+    error_message = "UART is not open";
+    return output;
+  }
+
+  std::array<char, 256> buffer{};
+  while (true) {
+    const auto count = ::read(fd_, buffer.data(), buffer.size());
+    if (count > 0) {
+      output.append(buffer.data(), static_cast<std::size_t>(count));
+      continue;
+    }
+    if (count == 0 || errno == EAGAIN || errno == EWOULDBLOCK) {
+      break;
+    }
+    if (errno == EINTR) {
+      continue;
+    }
+    error_message = std::string{"Read failed: "} + std::strerror(errno);
+    break;
+  }
+#else
+  error_message = "UART is only supported on Linux";
+#endif
+  return output;
+}
+
+bool UartDebugSession::write_text(const std::string& text, std::string& error_message) {
+  error_message.clear();
+#if defined(__linux__)
+  if (fd_ < 0) {
+    error_message = "UART is not open";
+    return false;
+  }
+
+  const char* data      = text.data();
+  std::size_t remaining = text.size();
+  while (remaining > 0) {
+    const auto count = ::write(fd_, data, remaining);
+    if (count > 0) {
+      data += count;
+      remaining -= static_cast<std::size_t>(count);
+      continue;
+    }
+    if (count < 0 && errno == EINTR) {
+      continue;
+    }
+    if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+      error_message = "UART write would block";
+    } else {
+      error_message = std::string{"Write failed: "} + std::strerror(errno);
+    }
+    return false;
+  }
+  return true;
+#else
+  (void)text;
+  error_message = "UART is only supported on Linux";
+  return false;
+#endif
+}
 
 std::vector<WirelessScanItem> scan_wifi(std::string& error_message) {
   static WirelessLogSnapshot log_snapshot;
@@ -1879,6 +2246,45 @@ std::vector<SpiDeviceInfo> list_spi_devices(std::string& error_message) {
   const bool changed = update_spi_log_snapshot(log_snapshot, devices, error_message);
   log_spi_result(devices, error_message, changed);
   return {};
+#endif
+}
+
+HdmiInfo read_hdmi_info(std::string& error_message) {
+  static HdmiLogSnapshot log_snapshot;
+  error_message.clear();
+  HdmiInfo info;
+
+#if defined(__linux__)
+  LOG_TRACE("connectivity HDMI info requested");
+  const auto connector_path = choose_hdmi_connector(error_message);
+  if (!connector_path) {
+    const bool changed = update_hdmi_log_snapshot(log_snapshot, info, error_message);
+    log_hdmi_result(info, error_message, changed);
+    return info;
+  }
+
+  info.connector_name = connector_display_name(*connector_path);
+  info.sys_path       = connector_path->string();
+  info.status         = trim(read_first_line(*connector_path / "status"));
+  info.enabled        = trim(read_first_line(*connector_path / "enabled"));
+  info.connected      = info.status == "connected";
+  info.resolution     = first_hdmi_mode(*connector_path);
+
+  if (!info.connected) {
+    error_message = "HDMI disconnected";
+  } else if (info.resolution.empty()) {
+    error_message = "HDMI connected, no mode detected";
+  }
+
+  const bool changed = update_hdmi_log_snapshot(log_snapshot, info, error_message);
+  log_hdmi_result(info, error_message, changed);
+  return info;
+#else
+  LOG_TRACE("connectivity HDMI info requested but Linux DRM sysfs is unavailable");
+  error_message      = "Linux DRM sysfs is not available";
+  const bool changed = update_hdmi_log_snapshot(log_snapshot, info, error_message);
+  log_hdmi_result(info, error_message, changed);
+  return info;
 #endif
 }
 

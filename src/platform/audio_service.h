@@ -13,6 +13,8 @@ namespace platform::audio {
 struct AudioDevice {
   std::string backend_name;
   std::string display_name;
+  std::string playback_device;
+  std::string capture_device;
 };
 
 bool find_i2s_audio_device(AudioDevice& device, std::string& error_message);

@@ -7,9 +7,12 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
+
 #include "app_viewmodel.h"
 #include "asset_manager.h"
 #include "connectivity_test_viewmodel.h"
+#include "dialog.h"
 #include "lvgl.h"
 
 namespace screen {
@@ -24,7 +27,7 @@ class LinkConnectivityView {
              app::AssetManager& assets);
   void restart();
   void show_config_dialog();
-  bool handle_key(uint32_t key);
+  bool handle_key(uint32_t key, const char* key_name);
   bool dialog_visible() const;
 
  private:
@@ -41,8 +44,6 @@ class LinkConnectivityView {
   lv_obj_t* active_dialog_input_() const;
   bool append_dialog_char_(char ch);
   static void refresh_timer_cb(lv_timer_t* timer);
-  static void dialog_apply_cb(lv_event_t* event);
-  static void dialog_cancel_cb(lv_event_t* event);
   static void dialog_host_focus_cb(lv_event_t* event);
   static void dialog_port_focus_cb(lv_event_t* event);
 
@@ -51,7 +52,7 @@ class LinkConnectivityView {
   app::AssetManager* assets_{nullptr};
   lv_obj_t* dialog_parent_{nullptr};
   lv_obj_t* panel_{nullptr};
-  lv_obj_t* dialog_{nullptr};
+  std::unique_ptr<view::widgets::Dialog> dialog_{};
   lv_obj_t* host_input_{nullptr};
   lv_obj_t* port_input_{nullptr};
   DialogField active_dialog_field_{DialogField::HOST};

@@ -156,7 +156,7 @@ lv_display_t* init_display() {
   if (!display) {
     return nullptr;
   }
-  lv_sdl_window_set_title(display, "CardputerZero Factory Test");
+  lv_sdl_window_set_title(display, "Factory Test");
   lv_sdl_window_set_resizeable(display, false);
   lv_sdl_mouse_create();
   lv_sdl_mousewheel_create();

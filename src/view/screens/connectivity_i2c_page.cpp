@@ -10,7 +10,6 @@
 
 #include <array>
 #include <cstdint>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -18,6 +17,7 @@
 #include "theme.h"
 
 namespace screen {
+namespace {
 
 lv_obj_t* build_i2c_panel(lv_obj_t* parent, viewmodel::AppViewModel& app_view_model) {
   if (!parent) {
@@ -34,9 +34,9 @@ lv_obj_t* build_i2c_panel(lv_obj_t* parent, viewmodel::AppViewModel& app_view_mo
   lv_obj_set_height(panel, LV_SIZE_CONTENT);
   lv_obj_set_flex_flow(panel, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(panel, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_row(panel, 4, 0);
-  lv_obj_set_style_pad_top(panel, 2, 0);
-  lv_obj_set_style_pad_bottom(panel, 6, 0);
+  lv_obj_set_style_pad_row(panel, 0, 0);
+  lv_obj_set_style_pad_top(panel, 0, 0);
+  lv_obj_set_style_pad_bottom(panel, 2, 0);
   lv_obj_clear_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_align(panel, LV_ALIGN_TOP_MID, 0, 0);
   reactive::bind_theme(panel, app_view_model.dark_mode_subject(), reactive::ThemeRole::SURFACE);
@@ -58,7 +58,6 @@ const char* i2c_cell_text(model::ConnectivityI2cAddressState state, uint8_t addr
   present_cells[address][2] = '\0';
   return present_cells[address];
 }
-
 
 std::array<model::ConnectivityI2cAddressState, 128> i2c_address_states(
     const std::vector<model::ConnectivityI2cAddressInfo>& addresses) {
@@ -85,13 +84,101 @@ lv_obj_t* add_i2c_text_label(lv_obj_t* parent,
   return label;
 }
 
-void add_i2c_grid_header(lv_obj_t* grid,
-                         viewmodel::AppViewModel& app_view_model,
-                         const lv_font_t* font) {
+void set_i2c_cell_color(lv_obj_t* label,
+                        viewmodel::AppViewModel& app_view_model,
+                        model::ConnectivityI2cAddressState state,
+                        uint8_t address) {
+  if (!label) {
+    return;
+  }
+
+  const bool reserved = address < 0x03 || address > 0x77;
+  const auto colors   = view::palette(app_view_model.is_dark_mode());
+  if (state == model::ConnectivityI2cAddressState::PRESENT && !reserved) {
+    lv_obj_set_style_text_color(label, colors.success, 0);
+  } else if (state == model::ConnectivityI2cAddressState::KERNEL_DRIVER && !reserved) {
+    lv_obj_set_style_text_color(label, colors.warning, 0);
+  } else {
+    lv_obj_set_style_text_color(label, reserved ? colors.text_disabled : colors.text_muted, 0);
+  }
+}
+
+}  // namespace
+
+I2cConnectivityView::I2cConnectivityView(viewmodel::I2cConnectivityViewModel& view_model)
+    : view_model_(view_model) {
+  cell_states_.fill(model::ConnectivityI2cAddressState::ABSENT);
+}
+
+I2cConnectivityView::~I2cConnectivityView() {
+  delete_timer(refresh_timer_);
+  scanning_popup_.reset();
+  if (panel_ && lv_obj_is_valid(panel_)) {
+    lv_obj_delete(panel_);
+  }
+  panel_ = nullptr;
+  card_  = nullptr;
+  grid_  = nullptr;
+  cell_labels_.fill(nullptr);
+}
+
+void I2cConnectivityView::build(lv_obj_t* parent,
+                                viewmodel::AppViewModel& app_view_model,
+                                app::AssetManager& assets) {
+  app_view_model_ = &app_view_model;
+  assets_         = &assets;
+  panel_          = build_i2c_panel(parent, app_view_model);
+  build_static_content_();
+  refresh_();
+  refresh_timer_ = lv_timer_create(refresh_timer_cb, 500, this);
+}
+
+void I2cConnectivityView::build_static_content_() {
+  if (!panel_ || !app_view_model_ || !assets_) {
+    return;
+  }
+
+  auto* header_font = assets_->load_font("inter-semibold.ttf", 10);
+  auto* cell_font   = assets_->load_font("inter-medium.ttf", 10);
+  const auto colors = view::palette(app_view_model_->is_dark_mode());
+
+  card_ = lv_obj_create(panel_);
+  lv_obj_remove_style_all(card_);
+  lv_obj_set_width(card_, K_I2C_CARD_WIDTH);
+  lv_obj_set_height(card_, LV_SIZE_CONTENT);
+  lv_obj_set_flex_flow(card_, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(card_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_all(card_, 3, 0);
+  lv_obj_set_style_pad_row(card_, 0, 0);
+  lv_obj_set_style_radius(card_, 8, 0);
+  lv_obj_set_style_bg_opa(card_, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(card_, colors.button, 0);
+  lv_obj_set_style_border_width(card_, 1, 0);
+  lv_obj_set_style_border_color(card_, colors.border, 0);
+  lv_obj_set_style_outline_width(card_, 1, 0);
+  lv_obj_set_style_outline_pad(card_, 0, 0);
+  lv_obj_set_style_outline_opa(card_, LV_OPA_20, 0);
+  lv_obj_set_style_outline_color(card_, colors.border, 0);
+  lv_obj_clear_flag(card_, LV_OBJ_FLAG_SCROLLABLE);
+
+  grid_ = lv_obj_create(card_);
+  lv_obj_remove_style_all(grid_);
+  lv_obj_set_width(grid_, LV_SIZE_CONTENT);
+  lv_obj_set_height(grid_, LV_SIZE_CONTENT);
+  lv_obj_set_style_grid_column_dsc_array(grid_, K_I2C_GRID_COLUMNS, 0);
+  lv_obj_set_style_grid_row_dsc_array(grid_, K_I2C_GRID_ROWS, 0);
+  lv_obj_set_style_pad_column(grid_, 2, 0);
+  lv_obj_set_style_pad_row(grid_, 2, 0);
+  lv_obj_set_layout(grid_, LV_LAYOUT_GRID);
+  lv_obj_clear_flag(grid_, LV_OBJ_FLAG_SCROLLABLE);
+
   constexpr char HEX[] = "0123456789abcdef";
   for (uint8_t col = 0; col <= 0x0f; ++col) {
     char text[2] = {HEX[col], '\0'};
-    auto* label  = add_i2c_text_label(grid, app_view_model, font, text);
+    auto* label  = add_i2c_text_label(grid_,
+                                      *app_view_model_,
+                                      header_font ? header_font : &lv_font_montserrat_12,
+                                      text);
     lv_obj_set_grid_cell(label,
                          LV_GRID_ALIGN_CENTER,
                          static_cast<int32_t>(col) + 1,
@@ -100,162 +187,98 @@ void add_i2c_grid_header(lv_obj_t* grid,
                          0,
                          1);
   }
-}
 
-void add_i2c_grid_row(lv_obj_t* grid,
-                      viewmodel::AppViewModel& app_view_model,
-                      const lv_font_t* header_font,
-                      const lv_font_t* cell_font,
-                      const std::array<model::ConnectivityI2cAddressState, 128>& states,
-                      uint8_t row) {
-  constexpr char HEX[]   = "0123456789abcdef";
-  char row_text[4]       = {HEX[(row >> 4) & 0x0f], '0', ':', '\0'};
-  auto* row_label        = add_i2c_text_label(grid, app_view_model, header_font, row_text);
-  const int32_t grid_row = static_cast<int32_t>(row / 0x10) + 1;
-  lv_obj_set_grid_cell(row_label, LV_GRID_ALIGN_CENTER, 0, 1, LV_GRID_ALIGN_CENTER, grid_row, 1);
-
-  for (uint8_t col = 0; col <= 0x0f; ++col) {
-    const uint8_t address = static_cast<uint8_t>(row + col);
-    const char* text =
-        (address < 0x03 || address > 0x77) ? "" : i2c_cell_text(states[address], address);
-    const bool reserved = address < 0x03 || address > 0x77;
-    const auto colors   = view::palette(app_view_model.is_dark_mode());
-
-    auto* label = add_i2c_text_label(grid, app_view_model, cell_font, text);
-    lv_obj_set_width(label, K_I2C_CELL_WIDTH);
-
-    if (states[address] == model::ConnectivityI2cAddressState::PRESENT && !reserved) {
-      lv_obj_set_style_text_color(label, colors.success, 0);
-    } else if (states[address] == model::ConnectivityI2cAddressState::KERNEL_DRIVER && !reserved) {
-      lv_obj_set_style_text_color(label, colors.warning, 0);
-    } else {
-      lv_obj_set_style_text_color(label, reserved ? colors.text_disabled : colors.text_muted, 0);
-    }
-
-    lv_obj_set_grid_cell(label,
-                         LV_GRID_ALIGN_CENTER,
-                         static_cast<int32_t>(col) + 1,
-                         1,
-                         LV_GRID_ALIGN_CENTER,
-                         grid_row,
-                         1);
-  }
-}
-
-void rebuild_i2c_panel(lv_obj_t* panel,
-                       viewmodel::AppViewModel& app_view_model,
-                       app::AssetManager& assets,
-                       const char* title,
-                       const std::vector<model::ConnectivityI2cAddressInfo>& addresses,
-                       const std::string& error_message) {
-  if (!panel) {
-    return;
-  }
-
-  lv_obj_clean(panel);
-  auto* title_font  = assets.load_font("inter-semibold.ttf", 12);
-  auto* status_font = assets.load_font("inter-medium.ttf", 11);
-  auto* header_font = assets.load_font("inter-semibold.ttf", 10);
-  auto* cell_font   = assets.load_font("inter-medium.ttf", 10);
-
-  const auto colors = view::palette(app_view_model.is_dark_mode());
-  auto* card        = lv_obj_create(panel);
-  lv_obj_remove_style_all(card);
-  lv_obj_set_width(card, K_I2C_CARD_WIDTH);
-  lv_obj_set_height(card, LV_SIZE_CONTENT);
-  lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
-  lv_obj_set_flex_align(card, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_all(card, 5, 0);
-  lv_obj_set_style_pad_row(card, 4, 0);
-  lv_obj_set_style_radius(card, 8, 0);
-  lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-  lv_obj_set_style_bg_color(card, colors.button, 0);
-  lv_obj_set_style_border_width(card, 1, 0);
-  lv_obj_set_style_border_color(card, colors.border, 0);
-  lv_obj_set_style_outline_width(card, 1, 0);
-  lv_obj_set_style_outline_pad(card, 0, 0);
-  lv_obj_set_style_outline_opa(card, LV_OPA_20, 0);
-  lv_obj_set_style_outline_color(card, colors.border, 0);
-  lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
-
-  std::ostringstream title_text;
-  title_text << (title ? title : "I2C") << " Bus 1";
-  auto* title_label = add_i2c_text_label(card,
-                                         app_view_model,
-                                         title_font ? title_font : &lv_font_montserrat_12,
-                                         title_text.str().c_str());
-  lv_obj_set_width(title_label, K_I2C_CONTENT_WIDTH);
-
-  if (!error_message.empty() || addresses.empty()) {
-    const auto status  = !error_message.empty() ? error_message : std::string{"No I2C scan result"};
-    auto* status_label = add_i2c_text_label(card,
-                                            app_view_model,
-                                            status_font ? status_font : &lv_font_montserrat_12,
-                                            status.c_str());
-    lv_label_set_long_mode(status_label, LV_LABEL_LONG_SCROLL);
-    lv_obj_set_width(status_label, K_I2C_CONTENT_WIDTH);
-  }
-
-  if (addresses.empty()) {
-    lv_obj_update_layout(panel);
-    return;
-  }
-
-  auto* grid = lv_obj_create(card);
-  lv_obj_remove_style_all(grid);
-  lv_obj_set_width(grid, LV_SIZE_CONTENT);
-  lv_obj_set_height(grid, LV_SIZE_CONTENT);
-  lv_obj_set_style_grid_column_dsc_array(grid, K_I2C_GRID_COLUMNS, 0);
-  lv_obj_set_style_grid_row_dsc_array(grid, K_I2C_GRID_ROWS, 0);
-  lv_obj_set_style_pad_column(grid, 2, 0);
-  lv_obj_set_style_pad_row(grid, 2, 0);
-  lv_obj_set_layout(grid, LV_LAYOUT_GRID);
-  lv_obj_clear_flag(grid, LV_OBJ_FLAG_SCROLLABLE);
-
-  const auto states = i2c_address_states(addresses);
-  add_i2c_grid_header(grid, app_view_model, header_font ? header_font : &lv_font_montserrat_12);
   for (uint8_t row = 0; row <= 0x70; row = static_cast<uint8_t>(row + 0x10)) {
-    add_i2c_grid_row(grid,
-                     app_view_model,
-                     header_font ? header_font : &lv_font_montserrat_12,
-                     cell_font ? cell_font : &lv_font_montserrat_12,
-                     states,
-                     row);
+    char row_text[4]       = {HEX[(row >> 4) & 0x0f], '0', ':', '\0'};
+    auto* row_label        = add_i2c_text_label(grid_,
+                                                *app_view_model_,
+                                                header_font ? header_font : &lv_font_montserrat_12,
+                                                row_text);
+    const int32_t grid_row = static_cast<int32_t>(row / 0x10) + 1;
+    lv_obj_set_grid_cell(row_label, LV_GRID_ALIGN_CENTER, 0, 1, LV_GRID_ALIGN_CENTER, grid_row, 1);
+
+    for (uint8_t col = 0; col <= 0x0f; ++col) {
+      const uint8_t address = static_cast<uint8_t>(row + col);
+      const bool reserved   = address < 0x03 || address > 0x77;
+      auto* label = add_i2c_text_label(grid_,
+                                       *app_view_model_,
+                                       cell_font ? cell_font : &lv_font_montserrat_12,
+                                       reserved ? "" : "--");
+      lv_obj_set_width(label, K_I2C_CELL_WIDTH);
+      set_i2c_cell_color(label,
+                         *app_view_model_,
+                         model::ConnectivityI2cAddressState::ABSENT,
+                         address);
+      lv_obj_set_grid_cell(label,
+                           LV_GRID_ALIGN_CENTER,
+                           static_cast<int32_t>(col) + 1,
+                           1,
+                           LV_GRID_ALIGN_CENTER,
+                           grid_row,
+                           1);
+      cell_labels_[address] = label;
+    }
   }
 
-  lv_obj_update_layout(panel);
-  auto* viewport = lv_obj_get_parent(panel);
-  if (viewport) {
-    lv_obj_update_layout(viewport);
+  panel_initialized_ = true;
+  lv_obj_update_layout(panel_);
+}
+
+void I2cConnectivityView::update_content_() {
+  if (!panel_initialized_ || !app_view_model_) {
+    return;
+  }
+
+  const auto states = i2c_address_states(view_model_.addresses());
+  for (std::size_t address_index = 0; address_index < cell_labels_.size(); ++address_index) {
+    const auto address  = static_cast<uint8_t>(address_index);
+    const bool reserved = address < 0x03 || address > 0x77;
+    if (!cell_labels_[address] || (states[address] == cell_states_[address] && !reserved)) {
+      continue;
+    }
+    lv_label_set_text(cell_labels_[address],
+                      reserved ? "" : i2c_cell_text(states[address], address));
+    set_i2c_cell_color(cell_labels_[address], *app_view_model_, states[address], address);
+    cell_states_[address] = states[address];
   }
 }
 
-I2cConnectivityView::I2cConnectivityView(viewmodel::I2cConnectivityViewModel& view_model)
-    : view_model_(view_model) {}
+void I2cConnectivityView::update_scanning_popup_() {
+  if (!app_view_model_) {
+    return;
+  }
 
-I2cConnectivityView::~I2cConnectivityView() { delete_timer(refresh_timer_); }
+  if (!scanning_popup_) {
+    view::widgets::PopupConfig config;
+    config.width       = 168;
+    config.height      = 40;
+    config.offset_y    = 0;
+    config.radius      = 10;
+    config.pad_all     = 6;
+    config.label_width = 152;
+    config.message     = "Scanning I2C...";
+    config.font = assets_ ? assets_->load_font("inter-semibold.ttf", 12) : &lv_font_montserrat_12;
+    scanning_popup_ =
+        std::make_unique<view::widgets::Popup>(lv_layer_top(), *app_view_model_, config);
+    scanning_popup_->build();
+  }
 
-void I2cConnectivityView::build(lv_obj_t* parent,
-                                viewmodel::AppViewModel& app_view_model,
-                                app::AssetManager& assets) {
-  app_view_model_ = &app_view_model;
-  assets_         = &assets;
-  panel_          = build_i2c_panel(parent, app_view_model);
-  refresh_();
-  refresh_timer_ = lv_timer_create(refresh_timer_cb, K_REFRESH_POLL_MS, this);
+  if (view_model_.is_scanning()) {
+    scanning_popup_->show();
+  } else {
+    scanning_popup_->hide();
+  }
 }
 
 void I2cConnectivityView::refresh_() {
   const bool changed = view_model_.refresh();
   if ((changed || !panel_initialized_) && app_view_model_ && assets_) {
-    rebuild_i2c_panel(panel_,
-                      *app_view_model_,
-                      *assets_,
-                      view_model_.title_text(),
-                      view_model_.addresses(),
-                      view_model_.error_message());
-    panel_initialized_ = true;
+    if (!panel_initialized_) {
+      build_static_content_();
+    }
+    update_content_();
   }
+  update_scanning_popup_();
 }
 
 void I2cConnectivityView::refresh_timer_cb(lv_timer_t* timer) {

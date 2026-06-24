@@ -9,6 +9,7 @@
 #include "connectivity_test_page.h"
 #include "device_info_page.h"
 #include "imu_test_page.h"
+#include "ir_test_page.h"
 #include "keyboard_test_page.h"
 #include "lcd_test_page.h"
 #include "placeholder_test_page.h"
@@ -43,6 +44,8 @@ const char* placeholder_title(model::AppPage page) {
       return "Camera Test";
     case model::AppPage::CONNECTIVITY_TEST:
       return "Connectivity Test";
+    case model::AppPage::IR_TEST:
+      return "IR Test";
     case model::AppPage::IMU_TEST:
       return "IMU Test";
     case model::AppPage::POWER_INFO:
@@ -134,6 +137,12 @@ void ScreenManager::show_connectivity_test_page() {
   has_loaded_page_ = true;
 }
 
+void ScreenManager::show_ir_test_page() {
+  load_screen_(std::make_unique<screen::IrTestPage>(app_view_model_, assets_));
+  loaded_page_     = model::AppPage::IR_TEST;
+  has_loaded_page_ = true;
+}
+
 void ScreenManager::show_imu_test_page() {
   load_screen_(std::make_unique<screen::ImuTestPage>(app_view_model_, assets_));
   loaded_page_     = model::AppPage::IMU_TEST;
@@ -197,6 +206,9 @@ void ScreenManager::flush_requested_page() {
       return;
     case model::AppPage::CONNECTIVITY_TEST:
       show_connectivity_test_page();
+      return;
+    case model::AppPage::IR_TEST:
+      show_ir_test_page();
       return;
     case model::AppPage::IMU_TEST:
       show_imu_test_page();

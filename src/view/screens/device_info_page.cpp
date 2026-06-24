@@ -29,13 +29,11 @@ constexpr int32_t K_BOUNCE_OFFSET   = 14;
 constexpr uint32_t K_REFRESH_MS     = 5000;
 constexpr uint32_t K_BOUNCE_BACK_MS = 120;
 constexpr const char* K_EMPTY_VALUE = "--";
-constexpr std::size_t K_SERIAL_NUMBER_FIELD_INDEX = 2;
 
 const char* field_icon(std::size_t index) {
   static constexpr const char* ICONS[] = {
       view::ICON_DEVICE_MOBILE,
       view::ICON_WRENCH,
-      view::ICON_BARCODE,
       view::ICON_FINGERPRINT,
       view::ICON_MEMORY,
       view::ICON_HARDDRIVE,
@@ -53,6 +51,7 @@ const char* field_icon(std::size_t index) {
 DeviceInfoPage::DeviceInfoPage(viewmodel::AppViewModel& app_view_model, app::AssetManager& assets)
     : BaseScreen(app_view_model, assets) {
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
+  set_default_test_nav_();
   init();
   platform::set_key_listener(key_listener, this);
   refresh_();
@@ -116,7 +115,7 @@ void DeviceInfoPage::build_content(lv_obj_t* content) {
         value_font ? value_font : &lv_font_montserrat_12,
         K_CARD_WIDTH,
         K_CARD_HEIGHT,
-        i == K_SERIAL_NUMBER_FIELD_INDEX ? LV_LABEL_LONG_SCROLL : LV_LABEL_LONG_CLIP);
+        LV_LABEL_LONG_SCROLL);
     card->build();
     cards_.push_back(std::move(card));
   }

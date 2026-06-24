@@ -26,8 +26,10 @@ const std::array<ConnectivityMenuItem, ConnectivityTestModel::K_ITEM_COUNT>& con
       {"Bluetooth", ConnectivitySubPage::BLUETOOTH},
       {"Ethernet", ConnectivitySubPage::ETHERNET},
       {"USB", ConnectivitySubPage::USB},
+      {"HDMI", ConnectivitySubPage::HDMI},
       {"I2C", ConnectivitySubPage::I2C},
       {"SPI", ConnectivitySubPage::SPI},
+      {"UART", ConnectivitySubPage::UART},
       {"Link Test", ConnectivitySubPage::LINK_TEST},
   }};
   return ITEMS;
@@ -189,6 +191,29 @@ ConnectivityScanRefreshResult read_spi_refresh_result() {
     items.push_back({std::move(device.name), std::move(device.path), -1});
   }
   return {std::move(items), std::move(error)};
+}
+
+ConnectivityInfoRefreshResult read_hdmi_refresh_result() {
+  std::string error;
+  const auto info = platform::connectivity::read_hdmi_info(error);
+
+  std::vector<ConnectivityInfoField> fields;
+  if (!info.connector_name.empty()) {
+    fields.push_back({"Connector", info.connector_name});
+  }
+  if (!info.status.empty()) {
+    fields.push_back({"Status", info.status});
+  }
+  if (!info.resolution.empty()) {
+    fields.push_back({"Resolution", info.resolution});
+  }
+  if (!info.enabled.empty()) {
+    fields.push_back({"Enabled", info.enabled});
+  }
+  if (fields.empty() && error.empty()) {
+    error = "No HDMI information";
+  }
+  return {std::move(fields), std::move(error)};
 }
 
 LinkTestMetric ping_metric(const platform::connectivity::LinkPingResult& result) {
@@ -403,20 +428,22 @@ const char* I2cConnectivityModel::title() const { return "I2C"; }
 
 bool I2cConnectivityModel::refresh(bool force_refresh) {
   bool changed = false;
+  const bool was_scanning = refresh_task_.valid();
   if (future_ready(refresh_task_)) {
     auto result = refresh_task_.get();
     changed |= set_addresses_(std::move(result.addresses), std::move(result.error_message));
   }
 
+  bool started_scan = false;
   if (!refresh_task_.valid() && (force_refresh || refresh_interval_elapsed(last_refresh_start_))) {
     last_refresh_start_ = Clock::now();
     refresh_task_       = std::async(std::launch::async, read_i2c_refresh_result);
-    if (addresses_.empty() && error_message_.empty()) {
-      changed |= set_addresses_({}, "Scanning I2C bus 1...");
-    }
+    started_scan        = true;
   }
-  return changed;
+  return changed || started_scan || (was_scanning != refresh_task_.valid());
 }
+
+bool I2cConnectivityModel::is_scanning() const { return refresh_task_.valid(); }
 
 const std::vector<ConnectivityI2cAddressInfo>& I2cConnectivityModel::addresses() const {
   return addresses_;
@@ -465,6 +492,40 @@ bool SpiConnectivityModel::set_devices_(std::vector<ConnectivityScanInfo> device
   }
 
   devices_       = std::move(devices);
+  error_message_ = std::move(error_message);
+  return true;
+}
+
+const char* HdmiConnectivityModel::title() const { return "HDMI"; }
+
+bool HdmiConnectivityModel::refresh(bool force_refresh) {
+  bool changed = false;
+  if (future_ready(refresh_task_)) {
+    auto result = refresh_task_.get();
+    changed |= set_info_(std::move(result.fields), std::move(result.error_message));
+  }
+
+  if (!refresh_task_.valid() && (force_refresh || refresh_interval_elapsed(last_refresh_start_))) {
+    last_refresh_start_ = Clock::now();
+    refresh_task_       = std::async(std::launch::async, read_hdmi_refresh_result);
+    if (fields_.empty() && error_message_.empty()) {
+      changed |= set_info_({}, "Reading HDMI...");
+    }
+  }
+  return changed;
+}
+
+const std::vector<ConnectivityInfoField>& HdmiConnectivityModel::fields() const { return fields_; }
+
+const std::string& HdmiConnectivityModel::error_message() const { return error_message_; }
+
+bool HdmiConnectivityModel::set_info_(std::vector<ConnectivityInfoField> fields,
+                                      std::string error_message) {
+  if (error_message_ == error_message && same_info_fields(fields_, fields)) {
+    return false;
+  }
+
+  fields_        = std::move(fields);
   error_message_ = std::move(error_message);
   return true;
 }

@@ -73,6 +73,8 @@ const char* I2cConnectivityViewModel::title_text() const { return model_.title()
 
 bool I2cConnectivityViewModel::refresh(bool force_refresh) { return model_.refresh(force_refresh); }
 
+bool I2cConnectivityViewModel::is_scanning() const { return model_.is_scanning(); }
+
 const std::vector<model::ConnectivityI2cAddressInfo>& I2cConnectivityViewModel::addresses() const {
   return model_.addresses();
 }
@@ -90,6 +92,20 @@ const std::vector<model::ConnectivityScanInfo>& SpiConnectivityViewModel::device
 }
 
 const std::string& SpiConnectivityViewModel::error_message() const {
+  return model_.error_message();
+}
+
+const char* HdmiConnectivityViewModel::title_text() const { return model_.title(); }
+
+bool HdmiConnectivityViewModel::refresh(bool force_refresh) {
+  return model_.refresh(force_refresh);
+}
+
+const std::vector<model::ConnectivityInfoField>& HdmiConnectivityViewModel::fields() const {
+  return model_.fields();
+}
+
+const std::string& HdmiConnectivityViewModel::error_message() const {
   return model_.error_message();
 }
 
@@ -131,6 +147,10 @@ lv_subject_t* ConnectivityTestViewModel::link_restart_request_subject() {
 
 lv_subject_t* ConnectivityTestViewModel::link_settings_request_subject() {
   return link_settings_request_subject_.native();
+}
+
+lv_subject_t* ConnectivityTestViewModel::uart_settings_request_subject() {
+  return uart_settings_request_subject_.native();
 }
 
 const std::array<model::ConnectivityMenuItem, model::ConnectivityTestModel::K_ITEM_COUNT>&
@@ -208,6 +228,10 @@ bool ConnectivityTestViewModel::refresh_active() {
       return i2c_view_model_.refresh(true);
     case model::ConnectivitySubPage::SPI:
       return spi_view_model_.refresh(true);
+    case model::ConnectivitySubPage::HDMI:
+      return hdmi_view_model_.refresh(true);
+    case model::ConnectivitySubPage::UART:
+      return false;
     case model::ConnectivitySubPage::LINK_TEST:
       return link_view_model_.refresh(true);
     case model::ConnectivitySubPage::MENU:
@@ -222,6 +246,10 @@ void ConnectivityTestViewModel::request_link_restart() {
 
 void ConnectivityTestViewModel::request_link_settings() {
   link_settings_request_subject_.set(++link_settings_request_count_);
+}
+
+void ConnectivityTestViewModel::request_uart_settings() {
+  uart_settings_request_subject_.set(++uart_settings_request_count_);
 }
 
 WifiConnectivityViewModel& ConnectivityTestViewModel::wifi_view_model() { return wifi_view_model_; }
@@ -239,6 +267,8 @@ UsbConnectivityViewModel& ConnectivityTestViewModel::usb_view_model() { return u
 I2cConnectivityViewModel& ConnectivityTestViewModel::i2c_view_model() { return i2c_view_model_; }
 
 SpiConnectivityViewModel& ConnectivityTestViewModel::spi_view_model() { return spi_view_model_; }
+
+HdmiConnectivityViewModel& ConnectivityTestViewModel::hdmi_view_model() { return hdmi_view_model_; }
 
 LinkConnectivityViewModel& ConnectivityTestViewModel::link_view_model() { return link_view_model_; }
 

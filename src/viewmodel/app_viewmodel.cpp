@@ -6,6 +6,8 @@
 
 #include "app_viewmodel.h"
 
+#include <utility>
+
 namespace viewmodel {
 namespace {
 
@@ -22,10 +24,12 @@ model::AppPage next_test_page(model::AppPage page) {
     case model::AppPage::CAMERA_TEST:
       return model::AppPage::CONNECTIVITY_TEST;
     case model::AppPage::CONNECTIVITY_TEST:
-      return model::AppPage::IMU_TEST;
-    case model::AppPage::IMU_TEST:
+      return model::AppPage::IR_TEST;
+    case model::AppPage::IR_TEST:
       return model::AppPage::POWER_INFO;
     case model::AppPage::POWER_INFO:
+      return model::AppPage::IMU_TEST;
+    case model::AppPage::IMU_TEST:
       return model::AppPage::DEVICE_INFO;
     case model::AppPage::DEVICE_INFO:
     case model::AppPage::START:
@@ -39,6 +43,9 @@ model::AppPage next_test_page(model::AppPage page) {
 
 AppViewModel::AppViewModel()
     : title_subject_(model_.app_title()),
+      title_alignment_subject_(static_cast<int32_t>(LV_ALIGN_LEFT_MID)),
+      title_x_offset_subject_(8),
+      title_y_offset_subject_(0),
       dark_mode_subject_(model_.dark_mode()),
       current_page_subject_(page_to_int(model_.current_page())),
       quit_requested_subject_(false) {}
@@ -47,6 +54,14 @@ AppViewModel::~AppViewModel() = default;
 
 lv_subject_t* AppViewModel::title_subject() { return title_subject_.native(); }
 
+lv_subject_t* AppViewModel::title_alignment_subject() { return title_alignment_subject_.native(); }
+
+lv_subject_t* AppViewModel::title_x_offset_subject() { return title_x_offset_subject_.native(); }
+
+lv_subject_t* AppViewModel::title_y_offset_subject() { return title_y_offset_subject_.native(); }
+
+lv_subject_t* AppViewModel::nav_actions_subject() { return nav_actions_subject_.native(); }
+
 lv_subject_t* AppViewModel::dark_mode_subject() { return dark_mode_subject_.native(); }
 
 lv_subject_t* AppViewModel::current_page_subject() { return current_page_subject_.native(); }
@@ -54,6 +69,8 @@ lv_subject_t* AppViewModel::current_page_subject() { return current_page_subject
 lv_subject_t* AppViewModel::quit_requested_subject() { return quit_requested_subject_.native(); }
 
 bool AppViewModel::is_dark_mode() const { return model_.dark_mode(); }
+
+const std::array<NavAction, 5>& AppViewModel::nav_actions() const { return nav_actions_; }
 
 void AppViewModel::set_dark_mode(bool enabled) {
   model_.set_dark_mode(enabled);
@@ -69,6 +86,65 @@ model::AppPage AppViewModel::current_page() const { return model_.current_page()
 
 bool AppViewModel::is_test_sequence_active() const { return model_.test_sequence_active(); }
 
+void AppViewModel::set_title_text(const char* title) { title_subject_.set(title ? title : ""); }
+
+void AppViewModel::set_title_alignment(lv_align_t align, int32_t x_offset, int32_t y_offset) {
+  title_alignment_subject_.set(static_cast<int32_t>(align));
+  title_x_offset_subject_.set(x_offset);
+  title_y_offset_subject_.set(y_offset);
+}
+
+void AppViewModel::set_nav_action(std::size_t index, NavAction action) {
+  if (index >= nav_actions_.size()) {
+    return;
+  }
+  nav_actions_[index] = std::move(action);
+  nav_actions_subject_.set(++nav_actions_revision_);
+}
+
+void AppViewModel::set_keypad_nav_action(uint32_t keypad, NavAction action) {
+  if (keypad < '4' || keypad > '8') {
+    return;
+  }
+  set_nav_action(static_cast<std::size_t>(keypad - '4'), std::move(action));
+}
+
+void AppViewModel::set_nav_actions(std::array<NavAction, 5> actions) {
+  nav_actions_ = std::move(actions);
+  nav_actions_subject_.set(++nav_actions_revision_);
+}
+
+void AppViewModel::clear_nav_actions() {
+  nav_actions_ = {};
+  nav_actions_subject_.set(++nav_actions_revision_);
+}
+
+bool AppViewModel::trigger_nav_action(std::size_t index, lv_event_code_t event_code) {
+  if (index >= nav_actions_.size()) {
+    return false;
+  }
+  auto& action = nav_actions_[index];
+  if (!action.action || action.event_code != event_code) {
+    return false;
+  }
+  action.action();
+  return true;
+}
+
+void AppViewModel::notify_nav_action_pressed(std::size_t index) {
+  if (index >= nav_actions_.size() || !nav_actions_[index].press_action) {
+    return;
+  }
+  nav_actions_[index].press_action();
+}
+
+void AppViewModel::notify_nav_action_released(std::size_t index) {
+  if (index >= nav_actions_.size() || !nav_actions_[index].release_action) {
+    return;
+  }
+  nav_actions_[index].release_action();
+}
+
 void AppViewModel::show_start_page() {
   model_.set_test_sequence_active(false);
   show_page_(model::AppPage::START);
@@ -83,6 +159,8 @@ void AppViewModel::show_audio_test_page() { show_page_(model::AppPage::AUDIO_TES
 void AppViewModel::show_camera_test_page() { show_page_(model::AppPage::CAMERA_TEST); }
 
 void AppViewModel::show_connectivity_test_page() { show_page_(model::AppPage::CONNECTIVITY_TEST); }
+
+void AppViewModel::show_ir_test_page() { show_page_(model::AppPage::IR_TEST); }
 
 void AppViewModel::show_imu_test_page() { show_page_(model::AppPage::IMU_TEST); }
 
@@ -149,6 +227,8 @@ void AppViewModel::publish_all_() {
 }
 
 void AppViewModel::show_page_(model::AppPage page) {
+  clear_nav_actions();
+  set_title_alignment(LV_ALIGN_LEFT_MID, 8, 0);
   model_.set_current_page(page);
   publish_all_();
 }

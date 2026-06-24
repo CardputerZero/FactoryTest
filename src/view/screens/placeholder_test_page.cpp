@@ -20,6 +20,7 @@ PlaceholderTestPage::PlaceholderTestPage(viewmodel::AppViewModel& app_view_model
       title_(title),
       message_(message) {
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
+  set_default_test_nav_();
   init();
 }
 

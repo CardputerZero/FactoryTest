@@ -33,6 +33,7 @@ class ConnectivityTestPage : public BaseScreen {
   static void active_page_observer(lv_observer_t* observer, lv_subject_t* subject);
   static void link_restart_request_observer(lv_observer_t* observer, lv_subject_t* subject);
   static void link_settings_request_observer(lv_observer_t* observer, lv_subject_t* subject);
+  static void uart_settings_request_observer(lv_observer_t* observer, lv_subject_t* subject);
   static void loading_modal_timer_cb(lv_timer_t* timer);
   std::size_t viewport_index_(model::ConnectivitySubPage page) const;
   void show_page_(model::ConnectivitySubPage page, bool animate = true);
@@ -42,6 +43,9 @@ class ConnectivityTestPage : public BaseScreen {
   void reset_subpage_views_(model::ConnectivitySubPage keep_page);
   void ensure_subpage_view_(model::ConnectivitySubPage page);
   void build_subpage_view_(lv_obj_t* viewport, model::ConnectivitySubPage page);
+  void switch_external_bus_(model::ConnectivitySubPage page);
+  bool should_suppress_uart_settings_();
+  void update_nav_actions_();
   void show_loading_modal_(model::ConnectivitySubPage page);
   void hide_loading_modal_();
 
@@ -52,15 +56,20 @@ class ConnectivityTestPage : public BaseScreen {
   std::unique_ptr<BluetoothConnectivityView> bluetooth_view_{};
   std::unique_ptr<EthernetConnectivityView> ethernet_view_{};
   std::unique_ptr<UsbConnectivityView> usb_view_{};
+  std::unique_ptr<HdmiConnectivityView> hdmi_view_{};
   std::unique_ptr<I2cConnectivityView> i2c_view_{};
   std::unique_ptr<SpiConnectivityView> spi_view_{};
+  std::unique_ptr<UartConnectivityView> uart_view_{};
   std::unique_ptr<LinkConnectivityView> link_view_{};
   lv_obj_t* loading_modal_{nullptr};
   lv_timer_t* loading_modal_timer_{nullptr};
+  uint32_t uart_page_entered_at_{0};
+  bool suppress_uart_settings_once_{false};
   lv_observer_t* selected_observer_handle_{nullptr};
   lv_observer_t* active_page_observer_handle_{nullptr};
   lv_observer_t* link_restart_observer_handle_{nullptr};
   lv_observer_t* link_settings_observer_handle_{nullptr};
+  lv_observer_t* uart_settings_observer_handle_{nullptr};
 };
 
 }  // namespace screen

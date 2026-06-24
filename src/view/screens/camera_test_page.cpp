@@ -5,6 +5,7 @@
  */
 
 #include "camera_test_page.h"
+
 #include <src/core/lv_obj_style_gen.h>
 #include <src/lv_api_map_v8.h>
 
@@ -26,6 +27,7 @@ constexpr int32_t K_PREVIEW_HEIGHT = 170;
 CameraTestPage::CameraTestPage(viewmodel::AppViewModel& app_view_model, app::AssetManager& assets)
     : BaseScreen(app_view_model, assets) {
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
+  set_default_test_nav_();
   has_camera_ = platform::camera::find_mipi_csi_camera(camera_, error_message_);
   if (has_camera_) {
     preview_started_ = preview_.start(camera_, error_message_);
@@ -65,7 +67,7 @@ void CameraTestPage::build_content(lv_obj_t* content) {
     preview_image_dsc_.header.h      = K_PREVIEW_HEIGHT;
     preview_image_dsc_.header.stride = K_PREVIEW_WIDTH * sizeof(uint16_t);
     preview_image_dsc_.data_size     = preview_buffer_.size() * sizeof(uint16_t);
-    preview_image_dsc_.data = reinterpret_cast<const uint8_t*>(preview_buffer_.data());
+    preview_image_dsc_.data          = reinterpret_cast<const uint8_t*>(preview_buffer_.data());
 
     preview_image_ = lv_image_create(preview_frame_);
     lv_obj_remove_style_all(preview_image_);

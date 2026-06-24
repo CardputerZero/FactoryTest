@@ -6,18 +6,16 @@
 
 #include "connectivity_link_page.h"
 
-#include "connectivity_subpage_common.h"
-
 #include <cstdlib>
-#include <utility>
-
-#include "bindings.h"
-#include "linux_input.h"
-#include "theme.h"
-
 #include <iomanip>
 #include <sstream>
 #include <string>
+#include <utility>
+
+#include "bindings.h"
+#include "connectivity_subpage_common.h"
+#include "linux_input.h"
+#include "theme.h"
 
 namespace screen {
 
@@ -197,58 +195,6 @@ void rebuild_link_panel(lv_obj_t* panel,
   lv_obj_set_style_text_color(hint_label, colors.text_muted, 0);
 }
 
-lv_obj_t* add_dialog_label(lv_obj_t* parent,
-                           viewmodel::AppViewModel& app_view_model,
-                           app::AssetManager& assets,
-                           const char* text) {
-  auto* label = lv_label_create(parent);
-  lv_label_set_text(label, text ? text : "");
-  auto* font = assets.load_font("inter-medium.ttf", 10);
-  lv_obj_set_style_text_font(label, font ? font : &lv_font_montserrat_12, 0);
-  reactive::bind_theme(label, app_view_model.dark_mode_subject(), reactive::ThemeRole::TEXT);
-  return label;
-}
-
-lv_obj_t* add_dialog_textarea(lv_obj_t* parent,
-                              viewmodel::AppViewModel& app_view_model,
-                              app::AssetManager& assets,
-                              const char* text,
-                              const char* accepted_chars) {
-  auto* textarea = lv_textarea_create(parent);
-  lv_textarea_set_one_line(textarea, true);
-  lv_textarea_set_text(textarea, text ? text : "");
-  if (accepted_chars) {
-    lv_textarea_set_accepted_chars(textarea, accepted_chars);
-  }
-  lv_obj_set_size(textarea, 246, 24);
-  auto* font = assets.load_font("inter-medium.ttf", 11);
-  lv_obj_set_style_text_font(textarea, font ? font : &lv_font_montserrat_12, 0);
-  reactive::bind_theme(textarea, app_view_model.dark_mode_subject(), reactive::ThemeRole::BUTTON);
-  return textarea;
-}
-
-lv_obj_t* add_dialog_button(lv_obj_t* parent,
-                            viewmodel::AppViewModel& app_view_model,
-                            app::AssetManager& assets,
-                            const char* text,
-                            lv_event_cb_t callback,
-                            void* user_data) {
-  auto* button = lv_button_create(parent);
-  lv_obj_remove_style_all(button);
-  lv_obj_set_size(button, 78, 24);
-  lv_obj_set_style_radius(button, 8, 0);
-  reactive::bind_theme(button, app_view_model.dark_mode_subject(), reactive::ThemeRole::BUTTON);
-  lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, user_data);
-
-  auto* label = lv_label_create(button);
-  lv_label_set_text(label, text ? text : "OK");
-  auto* font = assets.load_font("inter-semibold.ttf", 11);
-  lv_obj_set_style_text_font(label, font ? font : &lv_font_montserrat_12, 0);
-  reactive::bind_theme(label, app_view_model.dark_mode_subject(), reactive::ThemeRole::TEXT);
-  lv_obj_center(label);
-  return button;
-}
-
 LinkConnectivityView::LinkConnectivityView(viewmodel::LinkConnectivityViewModel& view_model)
     : view_model_(view_model) {}
 
@@ -278,71 +224,50 @@ void LinkConnectivityView::show_config_dialog() {
   if (!dialog_parent_ || !app_view_model_ || !assets_) {
     return;
   }
-  if (dialog_ && lv_obj_is_valid(dialog_)) {
+  if (dialog_visible()) {
     return;
   }
 
   hide_config_dialog_();
   platform::set_nav_trigger_mode(platform::NavTriggerMode::LONG_PRESS);
-  const auto colors = view::palette(app_view_model_->is_dark_mode());
-  dialog_           = lv_obj_create(dialog_parent_);
-  lv_obj_remove_style_all(dialog_);
-  lv_obj_set_size(dialog_, 286, 150);
-  lv_obj_align(dialog_, LV_ALIGN_CENTER, 0, 0);
-  lv_obj_set_flex_flow(dialog_, LV_FLEX_FLOW_COLUMN);
-  lv_obj_set_flex_align(dialog_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_all(dialog_, 8, 0);
-  lv_obj_set_style_pad_row(dialog_, 2, 0);
-  lv_obj_set_style_radius(dialog_, 12, 0);
-  lv_obj_set_style_bg_color(dialog_, colors.button, 0);
-  lv_obj_set_style_bg_opa(dialog_, LV_OPA_90, 0);
-  lv_obj_set_style_border_color(dialog_, colors.border, 0);
-  lv_obj_set_style_border_width(dialog_, 1, 0);
-  lv_obj_set_style_shadow_width(dialog_, 12, 0);
-  lv_obj_set_style_shadow_opa(dialog_, LV_OPA_20, 0);
-  lv_obj_add_flag(dialog_, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scroll_dir(dialog_, LV_DIR_VER);
-  lv_obj_set_scrollbar_mode(dialog_, LV_SCROLLBAR_MODE_AUTO);
 
-  auto* title = lv_label_create(dialog_);
-  lv_label_set_text(title, "iperf Settings");
-  auto* title_font = assets_->load_font("inter-semibold.ttf", 12);
-  lv_obj_set_style_text_font(title, title_font ? title_font : &lv_font_montserrat_12, 0);
-  reactive::bind_theme(title, app_view_model_->dark_mode_subject(), reactive::ThemeRole::TEXT);
+  view::widgets::DialogConfig config;
+  config.scroll_y      = true;
+  config.pad_row       = 2;
+  config.title         = "iperf Settings";
+  config.shortcut_text = "ESC: Cancel  OK: Confirm";
 
-  add_dialog_label(dialog_, *app_view_model_, *assets_, "Server IP");
-  host_input_ = add_dialog_textarea(dialog_,
-                                    *app_view_model_,
-                                    *assets_,
-                                    view_model_.settings().iperf_host.c_str(),
-                                    "0123456789.");
+  view::widgets::DialogCallbacks callbacks;
+  callbacks.ok_action     = [this]() { apply_config_dialog_(); };
+  callbacks.cancel_action = [this]() { hide_config_dialog_(); };
+  dialog_                 = std::make_unique<view::widgets::Dialog>(dialog_parent_,
+                                                                    *app_view_model_,
+                                                                    *assets_,
+                                                                    std::move(config),
+                                                                    std::move(callbacks));
+  dialog_->build();
+
+  dialog_->add_label("Server IP");
+  view::widgets::DialogTextareaOptions host_options;
+  host_options.accepted_chars = "0123456789.";
+  host_options.enter_confirms = false;
+  host_input_ = dialog_->add_textarea(view_model_.settings().iperf_host.c_str(), host_options);
   lv_obj_add_event_cb(host_input_, dialog_host_focus_cb, LV_EVENT_CLICKED, this);
   lv_obj_add_event_cb(host_input_, dialog_host_focus_cb, LV_EVENT_FOCUSED, this);
 
-  add_dialog_label(dialog_, *app_view_model_, *assets_, "Port");
+  dialog_->add_label("Port");
   char port_text[8]{};
   lv_snprintf(port_text, sizeof(port_text), "%d", view_model_.settings().iperf_port);
-  port_input_ = add_dialog_textarea(dialog_, *app_view_model_, *assets_, port_text, "0123456789");
+  view::widgets::DialogTextareaOptions port_options;
+  port_options.accepted_chars = "0123456789";
+  port_input_                 = dialog_->add_textarea(port_text, port_options);
   lv_obj_add_event_cb(port_input_, dialog_port_focus_cb, LV_EVENT_CLICKED, this);
   lv_obj_add_event_cb(port_input_, dialog_port_focus_cb, LV_EVENT_FOCUSED, this);
 
-  auto* button_row = lv_obj_create(dialog_);
-  lv_obj_remove_style_all(button_row);
-  lv_obj_set_size(button_row, 190, 26);
-  lv_obj_set_flex_flow(button_row, LV_FLEX_FLOW_ROW);
-  lv_obj_set_flex_align(button_row,
-                        LV_FLEX_ALIGN_SPACE_BETWEEN,
-                        LV_FLEX_ALIGN_CENTER,
-                        LV_FLEX_ALIGN_CENTER);
-  lv_obj_clear_flag(button_row, LV_OBJ_FLAG_SCROLLABLE);
-  add_dialog_button(button_row, *app_view_model_, *assets_, "Cancel", dialog_cancel_cb, this);
-  add_dialog_button(button_row, *app_view_model_, *assets_, "OK", dialog_apply_cb, this);
-
-  lv_obj_move_foreground(dialog_);
   set_active_dialog_field_(DialogField::HOST);
 }
 
-bool LinkConnectivityView::handle_key(uint32_t key) {
+bool LinkConnectivityView::handle_key(uint32_t key, const char* key_name) {
   if (!dialog_visible()) {
     return false;
   }
@@ -354,17 +279,7 @@ bool LinkConnectivityView::handle_key(uint32_t key) {
     return true;
   }
 
-  if (key == LV_KEY_ESC) {
-    hide_config_dialog_();
-    return true;
-  }
-
-  if (key == LV_KEY_ENTER) {
-    if (active_dialog_field_ == DialogField::HOST) {
-      set_active_dialog_field_(DialogField::PORT);
-    } else {
-      apply_config_dialog_();
-    }
+  if (dialog_ && dialog_->handle_key(key, key_name)) {
     return true;
   }
 
@@ -382,9 +297,7 @@ bool LinkConnectivityView::handle_key(uint32_t key) {
   return true;
 }
 
-bool LinkConnectivityView::dialog_visible() const {
-  return dialog_ && lv_obj_is_valid(dialog_);
-}
+bool LinkConnectivityView::dialog_visible() const { return dialog_ && dialog_->visible(); }
 
 void LinkConnectivityView::refresh_() {
   const bool changed = view_model_.refresh();
@@ -401,10 +314,7 @@ void LinkConnectivityView::rebuild_() {
 }
 
 void LinkConnectivityView::hide_config_dialog_() {
-  if (dialog_ && lv_obj_is_valid(dialog_)) {
-    lv_obj_delete(dialog_);
-  }
-  dialog_     = nullptr;
+  dialog_.reset();
   host_input_ = nullptr;
   port_input_ = nullptr;
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
@@ -444,7 +354,7 @@ lv_obj_t* LinkConnectivityView::active_dialog_input_() const {
 
 bool LinkConnectivityView::append_dialog_char_(char ch) {
   const bool host_field = active_dialog_field_ == DialogField::HOST;
-  const bool allowed = (ch >= '0' && ch <= '9') || (host_field && ch == '.');
+  const bool allowed    = (ch >= '0' && ch <= '9') || (host_field && ch == '.');
   if (!allowed) {
     return true;
   }
@@ -459,20 +369,6 @@ void LinkConnectivityView::refresh_timer_cb(lv_timer_t* timer) {
   auto* view = static_cast<LinkConnectivityView*>(lv_timer_get_user_data(timer));
   if (view) {
     view->refresh_();
-  }
-}
-
-void LinkConnectivityView::dialog_apply_cb(lv_event_t* event) {
-  auto* view = static_cast<LinkConnectivityView*>(lv_event_get_user_data(event));
-  if (view) {
-    view->apply_config_dialog_();
-  }
-}
-
-void LinkConnectivityView::dialog_cancel_cb(lv_event_t* event) {
-  auto* view = static_cast<LinkConnectivityView*>(lv_event_get_user_data(event));
-  if (view) {
-    view->hide_config_dialog_();
   }
 }
 

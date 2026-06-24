@@ -20,13 +20,14 @@
 #define APP_LOG_LEVEL_INFO 4
 #define APP_LOG_LEVEL_DEBUG 5
 #define APP_LOG_LEVEL_TRACE 6
+#define APP_LOG_LEVEL_VERBOSE APP_LOG_LEVEL_TRACE
 
 #ifndef APP_LOG_LEVEL
 #define APP_LOG_LEVEL APP_LOG_LEVEL_DEBUG
 #endif
 
 #if APP_LOG_LEVEL < APP_LOG_LEVEL_OFF || APP_LOG_LEVEL > APP_LOG_LEVEL_TRACE
-#error "APP_LOG_LEVEL must be one of APP_LOG_LEVEL_OFF/FATAL/ERROR/WARN/INFO/DEBUG/TRACE"
+#error "APP_LOG_LEVEL must be one of APP_LOG_LEVEL_OFF/FATAL/ERROR/WARN/INFO/DEBUG/TRACE/VERBOSE"
 #endif
 
 namespace logger {
@@ -52,6 +53,7 @@ class Logger {
 
   static constexpr int compile_level() { return APP_LOG_LEVEL; }
   static constexpr bool should_compile_trace() { return APP_LOG_LEVEL >= APP_LOG_LEVEL_TRACE; }
+  static constexpr bool should_compile_verbose() { return APP_LOG_LEVEL >= APP_LOG_LEVEL_VERBOSE; }
   static constexpr bool should_compile_debug() { return APP_LOG_LEVEL >= APP_LOG_LEVEL_DEBUG; }
   static constexpr bool should_compile_info() { return APP_LOG_LEVEL >= APP_LOG_LEVEL_INFO; }
   static constexpr bool should_compile_warn() { return APP_LOG_LEVEL >= APP_LOG_LEVEL_WARN; }
@@ -60,6 +62,11 @@ class Logger {
 
   template <typename... Args>
   static void trace(fmt::format_string<Args...> fmt_str, Args&&... args) {
+    log(LogLevel::TRACE, fmt::format(fmt_str, std::forward<Args>(args)...));
+  }
+
+  template <typename... Args>
+  static void verbose(fmt::format_string<Args...> fmt_str, Args&&... args) {
     log(LogLevel::TRACE, fmt::format(fmt_str, std::forward<Args>(args)...));
   }
 
@@ -93,6 +100,14 @@ class Logger {
                        int line,
                        fmt::format_string<Args...> fmt_str,
                        Args&&... args) {
+    log(LogLevel::TRACE, fmt::format(fmt_str, std::forward<Args>(args)...), file, line);
+  }
+
+  template <typename... Args>
+  static void verbose_at(const char* file,
+                         int line,
+                         fmt::format_string<Args...> fmt_str,
+                         Args&&... args) {
     log(LogLevel::TRACE, fmt::format(fmt_str, std::forward<Args>(args)...), file, line);
   }
 
@@ -156,6 +171,14 @@ class Logger {
 #else
 #define LOG_TRACE(...) \
   do {                 \
+  } while (0)
+#endif
+
+#if APP_LOG_LEVEL >= APP_LOG_LEVEL_VERBOSE
+#define LOG_VERBOSE(...) ::logger::Logger::verbose_at(__FILE__, __LINE__, __VA_ARGS__)
+#else
+#define LOG_VERBOSE(...) \
+  do {                   \
   } while (0)
 #endif
 

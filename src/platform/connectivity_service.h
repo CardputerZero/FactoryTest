@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -49,6 +50,15 @@ struct SpiDeviceInfo {
   std::string path;
 };
 
+struct HdmiInfo {
+  std::string connector_name;
+  std::string status;
+  std::string enabled;
+  std::string resolution;
+  std::string sys_path;
+  bool connected{false};
+};
+
 struct LinkTestSettings {
   std::string iperf_host{"192.168.10.187"};
   int iperf_port{5201};
@@ -74,12 +84,48 @@ struct LinkTestResult {
   LinkIperfResult ethernet;
 };
 
+enum class UartOpenStatus {
+  OK,
+  OCCUPIED_BY_CONSOLE,
+  OPEN_FAILED,
+  UNSUPPORTED,
+};
+
+struct UartOpenResult {
+  UartOpenStatus status{UartOpenStatus::UNSUPPORTED};
+  std::string message;
+};
+
+class UartDebugSession {
+ public:
+  ~UartDebugSession();
+
+  UartDebugSession(const UartDebugSession&)            = delete;
+  UartDebugSession& operator=(const UartDebugSession&) = delete;
+
+  static std::unique_ptr<UartDebugSession> open(const std::string& path,
+                                                int baud_rate,
+                                                UartOpenResult& result);
+  int baud_rate() const;
+  bool set_baud_rate(int baud_rate, std::string& error_message);
+  std::string read_available(std::string& error_message);
+  bool write_text(const std::string& text, std::string& error_message);
+
+ private:
+  UartDebugSession(int fd, std::string path, int baud_rate);
+
+  int fd_{-1};
+  std::string path_;
+  int baud_rate_{115200};
+};
+
 std::vector<WirelessScanItem> scan_wifi(std::string& error_message);
 std::vector<WirelessScanItem> scan_bluetooth(std::string& error_message);
 EthernetInfo read_ethernet_info(std::string& error_message);
 std::vector<UsbDeviceInfo> list_usb_devices(std::string& error_message);
 std::vector<I2cAddressInfo> scan_i2c_bus(int bus_number, std::string& error_message);
 std::vector<SpiDeviceInfo> list_spi_devices(std::string& error_message);
+HdmiInfo read_hdmi_info(std::string& error_message);
 LinkTestResult run_link_test(const LinkTestSettings& settings);
 
 }  // namespace platform::connectivity

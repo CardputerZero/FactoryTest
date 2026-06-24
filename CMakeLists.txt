@@ -20,6 +20,8 @@ set(APP_KEY_INPUT_DEVICE "" CACHE STRING "Optional Linux evdev keyboard/keypad d
 set(APP_FRAMEBUFFER_DEVICE "/dev/fb0" CACHE STRING "Linux framebuffer device path used by embedded builds")
 set(APP_DRM_DEVICE "/dev/dri/card1" CACHE STRING "Linux DRM device path used when APP_USE_DRM=ON")
 set(APP_DRM_CONNECTOR_ID "-1" CACHE STRING "DRM connector id used when APP_USE_DRM=ON; -1 auto-selects")
+set(APP_ALSA_PLAYBACK_DEVICE "" CACHE STRING "Optional ALSA playback PCM device, e.g. plughw:0,0")
+set(APP_ALSA_CAPTURE_DEVICE "" CACHE STRING "Optional ALSA capture PCM device, e.g. plughw:0,0")
 set(APP_USE_DRM OFF CACHE BOOL "Enable LVGL Linux DRM/KMS backend for embedded Linux builds")
 set(CM0_ALLOW_FETCH_DEPS ON CACHE BOOL "Allow downloading missing CM0 BSP/dependencies during cross builds")
 set(APP_USE_LIBCAMERA 0)
@@ -27,8 +29,11 @@ set(APP_USE_LIBNM 0)
 set(APP_USE_BLUEZ 0)
 set(APP_USE_LIBUDEV 0)
 set(APP_USE_PIPEWIRE 0)
+set(APP_USE_ALSA 0)
 set(APP_USE_LIBIPERF 0)
 set(APP_USE_LIBOPING 0)
+set(APP_USE_LIRC 0)
+set(APP_USE_LIBGPIOD 0)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "Export compile_commands.json" FORCE)
 
 include(FetchContent)
@@ -141,6 +146,15 @@ if(USE_DESKTOP)
                 message(WARNING "libudev was not found; USB enumeration will use fallback messages")
             endif()
 
+            pkg_check_modules(ALSA QUIET IMPORTED_TARGET alsa)
+            if(TARGET PkgConfig::ALSA)
+                list(APPEND PLATFORM_LIBS PkgConfig::ALSA)
+                set(APP_USE_ALSA 1)
+                message(STATUS "ALSA direct audio backend enabled")
+            else()
+                message(WARNING "alsa was not found; audio service may depend on PipeWire fallback")
+            endif()
+
             pkg_check_modules(PIPEWIRE QUIET IMPORTED_TARGET libpipewire-0.3)
             if(TARGET PkgConfig::PIPEWIRE)
                 list(APPEND PLATFORM_LIBS PkgConfig::PIPEWIRE)
@@ -173,6 +187,28 @@ if(USE_DESKTOP)
         message(STATUS "liboping ping backend enabled")
     else()
         message(WARNING "liboping headers/library not found; link ping test will use fallback messages")
+    endif()
+
+    find_path(LIRC_INCLUDE_DIR linux/lirc.h)
+    find_library(LIRC_LIBRARY lirc)
+    if(LIRC_INCLUDE_DIR AND LIRC_LIBRARY)
+        list(APPEND PLATFORM_INCLUDE_DIR "${LIRC_INCLUDE_DIR}")
+        list(APPEND PLATFORM_LIBS "${LIRC_LIBRARY}")
+        set(APP_USE_LIRC 1)
+        message(STATUS "LIRC IR backend enabled")
+    else()
+        message(WARNING "liblirc-dev headers/library not found; IR test will use fallback messages")
+    endif()
+
+    find_path(LIBGPIOD_INCLUDE_DIR gpiod.h)
+    find_library(LIBGPIOD_LIBRARY gpiod)
+    if(LIBGPIOD_INCLUDE_DIR AND LIBGPIOD_LIBRARY)
+        list(APPEND PLATFORM_INCLUDE_DIR "${LIBGPIOD_INCLUDE_DIR}")
+        list(APPEND PLATFORM_LIBS "${LIBGPIOD_LIBRARY}")
+        set(APP_USE_LIBGPIOD 1)
+        message(STATUS "libgpiod external bus switch backend enabled")
+    else()
+        message(WARNING "libgpiod headers/library not found; external I2C/UART bus switching will report unavailable")
     endif()
 
     set(LVGL_DESKTOP_DEPS ZLIB::ZLIB PNG::PNG ${JPEG_TARGET} Freetype::Freetype ${SDL2_TARGET})
@@ -213,24 +249,32 @@ else()
     message(STATUS "Using CM0 SDK root: ${CM0_SDK_ROOT}")
     message(STATUS "Using CM0 dependency root: ${CM0_SYSROOT}")
 
-    set(CM0_INCLUDE_HINTS
-        "${CM0_SYSROOT}/usr/include/${CM0_MULTIARCH}"
-        "${CM0_SYSROOT}/usr/include"
-        "${CM0_SYSROOT}/usr/local/include"
-        "${CM0_SYSROOT}/include/${CM0_MULTIARCH}"
-        "${CM0_SYSROOT}/include"
-    )
-    set(CM0_LIBRARY_HINTS
-        "${CM0_SYSROOT}/usr/lib/${CM0_MULTIARCH}"
-        "${CM0_SYSROOT}/usr/lib"
-        "${CM0_SYSROOT}/usr/local/lib/${CM0_MULTIARCH}"
-        "${CM0_SYSROOT}/usr/local/lib"
-        "${CM0_SYSROOT}/lib/${CM0_MULTIARCH}"
-        "${CM0_SYSROOT}/lib"
-    )
+    set(CM0_DEPENDENCY_ROOTS "${CM0_SYSROOT}" "${CM0_SDK_ROOT}")
+    list(REMOVE_DUPLICATES CM0_DEPENDENCY_ROOTS)
+    set(CM0_INCLUDE_HINTS)
+    set(CM0_LIBRARY_HINTS)
+    foreach(CM0_DEPENDENCY_ROOT IN LISTS CM0_DEPENDENCY_ROOTS)
+        list(APPEND CM0_INCLUDE_HINTS
+            "${CM0_DEPENDENCY_ROOT}/usr/include/${CM0_MULTIARCH}"
+            "${CM0_DEPENDENCY_ROOT}/usr/include"
+            "${CM0_DEPENDENCY_ROOT}/usr/local/include"
+            "${CM0_DEPENDENCY_ROOT}/include/${CM0_MULTIARCH}"
+            "${CM0_DEPENDENCY_ROOT}/include"
+        )
+        list(APPEND CM0_LIBRARY_HINTS
+            "${CM0_DEPENDENCY_ROOT}/usr/lib/${CM0_MULTIARCH}"
+            "${CM0_DEPENDENCY_ROOT}/usr/lib"
+            "${CM0_DEPENDENCY_ROOT}/usr/local/lib/${CM0_MULTIARCH}"
+            "${CM0_DEPENDENCY_ROOT}/usr/local/lib"
+            "${CM0_DEPENDENCY_ROOT}/lib/${CM0_MULTIARCH}"
+            "${CM0_DEPENDENCY_ROOT}/lib"
+        )
+    endforeach()
+    list(REMOVE_DUPLICATES CM0_INCLUDE_HINTS)
+    list(REMOVE_DUPLICATES CM0_LIBRARY_HINTS)
 
     function(cm0_find_header out_var header_name)
-        find_path(${out_var} NAMES ${header_name} HINTS ${ARGN} NO_DEFAULT_PATH)
+        find_path(${out_var} NAMES ${header_name} HINTS ${ARGN} ${CM0_INCLUDE_HINTS} NO_DEFAULT_PATH)
         set(${out_var} "${${out_var}}" PARENT_SCOPE)
     endfunction()
 
@@ -385,6 +429,18 @@ else()
         message(WARNING "libudev headers or libraries not found; USB enumeration will use fallback messages")
     endif()
 
+    cm0_find_header(ALSA_INCLUDE_DIR alsa/asoundlib.h "${CM0_SYSROOT}/usr/include")
+    cm0_find_library(ALSA_LIBRARY asound libasound.so libasound.so.2)
+    if(ALSA_INCLUDE_DIR AND ALSA_LIBRARY)
+        cm0_add_imported_library(CM0::ALSA "${ALSA_LIBRARY}" "${ALSA_INCLUDE_DIR}")
+        list(APPEND PLATFORM_INCLUDE_DIR "${ALSA_INCLUDE_DIR}")
+        list(APPEND PLATFORM_LIBS CM0::ALSA)
+        set(APP_USE_ALSA 1)
+        message(STATUS "ALSA direct audio backend enabled")
+    else()
+        message(WARNING "alsa headers/library not found; audio service may depend on PipeWire fallback")
+    endif()
+
     cm0_find_header(PIPEWIRE_INCLUDE_DIR
         pipewire/pipewire.h
         "${CM0_SYSROOT}/usr/include/pipewire-0.3"
@@ -435,6 +491,32 @@ else()
         message(WARNING "liboping headers/library not found; link ping test will use fallback messages")
     endif()
 
+    cm0_find_header(LIRC_INCLUDE_DIR linux/lirc.h "${CM0_SYSROOT}/usr/include")
+    cm0_find_library(LIRC_LIBRARY lirc liblirc.so liblirc.a)
+    if(LIRC_INCLUDE_DIR AND LIRC_LIBRARY)
+        cm0_add_imported_library(CM0::Lirc "${LIRC_LIBRARY}" "${LIRC_INCLUDE_DIR}")
+        list(APPEND PLATFORM_INCLUDE_DIR "${LIRC_INCLUDE_DIR}")
+        list(APPEND PLATFORM_LIBS CM0::Lirc)
+        set(APP_USE_LIRC 1)
+        message(STATUS "LIRC IR backend enabled")
+    else()
+        message(WARNING "liblirc-dev headers/library not found; IR test will use fallback messages")
+    endif()
+
+    unset(LIBGPIOD_INCLUDE_DIR CACHE)
+    unset(LIBGPIOD_LIBRARY CACHE)
+    cm0_find_header(LIBGPIOD_INCLUDE_DIR gpiod.h "${CM0_SYSROOT}/usr/include" "${CM0_SDK_ROOT}/usr/include")
+    cm0_find_library(LIBGPIOD_LIBRARY gpiod libgpiod.so libgpiod.so.3 libgpiod.so.3.1.1 libgpiod.a)
+    if(LIBGPIOD_INCLUDE_DIR AND LIBGPIOD_LIBRARY)
+        cm0_add_imported_library(CM0::Libgpiod "${LIBGPIOD_LIBRARY}" "${LIBGPIOD_INCLUDE_DIR}")
+        list(APPEND PLATFORM_INCLUDE_DIR "${LIBGPIOD_INCLUDE_DIR}")
+        list(APPEND PLATFORM_LIBS CM0::Libgpiod)
+        set(APP_USE_LIBGPIOD 1)
+        message(STATUS "libgpiod external bus switch backend enabled")
+    else()
+        message(WARNING "libgpiod headers/library not found; external I2C/UART bus switching will report unavailable")
+    endif()
+
     set(LVGL_INCLUDE_DIR ${FREETYPE_INCLUDE_DIR} ${PNG_INCLUDE_DIR} ${JPEG_INCLUDE_DIR} ${ZLIB_INCLUDE_DIR})
     set(LVGL_LIBS CM0::Freetype CM0::PNG CM0::JPEG ZLIB::ZLIB)
     if(APP_USE_DRM)
@@ -454,7 +536,7 @@ endif()
 
 file(GLOB_RECURSE PLATFORM_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/*.cpp")
 add_library(${PROJECT_NAME}_platform STATIC ${PLATFORM_SOURCES})
-target_include_directories(${PROJECT_NAME}_platform PUBLIC ${LVGL_INCLUDE_DIR} ${PLATFORM_INCLUDE_DIR} "${CMAKE_CURRENT_SOURCE_DIR}/src/platform" "${CMAKE_CURRENT_SOURCE_DIR}/src/logger")
+target_include_directories(${PROJECT_NAME}_platform PUBLIC ${LVGL_INCLUDE_DIR} ${PLATFORM_INCLUDE_DIR} "${CMAKE_CURRENT_SOURCE_DIR}/src/platform" "${CMAKE_CURRENT_SOURCE_DIR}/src/logger" "${CMAKE_CURRENT_SOURCE_DIR}/src/view" "${CMAKE_CURRENT_SOURCE_DIR}/src/view/widgets")
 target_compile_definitions(${PROJECT_NAME}_platform PUBLIC
     APP_KEY_INPUT_DEVICE="${APP_KEY_INPUT_DEVICE}"
     APP_USE_LIBCAMERA=${APP_USE_LIBCAMERA}
@@ -462,8 +544,13 @@ target_compile_definitions(${PROJECT_NAME}_platform PUBLIC
     APP_USE_BLUEZ=${APP_USE_BLUEZ}
     APP_USE_LIBUDEV=${APP_USE_LIBUDEV}
     APP_USE_PIPEWIRE=${APP_USE_PIPEWIRE}
+    APP_USE_ALSA=${APP_USE_ALSA}
+    APP_ALSA_PLAYBACK_DEVICE="${APP_ALSA_PLAYBACK_DEVICE}"
+    APP_ALSA_CAPTURE_DEVICE="${APP_ALSA_CAPTURE_DEVICE}"
     APP_USE_LIBIPERF=${APP_USE_LIBIPERF}
     APP_USE_LIBOPING=${APP_USE_LIBOPING}
+    APP_USE_LIRC=${APP_USE_LIRC}
+    APP_USE_LIBGPIOD=${APP_USE_LIBGPIOD}
     APP_FRAMEBUFFER_DEVICE="${APP_FRAMEBUFFER_DEVICE}"
     APP_DRM_DEVICE="${APP_DRM_DEVICE}"
     APP_DRM_CONNECTOR_ID=${APP_DRM_CONNECTOR_ID}

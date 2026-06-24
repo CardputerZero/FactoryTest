@@ -22,9 +22,11 @@ enum class ConnectivitySubPage {
   BLUETOOTH = 2,
   ETHERNET  = 3,
   USB       = 4,
-  I2C       = 5,
-  SPI       = 6,
-  LINK_TEST = 7,
+  HDMI      = 5,
+  I2C       = 6,
+  SPI       = 7,
+  UART      = 8,
+  LINK_TEST = 9,
 };
 
 struct ConnectivityMenuItem {
@@ -97,7 +99,7 @@ struct LinkTestSnapshot {
 
 class ConnectivityTestModel {
  public:
-  static constexpr std::size_t K_ITEM_COUNT = 7;
+  static constexpr std::size_t K_ITEM_COUNT = 9;
 
   const std::array<ConnectivityMenuItem, K_ITEM_COUNT>& items() const;
   std::size_t selected_index() const;
@@ -182,6 +184,7 @@ class I2cConnectivityModel {
  public:
   const char* title() const;
   bool refresh(bool force_refresh = false);
+  bool is_scanning() const;
   const std::vector<ConnectivityI2cAddressInfo>& addresses() const;
   const std::string& error_message() const;
 
@@ -207,6 +210,22 @@ class SpiConnectivityModel {
   std::vector<ConnectivityScanInfo> devices_{};
   std::string error_message_{};
   std::future<ConnectivityScanRefreshResult> refresh_task_{};
+  std::chrono::steady_clock::time_point last_refresh_start_{};
+};
+
+class HdmiConnectivityModel {
+ public:
+  const char* title() const;
+  bool refresh(bool force_refresh = false);
+  const std::vector<ConnectivityInfoField>& fields() const;
+  const std::string& error_message() const;
+
+ private:
+  bool set_info_(std::vector<ConnectivityInfoField> fields, std::string error_message);
+
+  std::vector<ConnectivityInfoField> fields_{};
+  std::string error_message_{};
+  std::future<ConnectivityInfoRefreshResult> refresh_task_{};
   std::chrono::steady_clock::time_point last_refresh_start_{};
 };
 

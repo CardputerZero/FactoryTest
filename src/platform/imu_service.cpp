@@ -175,26 +175,26 @@ bool read_scaled_axis(const std::filesystem::path& root,
 bool find_bmi270_device(ImuDevice& device, std::string& error_message) {
   find_i2c_node(device.i2c_path);
 
-  if (!find_iio_node(is_iio_bmi270_node,
-                     K_BMI270_DEVICE_NAME,
-                     device.iio_path,
-                     device.display_name)) {
-    error_message = "BMI270 IIO device not found. Check that the bmi270 kernel driver is loaded.";
+  device.has_bmi270 = find_iio_node(is_iio_bmi270_node,
+                                    K_BMI270_DEVICE_NAME,
+                                    device.iio_path,
+                                    device.display_name);
+
+  device.has_bmm150 = find_iio_node(is_iio_bmm150_node,
+                                    K_BMM150_DEVICE_NAME,
+                                    device.mag_iio_path,
+                                    device.mag_display_name);
+
+  if (!device.has_bmi270 && !device.has_bmm150) {
+    error_message =
+        "BMI270/BMM150 IIO devices not found. Check that the kernel drivers are loaded.";
     return false;
   }
 
-  if (!find_iio_node(is_iio_bmm150_node,
-                     K_BMM150_DEVICE_NAME,
-                     device.mag_iio_path,
-                     device.mag_display_name)) {
-    error_message = "BMM150 IIO device not found. Check that the bmm150 kernel driver is loaded.";
-    return false;
-  }
-
-  if (device.display_name.empty()) {
+  if (device.has_bmi270 && device.display_name.empty()) {
     device.display_name = K_BMI270_DEVICE_NAME;
   }
-  if (device.mag_display_name.empty()) {
+  if (device.has_bmm150 && device.mag_display_name.empty()) {
     device.mag_display_name = K_BMM150_DEVICE_NAME;
   }
   return true;
@@ -232,30 +232,38 @@ bool read_nine_axis(const ImuDevice& device, NineAxisReading& reading, std::stri
   double accel_scale = 0.0;
   double gyro_scale  = 0.0;
   double magn_scale  = 0.0;
-  if (!read_double_file(imu_root / K_IIO_ACCEL_SCALE, accel_scale)) {
-    error_message = "Failed to read BMI270 accel scale.";
-    return false;
-  }
-  if (!read_double_file(imu_root / K_IIO_GYRO_SCALE, gyro_scale)) {
-    error_message = "Failed to read BMI270 gyro scale.";
-    return false;
-  }
-  if (!read_double_file(mag_root / K_IIO_MAGN_SCALE, magn_scale)) {
-    error_message = "Failed to read BMM150 magnetometer scale.";
-    return false;
+
+  if (device.has_bmi270) {
+    if (!read_double_file(imu_root / K_IIO_ACCEL_SCALE, accel_scale)) {
+      error_message = "Failed to read BMI270 accel scale.";
+      return false;
+    }
+    if (!read_double_file(imu_root / K_IIO_GYRO_SCALE, gyro_scale)) {
+      error_message = "Failed to read BMI270 gyro scale.";
+      return false;
+    }
+    if (!read_scaled_axis(imu_root, K_IIO_ACCEL_X_RAW, accel_scale, reading.accel_x) ||
+        !read_scaled_axis(imu_root, K_IIO_ACCEL_Y_RAW, accel_scale, reading.accel_y) ||
+        !read_scaled_axis(imu_root, K_IIO_ACCEL_Z_RAW, accel_scale, reading.accel_z) ||
+        !read_scaled_axis(imu_root, K_IIO_GYRO_X_RAW, gyro_scale, reading.gyro_x) ||
+        !read_scaled_axis(imu_root, K_IIO_GYRO_Y_RAW, gyro_scale, reading.gyro_y) ||
+        !read_scaled_axis(imu_root, K_IIO_GYRO_Z_RAW, gyro_scale, reading.gyro_z)) {
+      error_message = "Failed to read BMI270 six-axis data.";
+      return false;
+    }
   }
 
-  if (!read_scaled_axis(imu_root, K_IIO_ACCEL_X_RAW, accel_scale, reading.accel_x) ||
-      !read_scaled_axis(imu_root, K_IIO_ACCEL_Y_RAW, accel_scale, reading.accel_y) ||
-      !read_scaled_axis(imu_root, K_IIO_ACCEL_Z_RAW, accel_scale, reading.accel_z) ||
-      !read_scaled_axis(imu_root, K_IIO_GYRO_X_RAW, gyro_scale, reading.gyro_x) ||
-      !read_scaled_axis(imu_root, K_IIO_GYRO_Y_RAW, gyro_scale, reading.gyro_y) ||
-      !read_scaled_axis(imu_root, K_IIO_GYRO_Z_RAW, gyro_scale, reading.gyro_z) ||
-      !read_scaled_axis(mag_root, K_IIO_MAGN_X_RAW, magn_scale, reading.magn_x) ||
-      !read_scaled_axis(mag_root, K_IIO_MAGN_Y_RAW, magn_scale, reading.magn_y) ||
-      !read_scaled_axis(mag_root, K_IIO_MAGN_Z_RAW, magn_scale, reading.magn_z)) {
-    error_message = "Failed to read BMI270/BMM150 nine-axis data.";
-    return false;
+  if (device.has_bmm150) {
+    if (!read_double_file(mag_root / K_IIO_MAGN_SCALE, magn_scale)) {
+      error_message = "Failed to read BMM150 magnetometer scale.";
+      return false;
+    }
+    if (!read_scaled_axis(mag_root, K_IIO_MAGN_X_RAW, magn_scale, reading.magn_x) ||
+        !read_scaled_axis(mag_root, K_IIO_MAGN_Y_RAW, magn_scale, reading.magn_y) ||
+        !read_scaled_axis(mag_root, K_IIO_MAGN_Z_RAW, magn_scale, reading.magn_z)) {
+      error_message = "Failed to read BMM150 magnetometer data.";
+      return false;
+    }
   }
 
   return true;

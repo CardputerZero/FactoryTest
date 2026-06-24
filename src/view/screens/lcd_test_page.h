@@ -26,6 +26,10 @@ class LcdTestPage : public BaseScreen {
   void apply_brightness_active_(bool active);
   void apply_brightness_percent_(int32_t percent);
   void apply_brightness_theme_(bool dark_mode);
+  void update_nav_actions_();
+  bool can_trigger_lcd_color_();
+  bool can_trigger_lcd_brightness_();
+  bool can_complete_lcd_test_();
   void schedule_brightness_commit_();
   void begin_brightness_transition_();
   void step_brightness_transition_();
@@ -53,6 +57,10 @@ class LcdTestPage : public BaseScreen {
   int32_t hardware_brightness_percent_{model::LcdTestModel::K_INITIAL_BRIGHTNESS_PERCENT};
   int32_t target_brightness_percent_{model::LcdTestModel::K_INITIAL_BRIGHTNESS_PERCENT};
   bool hardware_brightness_loaded_{false};
+  uint32_t last_lcd_color_trigger_at_{0};
+  uint32_t last_lcd_brightness_trigger_at_{0};
+  bool has_lcd_color_trigger_{false};
+  bool has_lcd_brightness_trigger_{false};
 };
 
 }  // namespace screen

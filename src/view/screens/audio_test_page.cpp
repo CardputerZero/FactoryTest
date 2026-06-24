@@ -27,6 +27,7 @@ constexpr uint32_t K_LEVEL_POINT_COUNT = 42;
 AudioTestPage::AudioTestPage(viewmodel::AppViewModel& app_view_model, app::AssetManager& assets)
     : BaseScreen(app_view_model, assets) {
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
+  set_default_test_nav_();
   has_audio_device_ = platform::audio::find_i2s_audio_device(device_, device_error_);
   job_state_        = std::make_shared<AudioJobState>();
   init();

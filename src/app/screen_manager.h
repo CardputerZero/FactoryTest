@@ -39,6 +39,7 @@ class ScreenManager {
   void show_audio_test_page();
   void show_camera_test_page();
   void show_connectivity_test_page();
+  void show_ir_test_page();
   void show_imu_test_page();
   void show_power_info_page();
   void show_device_info_page();

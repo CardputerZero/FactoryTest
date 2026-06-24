@@ -66,6 +66,7 @@ class I2cConnectivityViewModel {
  public:
   const char* title_text() const;
   bool refresh(bool force_refresh = false);
+  bool is_scanning() const;
   const std::vector<model::ConnectivityI2cAddressInfo>& addresses() const;
   const std::string& error_message() const;
 
@@ -82,6 +83,17 @@ class SpiConnectivityViewModel {
 
  private:
   model::SpiConnectivityModel model_{};
+};
+
+class HdmiConnectivityViewModel {
+ public:
+  const char* title_text() const;
+  bool refresh(bool force_refresh = false);
+  const std::vector<model::ConnectivityInfoField>& fields() const;
+  const std::string& error_message() const;
+
+ private:
+  model::HdmiConnectivityModel model_{};
 };
 
 class LinkConnectivityViewModel {
@@ -108,6 +120,7 @@ class ConnectivityTestViewModel {
   lv_subject_t* active_page_subject();
   lv_subject_t* link_restart_request_subject();
   lv_subject_t* link_settings_request_subject();
+  lv_subject_t* uart_settings_request_subject();
   const std::array<model::ConnectivityMenuItem, model::ConnectivityTestModel::K_ITEM_COUNT>& items()
       const;
   std::size_t selected_index() const;
@@ -122,6 +135,7 @@ class ConnectivityTestViewModel {
   bool refresh_active();
   void request_link_restart();
   void request_link_settings();
+  void request_uart_settings();
 
   WifiConnectivityViewModel& wifi_view_model();
   BluetoothConnectivityViewModel& bluetooth_view_model();
@@ -129,6 +143,7 @@ class ConnectivityTestViewModel {
   UsbConnectivityViewModel& usb_view_model();
   I2cConnectivityViewModel& i2c_view_model();
   SpiConnectivityViewModel& spi_view_model();
+  HdmiConnectivityViewModel& hdmi_view_model();
   LinkConnectivityViewModel& link_view_model();
 
  protected:
@@ -140,14 +155,17 @@ class ConnectivityTestViewModel {
   reactive::IntSubject active_page_subject_;
   reactive::IntSubject link_restart_request_subject_{0};
   reactive::IntSubject link_settings_request_subject_{0};
+  reactive::IntSubject uart_settings_request_subject_{0};
   int32_t link_restart_request_count_{0};
   int32_t link_settings_request_count_{0};
+  int32_t uart_settings_request_count_{0};
   WifiConnectivityViewModel wifi_view_model_{};
   BluetoothConnectivityViewModel bluetooth_view_model_{};
   EthernetConnectivityViewModel ethernet_view_model_{};
   UsbConnectivityViewModel usb_view_model_{};
   I2cConnectivityViewModel i2c_view_model_{};
   SpiConnectivityViewModel spi_view_model_{};
+  HdmiConnectivityViewModel hdmi_view_model_{};
   LinkConnectivityViewModel link_view_model_{};
 };
 

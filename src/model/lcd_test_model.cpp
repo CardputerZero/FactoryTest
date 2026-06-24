@@ -48,7 +48,8 @@ void LcdTestModel::decrease_brightness() {
     return;
   }
 
-  brightness_percent_ = std::max(0, brightness_percent_ - K_BRIGHTNESS_STEP_PERCENT);
+  brightness_percent_ =
+      std::max(K_MIN_BRIGHTNESS_PERCENT, brightness_percent_ - K_BRIGHTNESS_STEP_PERCENT);
 }
 
 }  // namespace model

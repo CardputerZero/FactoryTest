@@ -13,6 +13,7 @@ namespace model {
 class LcdTestModel {
  public:
   static constexpr int32_t K_COLOR_STEP_COUNT = 9;
+  static constexpr int32_t K_MIN_BRIGHTNESS_PERCENT = 1;
   static constexpr int32_t K_INITIAL_BRIGHTNESS_PERCENT = 80;
   static constexpr int32_t K_BRIGHTNESS_STEP_PERCENT = 5;
 

@@ -17,6 +17,7 @@ const std::array<StartMenuItem, StartMenuModel::K_ITEM_COUNT>& start_menu_items(
       {"Audio Test", AppPage::AUDIO_TEST, false},
       {"Camera Test", AppPage::CAMERA_TEST, false},
       {"Connectivity Test", AppPage::CONNECTIVITY_TEST, false},
+      {"IR Test", AppPage::IR_TEST, false},
       {"Power Information", AppPage::POWER_INFO, false},
       {"IMU Test", AppPage::IMU_TEST, false},
       {"Device Information", AppPage::DEVICE_INFO, false},

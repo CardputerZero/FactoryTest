@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -25,6 +26,22 @@
 
 #ifndef APP_USE_PIPEWIRE
 #define APP_USE_PIPEWIRE 0
+#endif
+
+#ifndef APP_USE_ALSA
+#define APP_USE_ALSA 0
+#endif
+
+#ifndef APP_ALSA_PLAYBACK_DEVICE
+#define APP_ALSA_PLAYBACK_DEVICE ""
+#endif
+
+#ifndef APP_ALSA_CAPTURE_DEVICE
+#define APP_ALSA_CAPTURE_DEVICE ""
+#endif
+
+#if APP_USE_ALSA
+#include <alsa/asoundlib.h>
 #endif
 
 #if APP_USE_PIPEWIRE
@@ -154,6 +171,287 @@ bool read_wav_payload(const std::string& input_path,
   LOG_ERROR("WAV data chunk not found: {}", input_path);
   return false;
 }
+
+#if APP_USE_ALSA
+struct AlsaPcmDevice {
+  std::string name;
+  std::string description;
+};
+
+std::string trim_copy(const std::string& value) {
+  const auto first = value.find_first_not_of(" \t\r\n");
+  if (first == std::string::npos) {
+    return {};
+  }
+  const auto last = value.find_last_not_of(" \t\r\n");
+  return value.substr(first, last - first + 1);
+}
+
+std::string lower_copy(std::string value) {
+  std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+    return static_cast<char>(std::tolower(ch));
+  });
+  return value;
+}
+
+bool line_looks_i2s(const std::string& line) {
+  const auto lower = lower_copy(line);
+  return lower.find("i2s") != std::string::npos || lower.find("codec") != std::string::npos ||
+         lower.find("simple-card") != std::string::npos ||
+         lower.find("hifiberry") != std::string::npos || lower.find("wm") != std::string::npos ||
+         lower.find("nau") != std::string::npos || lower.find("tas") != std::string::npos ||
+         lower.find("max") != std::string::npos || lower.find("es") != std::string::npos;
+}
+
+std::vector<AlsaPcmDevice> enumerate_alsa_pcm_devices(bool playback) {
+  std::vector<AlsaPcmDevice> devices;
+  std::ifstream file("/proc/asound/pcm");
+  if (!file.is_open()) {
+    return devices;
+  }
+
+  std::string line;
+  while (std::getline(file, line)) {
+    if ((playback && line.find("playback") == std::string::npos) ||
+        (!playback && line.find("capture") == std::string::npos)) {
+      continue;
+    }
+    const auto colon = line.find(':');
+    const auto dash  = line.find('-');
+    if (colon == std::string::npos || colon < 3) {
+      continue;
+    }
+
+    const auto id = line.substr(0, colon);
+    const auto sep = id.find('-');
+    if (sep == std::string::npos) {
+      continue;
+    }
+    const auto card = trim_copy(id.substr(0, sep));
+    const auto dev  = trim_copy(id.substr(sep + 1));
+    if (card.empty() || dev.empty()) {
+      continue;
+    }
+
+    AlsaPcmDevice device;
+    device.name = "plughw:" + card + "," + dev;
+    device.description =
+        dash == std::string::npos ? trim_copy(line) : trim_copy(line.substr(dash + 1));
+    devices.push_back(std::move(device));
+  }
+  return devices;
+}
+
+std::mutex& alsa_playback_mutex() {
+  static std::mutex mutex;
+  return mutex;
+}
+
+std::string choose_alsa_pcm_device(bool playback) {
+  const std::string configured = playback ? APP_ALSA_PLAYBACK_DEVICE : APP_ALSA_CAPTURE_DEVICE;
+  if (!configured.empty()) {
+    return configured;
+  }
+
+  auto devices = enumerate_alsa_pcm_devices(playback);
+  if (devices.empty()) {
+    return "plughw:0,0";
+  }
+
+  const auto preferred =
+      std::find_if(devices.begin(), devices.end(), [](const AlsaPcmDevice& device) {
+        return line_looks_i2s(device.description);
+      });
+  return (preferred != devices.end() ? preferred : devices.begin())->name;
+}
+
+bool configure_alsa_pcm(snd_pcm_t* pcm,
+                        snd_pcm_stream_t stream,
+                        uint32_t sample_rate,
+                        uint16_t channels) {
+  snd_pcm_hw_params_t* params = nullptr;
+  snd_pcm_hw_params_alloca(&params);
+
+  int err = snd_pcm_hw_params_any(pcm, params);
+  if (err < 0) {
+    LOG_ERROR("ALSA hw params init failed: {}", snd_strerror(err));
+    return false;
+  }
+  err = snd_pcm_hw_params_set_access(pcm, params, SND_PCM_ACCESS_RW_INTERLEAVED);
+  if (err < 0) {
+    LOG_ERROR("ALSA set access failed: {}", snd_strerror(err));
+    return false;
+  }
+  err = snd_pcm_hw_params_set_format(pcm, params, SND_PCM_FORMAT_S16_LE);
+  if (err < 0) {
+    LOG_ERROR("ALSA set format S16_LE failed: {}", snd_strerror(err));
+    return false;
+  }
+
+  unsigned int alsa_rate = sample_rate;
+  err                    = snd_pcm_hw_params_set_rate_near(pcm, params, &alsa_rate, nullptr);
+  if (err < 0) {
+    LOG_ERROR("ALSA set sample rate {} failed: {}", sample_rate, snd_strerror(err));
+    return false;
+  }
+
+  unsigned int alsa_channels = channels;
+  err = snd_pcm_hw_params_set_channels_near(pcm, params, &alsa_channels);
+  if (err < 0 || alsa_channels != channels) {
+    LOG_ERROR("ALSA set channels {} failed: {}", channels, err < 0 ? snd_strerror(err) : "mismatch");
+    return false;
+  }
+
+  snd_pcm_uframes_t period_size = stream == SND_PCM_STREAM_PLAYBACK ? 256 : 512;
+  snd_pcm_hw_params_set_period_size_near(pcm, params, &period_size, nullptr);
+  snd_pcm_uframes_t buffer_size = period_size * 4;
+  snd_pcm_hw_params_set_buffer_size_near(pcm, params, &buffer_size);
+
+  err = snd_pcm_hw_params(pcm, params);
+  if (err < 0) {
+    LOG_ERROR("ALSA apply hw params failed: {}", snd_strerror(err));
+    return false;
+  }
+  return true;
+}
+
+bool recover_alsa_pcm(snd_pcm_t* pcm, int err) {
+  err = snd_pcm_recover(pcm, err, 1);
+  if (err < 0) {
+    LOG_ERROR("ALSA recover failed: {}", snd_strerror(err));
+    return false;
+  }
+  return true;
+}
+
+bool record_wav_alsa(const std::string& capture_device, const std::string& output_path, int seconds) {
+  if (seconds <= 0) {
+    LOG_ERROR("invalid audio record duration: {}", seconds);
+    return false;
+  }
+
+  snd_pcm_t* pcm = nullptr;
+  const auto device = capture_device.empty() ? choose_alsa_pcm_device(false) : capture_device;
+  int err = snd_pcm_open(&pcm, device.c_str(), SND_PCM_STREAM_CAPTURE, 0);
+  if (err < 0) {
+    LOG_ERROR("failed to open ALSA capture device {}: {}", device, snd_strerror(err));
+    return false;
+  }
+
+  if (!configure_alsa_pcm(pcm, SND_PCM_STREAM_CAPTURE, K_AUDIO_SAMPLE_RATE, K_AUDIO_CHANNELS)) {
+    snd_pcm_close(pcm);
+    return false;
+  }
+
+  std::vector<int16_t> samples;
+  const std::size_t target_samples =
+      static_cast<std::size_t>(seconds) * K_AUDIO_SAMPLE_RATE * K_AUDIO_CHANNELS;
+  samples.reserve(target_samples);
+  std::vector<int16_t> buffer(512 * K_AUDIO_CHANNELS);
+
+  while (samples.size() < target_samples) {
+    const auto remain_frames =
+        static_cast<snd_pcm_uframes_t>((target_samples - samples.size()) / K_AUDIO_CHANNELS);
+    const auto frames = std::min<snd_pcm_uframes_t>(remain_frames, buffer.size() / K_AUDIO_CHANNELS);
+    err = static_cast<int>(snd_pcm_readi(pcm, buffer.data(), frames));
+    if (err < 0) {
+      if (!recover_alsa_pcm(pcm, err)) {
+        snd_pcm_close(pcm);
+        return false;
+      }
+      continue;
+    }
+    const auto copied_samples = static_cast<std::size_t>(err) * K_AUDIO_CHANNELS;
+    samples.insert(samples.end(), buffer.begin(), buffer.begin() + copied_samples);
+    set_audio_level_from_samples(buffer.data(), copied_samples);
+  }
+
+  snd_pcm_drain(pcm);
+  snd_pcm_close(pcm);
+  audio_level().store(0.0F);
+
+  std::remove(output_path.c_str());
+  std::ofstream file(output_path, std::ios::binary | std::ios::trunc);
+  if (!file.is_open()) {
+    LOG_ERROR("failed to create WAV file: {}", output_path);
+    return false;
+  }
+
+  const uint32_t data_bytes = static_cast<uint32_t>(samples.size() * sizeof(int16_t));
+  write_wav_header(file, data_bytes);
+  file.write(reinterpret_cast<const char*>(samples.data()), data_bytes);
+  if (!file.good()) {
+    LOG_ERROR("failed to write WAV file: {}", output_path);
+    return false;
+  }
+
+  LOG_INFO("ALSA recording completed from {}: {} sample(s)", device, samples.size());
+  return true;
+}
+
+bool play_samples_alsa(const std::string& playback_device,
+                       const std::vector<int16_t>& samples,
+                       uint32_t sample_rate,
+                       uint16_t channels,
+                       bool update_level) {
+  if (samples.empty() || sample_rate == 0 || channels == 0) {
+    return false;
+  }
+
+  std::lock_guard<std::mutex> playback_lock(alsa_playback_mutex());
+  snd_pcm_t* pcm = nullptr;
+  const auto device = playback_device.empty() ? choose_alsa_pcm_device(true) : playback_device;
+  int err = snd_pcm_open(&pcm, device.c_str(), SND_PCM_STREAM_PLAYBACK, 0);
+  if (err < 0) {
+    LOG_ERROR("failed to open ALSA playback device {}: {}", device, snd_strerror(err));
+    return false;
+  }
+
+  if (!configure_alsa_pcm(pcm, SND_PCM_STREAM_PLAYBACK, sample_rate, channels)) {
+    snd_pcm_close(pcm);
+    return false;
+  }
+
+  std::size_t sample_offset = 0;
+  while (sample_offset < samples.size()) {
+    const auto remain_frames =
+        static_cast<snd_pcm_uframes_t>((samples.size() - sample_offset) / channels);
+    if (remain_frames == 0) {
+      break;
+    }
+    const auto frames = std::min<snd_pcm_uframes_t>(remain_frames, 512);
+    const auto* data  = samples.data() + sample_offset;
+    err               = static_cast<int>(snd_pcm_writei(pcm, data, frames));
+    if (err < 0) {
+      if (!recover_alsa_pcm(pcm, err)) {
+        snd_pcm_close(pcm);
+        return false;
+      }
+      continue;
+    }
+    const auto written_samples = static_cast<std::size_t>(err) * channels;
+    if (update_level) {
+      set_audio_level_from_samples(data, written_samples);
+    }
+    sample_offset += written_samples;
+  }
+
+  snd_pcm_drain(pcm);
+  snd_pcm_close(pcm);
+  if (update_level) {
+    audio_level().store(0.0F);
+  }
+  return true;
+}
+
+bool play_wav_alsa(const std::string& playback_device, const std::string& input_path) {
+  WavAudio audio;
+  if (!read_wav_payload(input_path, audio.samples, &audio.sample_rate, &audio.channels)) {
+    return false;
+  }
+  return play_samples_alsa(playback_device, audio.samples, audio.sample_rate, audio.channels, true);
+}
+#endif
 
 #if APP_USE_PIPEWIRE
 enum class PipeWireMode { RECORD, PLAYBACK };
@@ -585,45 +883,104 @@ void warm_up_key_click_pipewire(uint32_t sample_rate, uint16_t channels) {
 }
 #endif
 
+#if !APP_USE_PIPEWIRE
+struct KeyClickState {
+  std::mutex mutex;
+  std::string path;
+  std::shared_ptr<WavAudio> audio;
+  bool warmup_started{false};
+};
+
+KeyClickState& key_click_state() {
+  static KeyClickState state;
+  return state;
+}
+
+std::shared_ptr<WavAudio> load_key_click_audio(const std::string& input_path) {
+  if (input_path.empty()) {
+    return nullptr;
+  }
+
+  auto audio = std::make_shared<WavAudio>();
+  if (!read_wav_payload(input_path, audio->samples, &audio->sample_rate, &audio->channels)) {
+    return nullptr;
+  }
+  if (audio->sample_rate == 0 || audio->channels == 0 || audio->samples.empty()) {
+    LOG_WARN("invalid key click sound: {}", input_path);
+    return nullptr;
+  }
+  LOG_INFO("loaded key click sound: {} rate={} channels={} samples={}",
+           input_path,
+           audio->sample_rate,
+           audio->channels,
+           audio->samples.size());
+  return audio;
+}
+#endif
+
 }  // namespace
 
 float current_audio_level() { return audio_level().load(); }
 
 bool find_i2s_audio_device(AudioDevice& device, std::string& error_message) {
-#if APP_USE_PIPEWIRE
+#if APP_USE_ALSA
+  device.backend_name    = "ALSA";
+  device.playback_device = choose_alsa_pcm_device(true);
+  device.capture_device  = choose_alsa_pcm_device(false);
+  device.display_name =
+      "ALSA direct I/O playback=" + device.playback_device + " capture=" + device.capture_device;
+  LOG_INFO("using ALSA direct audio backend: playback={} capture={}",
+           device.playback_device,
+           device.capture_device);
+  return true;
+#elif APP_USE_PIPEWIRE
   device.backend_name = "PipeWire";
   device.display_name = "PipeWire default source/sink";
   LOG_INFO("using PipeWire libpipewire audio backend");
   return true;
 #else
   error_message =
-      "PipeWire audio backend is not available. Install libpipewire-0.3 development "
-      "headers in the build sysroot and rebuild.";
+      "Audio backend is not available. Install libasound2 development headers in the build "
+      "sysroot, or install libpipewire-0.3 development headers and rebuild.";
   LOG_ERROR("{}", error_message);
   return false;
 #endif
 }
 
-bool record_wav(const AudioDevice& /*device*/, const std::string& output_path, int seconds) {
+bool record_wav(const AudioDevice& device, const std::string& output_path, int seconds) {
+#if APP_USE_ALSA
+  LOG_INFO("recording WAV through ALSA device {} to {} for {}s",
+           device.capture_device,
+           output_path,
+           seconds);
+  return record_wav_alsa(device.capture_device, output_path, seconds);
+#elif APP_USE_PIPEWIRE
   LOG_INFO("recording WAV through PipeWire to {} for {}s", output_path, seconds);
-#if APP_USE_PIPEWIRE
   return record_wav_pipewire(output_path, seconds);
 #else
+  (void)device;
+  (void)output_path;
+  (void)seconds;
   return false;
 #endif
 }
 
-bool play_wav(const AudioDevice& /*device*/, const std::string& input_path) {
+bool play_wav(const AudioDevice& device, const std::string& input_path) {
+#if APP_USE_ALSA
+  LOG_INFO("playing WAV through ALSA device {} from {}", device.playback_device, input_path);
+  return play_wav_alsa(device.playback_device, input_path);
+#elif APP_USE_PIPEWIRE
   LOG_INFO("playing WAV through PipeWire from {}", input_path);
-#if APP_USE_PIPEWIRE
   return play_wav_pipewire(input_path);
 #else
+  (void)device;
+  (void)input_path;
   return false;
 #endif
 }
 
 void set_key_click_sound_path(const std::string& input_path) {
-#if APP_USE_PIPEWIRE
+#if APP_USE_ALSA || APP_USE_PIPEWIRE
   auto& state = key_click_state();
   auto audio  = load_key_click_audio(input_path);
   bool should_warm_up = false;
@@ -643,8 +1000,19 @@ void set_key_click_sound_path(const std::string& input_path) {
   }
 
   if (should_warm_up) {
+#if APP_USE_ALSA
+    std::thread([warm_rate, warm_ch]() {
+      WavAudio silence;
+      silence.sample_rate = warm_rate;
+      silence.channels    = warm_ch;
+      silence.samples.resize(static_cast<std::size_t>(warm_rate) * warm_ch / 5U, 0);
+      LOG_INFO("warming up ALSA key click stream: rate={} channels={}", warm_rate, warm_ch);
+      play_samples_alsa(choose_alsa_pcm_device(true), silence.samples, warm_rate, warm_ch, false);
+    }).detach();
+#else
     std::thread([warm_rate, warm_ch]() { warm_up_key_click_pipewire(warm_rate, warm_ch); })
         .detach();
+#endif
   }
 #else
   (void)input_path;
@@ -652,7 +1020,7 @@ void set_key_click_sound_path(const std::string& input_path) {
 }
 
 void play_key_click_sound() {
-#if APP_USE_PIPEWIRE
+#if APP_USE_ALSA || APP_USE_PIPEWIRE
   auto& state = key_click_state();
   std::shared_ptr<WavAudio> audio;
   {
@@ -663,7 +1031,17 @@ void play_key_click_sound() {
     return;
   }
 
+#if APP_USE_ALSA
+  std::thread([audio]() {
+    play_samples_alsa(choose_alsa_pcm_device(true),
+                      audio->samples,
+                      audio->sample_rate,
+                      audio->channels,
+                      false);
+  }).detach();
+#else
   std::thread([audio]() { play_key_click_pipewire(*audio); }).detach();
+#endif
 #endif
 }
 

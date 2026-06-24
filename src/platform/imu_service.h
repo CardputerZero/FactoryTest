@@ -36,6 +36,8 @@ struct ImuDevice {
   std::string mag_iio_path;
   std::string display_name;
   std::string mag_display_name;
+  bool has_bmi270{false};
+  bool has_bmm150{false};
 };
 
 struct SixAxisReading {

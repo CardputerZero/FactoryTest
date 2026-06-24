@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <filesystem>
+#include <sstream>
 #include <string>
 
 #include "asset_manager.h"
@@ -61,10 +62,22 @@ std::string sensor_label(const std::string& name, const std::string& path) {
 ImuTestPage::ImuTestPage(viewmodel::AppViewModel& app_view_model, app::AssetManager& assets)
     : BaseScreen(app_view_model, assets) {
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
+  set_default_test_nav_();
   has_imu_ = platform::imu::find_bmi270_device(device_, status_message_);
   if (has_imu_) {
-    status_message_ = sensor_label(device_.display_name, device_.iio_path) + " + " +
-                      sensor_label(device_.mag_display_name, device_.mag_iio_path) + " ready";
+    std::ostringstream status;
+    if (device_.has_bmi270) {
+      status << sensor_label(device_.display_name, device_.iio_path);
+    } else {
+      status << "BMI270 not found";
+    }
+    status << " + ";
+    if (device_.has_bmm150) {
+      status << sensor_label(device_.mag_display_name, device_.mag_iio_path);
+    } else {
+      status << "BMM150 not found";
+    }
+    status_message_ = status.str();
   }
   init();
   platform::set_key_listener(key_listener, this);
@@ -163,15 +176,28 @@ void ImuTestPage::update_readings_() {
   }
 
   lv_label_set_text(status_label_, status_message_.c_str());
-  set_value_(0, reading.accel_x, K_AXIS_ROWS[0].unit);
-  set_value_(1, reading.accel_y, K_AXIS_ROWS[1].unit);
-  set_value_(2, reading.accel_z, K_AXIS_ROWS[2].unit);
-  set_value_(3, reading.gyro_x, K_AXIS_ROWS[3].unit);
-  set_value_(4, reading.gyro_y, K_AXIS_ROWS[4].unit);
-  set_value_(5, reading.gyro_z, K_AXIS_ROWS[5].unit);
-  set_value_(6, reading.magn_x, K_AXIS_ROWS[6].unit);
-  set_value_(7, reading.magn_y, K_AXIS_ROWS[7].unit);
-  set_value_(8, reading.magn_z, K_AXIS_ROWS[8].unit);
+  if (device_.has_bmi270) {
+    set_value_(0, reading.accel_x, K_AXIS_ROWS[0].unit);
+    set_value_(1, reading.accel_y, K_AXIS_ROWS[1].unit);
+    set_value_(2, reading.accel_z, K_AXIS_ROWS[2].unit);
+    set_value_(3, reading.gyro_x, K_AXIS_ROWS[3].unit);
+    set_value_(4, reading.gyro_y, K_AXIS_ROWS[4].unit);
+    set_value_(5, reading.gyro_z, K_AXIS_ROWS[5].unit);
+  } else {
+    for (std::size_t i = 0; i < 6; ++i) {
+      set_missing_(i, "BMI270 not found");
+    }
+  }
+
+  if (device_.has_bmm150) {
+    set_value_(6, reading.magn_x, K_AXIS_ROWS[6].unit);
+    set_value_(7, reading.magn_y, K_AXIS_ROWS[7].unit);
+    set_value_(8, reading.magn_z, K_AXIS_ROWS[8].unit);
+  } else {
+    for (std::size_t i = 6; i < 9; ++i) {
+      set_missing_(i, "BMM150 not found");
+    }
+  }
 }
 
 void ImuTestPage::set_value_(std::size_t index, double value, const char* unit) {
@@ -182,6 +208,13 @@ void ImuTestPage::set_value_(std::size_t index, double value, const char* unit) 
   char buffer[48];
   lv_snprintf(buffer, sizeof(buffer), "%.3f %s", value, unit);
   cards_[index]->set_value(buffer);
+}
+
+void ImuTestPage::set_missing_(std::size_t index, const char* message) {
+  if (index >= cards_.size() || !cards_[index]) {
+    return;
+  }
+  cards_[index]->set_value(message ? message : "Not found");
 }
 
 void ImuTestPage::scroll_(int32_t direction) {

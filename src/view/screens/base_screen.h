@@ -6,14 +6,12 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
 
 #include "app_viewmodel.h"
-#include "connectivity_test_viewmodel.h"
-#include "lcd_test_viewmodel.h"
 #include "lvgl.h"
 #include "navbar.h"
-#include "start_menu_viewmodel.h"
 #include "titlebar.h"
 
 namespace app {
@@ -25,10 +23,7 @@ namespace screen {
 class BaseScreen {
  public:
   BaseScreen(viewmodel::AppViewModel& app_view_model,
-             app::AssetManager& assets,
-             viewmodel::LcdTestViewModel* lcd_view_model          = nullptr,
-             viewmodel::StartMenuViewModel* start_menu_view_model = nullptr,
-             viewmodel::ConnectivityTestViewModel* connectivity_view_model = nullptr);
+             app::AssetManager& assets);
   virtual ~BaseScreen();
 
   BaseScreen(const BaseScreen&)            = delete;
@@ -42,14 +37,18 @@ class BaseScreen {
 
   viewmodel::AppViewModel& app_view_model_ref_();
   app::AssetManager& assets_ref_();
+  void set_nav_action_(uint32_t keypad,
+                       const char* icon,
+                       std::function<void()> action,
+                       lv_event_code_t event_code           = LV_EVENT_CLICKED,
+                       viewmodel::NavHoldTarget hold_target = viewmodel::NavHoldTarget::NONE,
+                       bool force_enabled                   = false);
+  void set_default_test_nav_(bool show_complete = true);
   view::widgets::TitleBar* title_bar_ref_();
 
  private:
   viewmodel::AppViewModel& app_view_model_;
   app::AssetManager& assets_;
-  viewmodel::LcdTestViewModel* lcd_view_model_{nullptr};
-  viewmodel::StartMenuViewModel* start_menu_view_model_{nullptr};
-  viewmodel::ConnectivityTestViewModel* connectivity_view_model_{nullptr};
   lv_obj_t* root_{nullptr};
   lv_obj_t* content_{nullptr};
   std::unique_ptr<view::widgets::TitleBar> title_bar_{};

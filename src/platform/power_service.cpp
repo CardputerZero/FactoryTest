@@ -113,6 +113,12 @@ bool read_battery_info(PowerSupplyInfo& info, std::string& error_message) {
     return false;
   }
 
+  static std::filesystem::path logged_path;
+  if (logged_path != path) {
+    LOG_INFO("using power supply path: {}", path.string());
+    logged_path = path;
+  }
+
   PowerSupplyInfo next{};
   next.device_name = path.filename().string();
   read_text_file(path / "type", next.type);

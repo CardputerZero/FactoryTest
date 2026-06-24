@@ -31,6 +31,7 @@ class ImuTestPage : public BaseScreen {
   static void scroll_bounce_timer_cb(lv_timer_t* timer);
   void update_readings_();
   void set_value_(std::size_t index, double value, const char* unit);
+  void set_missing_(std::size_t index, const char* message);
   void scroll_(int32_t direction);
 
   platform::imu::ImuDevice device_{};

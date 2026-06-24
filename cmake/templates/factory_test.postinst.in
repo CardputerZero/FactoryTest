@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+APP_PATH="/usr/@CMAKE_INSTALL_BINDIR@/@PROJECT_NAME@"
+
+if [ "$1" = "configure" ]; then
+    if [ -f "$APP_PATH" ] && command -v setcap >/dev/null 2>&1; then
+        if ! setcap cap_net_raw+ep "$APP_PATH"; then
+            echo "Warning: failed to grant cap_net_raw to $APP_PATH" >&2
+        fi
+    else
+        echo "Warning: cannot grant cap_net_raw; missing $APP_PATH or setcap" >&2
+    fi
+fi
+
+exit 0

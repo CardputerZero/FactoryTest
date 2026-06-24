@@ -13,6 +13,7 @@ set(APP_DEBIAN_ARCHITECTURE "arm64" CACHE STRING "Debian package architecture")
 set(APP_MAINTAINER "M5Stack <support@m5stack.com>" CACHE STRING "Debian package maintainer")
 set(APP_PACKAGE_DESCRIPTION "CardputerZero factory test application" CACHE STRING "Debian package summary")
 set(APP_INSTALL_SYSTEMD_SERVICE ON CACHE BOOL "Install a systemd service file for embedded deployments")
+set(APP_SET_CAP_NET_RAW ON CACHE BOOL "Grant cap_net_raw to the installed app binary for ICMP ping")
 
 set(APP_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/package")
 configure_file(
@@ -35,6 +36,22 @@ if(APP_USE_LIBNM OR APP_USE_LIBOPING)
         "${APP_GENERATED_DIR}/50-${PROJECT_NAME}-networkmanager.rules"
         @ONLY
     )
+endif()
+
+set(APP_DEBIAN_CONTROL_EXTRA)
+if(APP_SET_CAP_NET_RAW)
+    configure_file(
+        "${CMAKE_CURRENT_LIST_DIR}/templates/factory_test.postinst.in"
+        "${APP_GENERATED_DIR}/postinst"
+        @ONLY
+    )
+    file(CHMOD "${APP_GENERATED_DIR}/postinst"
+        PERMISSIONS
+            OWNER_READ OWNER_WRITE OWNER_EXECUTE
+            GROUP_READ GROUP_EXECUTE
+            WORLD_READ WORLD_EXECUTE
+    )
+    list(APPEND APP_DEBIAN_CONTROL_EXTRA "${APP_GENERATED_DIR}/postinst")
 endif()
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
@@ -118,10 +135,14 @@ set(APP_DEBIAN_PACKAGE_DEPENDS
     libfmt10
     libcamera-dev
     libcamera-apps
-    libpipewire-0.3-0
-    pipewire
-    wireplumber
+    util-linux-extra
 )
+if(APP_USE_PIPEWIRE)
+    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS libpipewire-0.3-0 pipewire wireplumber)
+endif()
+if(APP_USE_ALSA)
+    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS libasound2)
+endif()
 if(APP_USE_BLUEZ OR APP_USE_LIBNM)
     list(APPEND APP_DEBIAN_PACKAGE_DEPENDS "libglib2.0-0t64 | libglib2.0-0")
 endif()
@@ -130,6 +151,9 @@ if(APP_USE_LIBNM)
 endif()
 if(APP_USE_LIBOPING)
     list(APPEND APP_DEBIAN_PACKAGE_DEPENDS polkitd)
+endif()
+if(APP_SET_CAP_NET_RAW)
+    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS libcap2-bin)
 endif()
 if(APP_USE_LIBUDEV)
     list(APPEND APP_DEBIAN_PACKAGE_DEPENDS libudev1)
@@ -143,8 +167,14 @@ endif()
 if(APP_USE_BLUEZ)
     list(APPEND APP_DEBIAN_PACKAGE_DEPENDS bluez)
 endif()
+if(APP_USE_LIBGPIOD)
+    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS libgpiod-dev)
+endif()
 list(REMOVE_DUPLICATES APP_DEBIAN_PACKAGE_DEPENDS)
 string(REPLACE ";" ", " CPACK_DEBIAN_PACKAGE_DEPENDS "${APP_DEBIAN_PACKAGE_DEPENDS}")
+if(APP_DEBIAN_CONTROL_EXTRA)
+    set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA "${APP_DEBIAN_CONTROL_EXTRA}")
+endif()
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
 set(CPACK_DEBIAN_PACKAGE_CONTROL_STRICT_PERMISSION TRUE)
 

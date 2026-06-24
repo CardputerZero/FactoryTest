@@ -21,7 +21,7 @@ struct StartMenuItem {
 
 class StartMenuModel {
  public:
-  static constexpr std::size_t K_ITEM_COUNT = 9;
+  static constexpr std::size_t K_ITEM_COUNT = 10;
 
   const std::array<StartMenuItem, K_ITEM_COUNT>& items() const;
   std::size_t selected_index() const;

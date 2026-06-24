@@ -10,12 +10,14 @@
 #include <array>
 #include <cstdint>
 #include <cstdlib>
+#include <utility>
 
 #include "asset_manager.h"
 #include "backlight_service.h"
 #include "bindings.h"
 #include "linux_input.h"
 #include "theme.h"
+#include "ui_const.h"
 
 namespace screen {
 namespace {
@@ -44,16 +46,19 @@ const std::array<LcdColorStep, model::LcdTestModel::K_COLOR_STEP_COUNT>& lcd_col
 constexpr uint32_t K_BRIGHTNESS_COMMIT_DELAY_MS = 320;
 constexpr uint32_t K_BRIGHTNESS_SMOOTH_STEP_MS  = 20;
 constexpr int32_t K_BRIGHTNESS_SMOOTH_STEP      = 2;
+constexpr uint32_t K_LCD_NAV_DEBOUNCE_MS        = 220;
+constexpr uint32_t K_LCD_COMPLETE_LOCKOUT_MS    = 450;
 
 }  // namespace
 
 LcdTestPage::LcdTestPage(viewmodel::AppViewModel& app_view_model,
                          viewmodel::LcdTestViewModel& lcd_view_model,
                          app::AssetManager& assets)
-    : BaseScreen(app_view_model, assets, &lcd_view_model),
+    : BaseScreen(app_view_model, assets),
       lcd_view_model_(lcd_view_model) {
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
   lcd_view_model_.reset_test();
+  update_nav_actions_();
   init();
 }
 
@@ -122,7 +127,7 @@ void LcdTestPage::build_content(lv_obj_t* content) {
 
   brightness_slider_ = lv_slider_create(brightness_group_);
   lv_obj_set_width(brightness_slider_, 260);
-  lv_slider_set_range(brightness_slider_, 0, 100);
+  lv_slider_set_range(brightness_slider_, model::LcdTestModel::K_MIN_BRIGHTNESS_PERCENT, 100);
   lv_obj_clear_flag(brightness_slider_, LV_OBJ_FLAG_CLICKABLE);
   apply_brightness_theme_(app_view_model_ref_().is_dark_mode());
 
@@ -226,14 +231,17 @@ void LcdTestPage::apply_brightness_active_(bool active) {
     lv_obj_add_flag(prompt_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(color_layer_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_remove_flag(brightness_group_, LV_OBJ_FLAG_HIDDEN);
+    update_nav_actions_();
     return;
   }
 
   lv_obj_add_flag(brightness_group_, LV_OBJ_FLAG_HIDDEN);
+  update_nav_actions_();
 }
 
 void LcdTestPage::apply_brightness_percent_(int32_t percent) {
-  requested_brightness_percent_ = std::clamp(percent, 0, 100);
+  requested_brightness_percent_ =
+      std::clamp(percent, model::LcdTestModel::K_MIN_BRIGHTNESS_PERCENT, 100);
   if (brightness_slider_) {
     lv_slider_set_value(brightness_slider_, requested_brightness_percent_, LV_ANIM_ON);
   }
@@ -255,6 +263,81 @@ void LcdTestPage::apply_brightness_theme_(bool dark_mode) {
   view::apply_slider_theme(brightness_slider_, dark_mode);
 }
 
+void LcdTestPage::update_nav_actions_() {
+  std::array<viewmodel::NavAction, 5> actions{};
+
+  viewmodel::NavAction back;
+  back.icon   = view::ICON_ARROW_U_UP_LEFT;
+  back.action = [this]() { app_view_model_ref_().request_back_or_quit(); };
+  actions[0]  = std::move(back);
+
+  if (lcd_view_model_.is_brightness_test_active()) {
+    viewmodel::NavAction decrease;
+    decrease.icon   = view::ICON_MINUS;
+    decrease.action = [this]() {
+      if (can_trigger_lcd_brightness_()) {
+        lcd_view_model_.decrease_brightness();
+      }
+    };
+    actions[1] = std::move(decrease);
+
+    viewmodel::NavAction complete;
+    complete.icon   = view::ICON_CHECK_SQUARE;
+    complete.action = [this]() {
+      if (can_complete_lcd_test_()) {
+        app_view_model_ref_().complete_current_test();
+      }
+    };
+    actions[2] = std::move(complete);
+
+    viewmodel::NavAction increase;
+    increase.icon   = view::ICON_PLUS;
+    increase.action = [this]() {
+      if (can_trigger_lcd_brightness_()) {
+        lcd_view_model_.increase_brightness();
+      }
+    };
+    actions[3] = std::move(increase);
+  } else {
+    viewmodel::NavAction advance;
+    advance.icon   = view::ICON_CHECK_SQUARE;
+    advance.action = [this]() {
+      if (can_trigger_lcd_color_()) {
+        lcd_view_model_.advance_color();
+      }
+    };
+    actions[2] = std::move(advance);
+  }
+
+  app_view_model_ref_().set_nav_actions(std::move(actions));
+}
+
+bool LcdTestPage::can_trigger_lcd_color_() {
+  if (has_lcd_color_trigger_ && lv_tick_elaps(last_lcd_color_trigger_at_) < K_LCD_NAV_DEBOUNCE_MS) {
+    return false;
+  }
+
+  last_lcd_color_trigger_at_ = lv_tick_get();
+  has_lcd_color_trigger_     = true;
+  return true;
+}
+
+bool LcdTestPage::can_trigger_lcd_brightness_() {
+  if (has_lcd_brightness_trigger_ &&
+      lv_tick_elaps(last_lcd_brightness_trigger_at_) < K_LCD_NAV_DEBOUNCE_MS) {
+    return false;
+  }
+
+  last_lcd_brightness_trigger_at_ = lv_tick_get();
+  has_lcd_brightness_trigger_     = true;
+  return true;
+}
+
+bool LcdTestPage::can_complete_lcd_test_() {
+  return !has_lcd_color_trigger_ ||
+         lv_tick_elaps(last_lcd_color_trigger_at_) >= K_LCD_COMPLETE_LOCKOUT_MS;
+}
+
 void LcdTestPage::schedule_brightness_commit_() {
   if (brightness_smooth_timer_) {
     lv_timer_pause(brightness_smooth_timer_);
@@ -274,7 +357,8 @@ void LcdTestPage::schedule_brightness_commit_() {
 }
 
 void LcdTestPage::begin_brightness_transition_() {
-  target_brightness_percent_ = std::clamp(requested_brightness_percent_, 0, 100);
+  target_brightness_percent_ =
+      std::clamp(requested_brightness_percent_, model::LcdTestModel::K_MIN_BRIGHTNESS_PERCENT, 100);
 
   if (!hardware_brightness_loaded_) {
     int32_t current = 0;
@@ -312,7 +396,9 @@ void LcdTestPage::step_brightness_transition_() {
 
   const int32_t step =
       std::min<int32_t>(std::abs(delta), K_BRIGHTNESS_SMOOTH_STEP) * (delta > 0 ? 1 : -1);
-  hardware_brightness_percent_ = std::clamp(hardware_brightness_percent_ + step, 0, 100);
+  hardware_brightness_percent_ = std::clamp(hardware_brightness_percent_ + step,
+                                            model::LcdTestModel::K_MIN_BRIGHTNESS_PERCENT,
+                                            100);
   platform::backlight::write_brightness_percent(hardware_brightness_percent_);
 
   if (hardware_brightness_percent_ == target_brightness_percent_ && brightness_smooth_timer_) {

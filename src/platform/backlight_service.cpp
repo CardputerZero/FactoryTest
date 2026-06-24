@@ -20,6 +20,7 @@ namespace {
 
 constexpr int32_t K_MIN_BRIGHTNESS = 0;
 constexpr int32_t K_MAX_BRIGHTNESS = 100;
+bool s_backlight_path_logged       = false;
 
 int32_t clamp_percent(int32_t percent) {
   return std::clamp(percent, K_MIN_BRIGHTNESS, K_MAX_BRIGHTNESS);
@@ -28,6 +29,11 @@ int32_t clamp_percent(int32_t percent) {
 }  // namespace
 
 bool read_brightness_percent(int32_t& percent) {
+  if (!s_backlight_path_logged) {
+    LOG_INFO("using backlight brightness path: {}", APP_BACKLIGHT_BRIGHTNESS_PATH);
+    s_backlight_path_logged = true;
+  }
+
   std::ifstream file(APP_BACKLIGHT_BRIGHTNESS_PATH);
   if (!file) {
     static bool logged = false;
@@ -51,6 +57,13 @@ bool read_brightness_percent(int32_t& percent) {
 }
 
 bool write_brightness_percent(int32_t percent) {
+  if (!s_backlight_path_logged) {
+    LOG_INFO("using backlight brightness path: {}", APP_BACKLIGHT_BRIGHTNESS_PATH);
+    s_backlight_path_logged = true;
+  }
+
+  const auto clamped = clamp_percent(percent);
+  LOG_VERBOSE("writing backlight brightness: {}%", clamped);
   std::ofstream file(APP_BACKLIGHT_BRIGHTNESS_PATH);
   if (!file) {
     static bool logged = false;
@@ -62,7 +75,7 @@ bool write_brightness_percent(int32_t percent) {
     return false;
   }
 
-  file << clamp_percent(percent) << '\n';
+  file << clamped << '\n';
   const bool ok = static_cast<bool>(file);
   if (!ok) {
     LOG_WARN("failed to write backlight brightness: {}", APP_BACKLIGHT_BRIGHTNESS_PATH);

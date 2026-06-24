@@ -15,9 +15,10 @@ enum class AppPage {
   AUDIO_TEST        = 3,
   CAMERA_TEST       = 4,
   CONNECTIVITY_TEST = 5,
-  IMU_TEST          = 6,
+  IR_TEST           = 6,
   POWER_INFO        = 7,
-  DEVICE_INFO       = 8,
+  IMU_TEST          = 8,
+  DEVICE_INFO       = 9,
 };
 
 class AppModel {

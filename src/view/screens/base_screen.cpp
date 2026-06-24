@@ -6,22 +6,20 @@
 
 #include "base_screen.h"
 
+#include <array>
+#include <utility>
+
 #include "asset_manager.h"
 #include "bindings.h"
 #include "theme.h"
+#include "ui_const.h"
 
 namespace screen {
 
 BaseScreen::BaseScreen(viewmodel::AppViewModel& app_view_model,
-                       app::AssetManager& assets,
-                       viewmodel::LcdTestViewModel* lcd_view_model,
-                       viewmodel::StartMenuViewModel* start_menu_view_model,
-                       viewmodel::ConnectivityTestViewModel* connectivity_view_model)
+                       app::AssetManager& assets)
     : app_view_model_(app_view_model),
-      assets_(assets),
-      lcd_view_model_(lcd_view_model),
-      start_menu_view_model_(start_menu_view_model),
-      connectivity_view_model_(connectivity_view_model) {}
+      assets_(assets) {}
 
 BaseScreen::~BaseScreen() {
   title_bar_.reset();
@@ -46,12 +44,7 @@ void BaseScreen::init() {
   title_bar_ = std::make_unique<view::widgets::TitleBar>(root_, app_view_model_);
   title_bar_->build();
 
-  nav_bar_ = std::make_unique<view::widgets::NavBar>(root_,
-                                                     app_view_model_,
-                                                     assets_,
-                                                     lcd_view_model_,
-                                                     start_menu_view_model_,
-                                                     connectivity_view_model_);
+  nav_bar_ = std::make_unique<view::widgets::NavBar>(root_, app_view_model_, assets_);
   nav_bar_->build();
 
   content_ = lv_obj_create(root_);
@@ -71,6 +64,38 @@ lv_obj_t* BaseScreen::root() const { return root_; }
 viewmodel::AppViewModel& BaseScreen::app_view_model_ref_() { return app_view_model_; }
 
 app::AssetManager& BaseScreen::assets_ref_() { return assets_; }
+
+void BaseScreen::set_nav_action_(uint32_t keypad,
+                                 const char* icon,
+                                 std::function<void()> action,
+                                 lv_event_code_t event_code,
+                                 viewmodel::NavHoldTarget hold_target,
+                                 bool force_enabled) {
+  viewmodel::NavAction nav_action;
+  nav_action.icon          = icon ? icon : "";
+  nav_action.action        = std::move(action);
+  nav_action.event_code    = event_code;
+  nav_action.hold_target   = hold_target;
+  nav_action.force_enabled = force_enabled;
+  app_view_model_.set_keypad_nav_action(keypad, std::move(nav_action));
+}
+
+void BaseScreen::set_default_test_nav_(bool show_complete) {
+  std::array<viewmodel::NavAction, 5> actions{};
+  viewmodel::NavAction back;
+  back.icon   = view::ICON_ARROW_U_UP_LEFT;
+  back.action = [this]() { app_view_model_.request_back_or_quit(); };
+  actions[0]  = std::move(back);
+
+  if (show_complete) {
+    viewmodel::NavAction complete;
+    complete.icon   = view::ICON_CHECK_SQUARE;
+    complete.action = [this]() { app_view_model_.complete_current_test(); };
+    actions[4]      = std::move(complete);
+  }
+
+  app_view_model_.set_nav_actions(std::move(actions));
+}
 
 view::widgets::TitleBar* BaseScreen::title_bar_ref_() { return title_bar_.get(); }
 
