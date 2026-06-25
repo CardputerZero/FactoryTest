@@ -21,12 +21,12 @@
 namespace screen {
 namespace {
 
-constexpr int32_t K_VIEWPORT_WIDTH    = view::K_SCREEN_WIDTH;
-constexpr int32_t K_VIEWPORT_HEIGHT   = 106;
-constexpr int32_t K_MENU_WIDTH        = 300;
-constexpr int32_t K_MENU_HEIGHT       = 106;
-constexpr int32_t K_SCROLL_STEP       = 34;
-constexpr uint32_t K_LOADING_MODAL_MS = 900;
+constexpr int32_t K_VIEWPORT_WIDTH             = view::K_SCREEN_WIDTH;
+constexpr int32_t K_VIEWPORT_HEIGHT            = 106;
+constexpr int32_t K_MENU_WIDTH                 = 300;
+constexpr int32_t K_MENU_HEIGHT                = 106;
+constexpr int32_t K_SCROLL_STEP                = 34;
+constexpr uint32_t K_LOADING_MODAL_MS          = 900;
 constexpr uint32_t K_UART_SETTINGS_SUPPRESS_MS = 300;
 
 const char* icon_for_page(model::ConnectivitySubPage page) {
@@ -69,10 +69,14 @@ ConnectivityTestPage::ConnectivityTestPage(
   app_view_model_ref_().set_back_request_handler(back_request_handler, this);
   init();
   platform::set_key_listener(key_listener, this);
+  platform::set_key_release_listener(key_release_listener, this);
+  platform::set_long_key_listener(long_key_listener, this);
 }
 
 ConnectivityTestPage::~ConnectivityTestPage() {
   app_view_model_ref_().clear_back_request_handler(back_request_handler, this);
+  platform::clear_long_key_listener(long_key_listener, this);
+  platform::clear_key_release_listener(key_release_listener, this);
   platform::clear_key_listener(key_listener, this);
   if (selected_observer_handle_) {
     lv_observer_remove(selected_observer_handle_);
@@ -258,12 +262,16 @@ void ConnectivityTestPage::show_page_(model::ConnectivitySubPage page, bool anim
 void ConnectivityTestPage::switch_external_bus_(model::ConnectivitySubPage page) {
   if (page == model::ConnectivitySubPage::I2C || page == model::ConnectivitySubPage::UART) {
     std::string error;
-    platform::gpio::set_external_bus_i2c_mode(page == model::ConnectivitySubPage::I2C, error);
+    if (page == model::ConnectivitySubPage::I2C) {
+      platform::gpio::set_external_bus_i2c_mode(true, error);
+    } else {
+      platform::gpio::set_external_bus_uart_mode(error);
+    }
   }
 
   if (page == model::ConnectivitySubPage::UART) {
-    uart_page_entered_at_          = lv_tick_get();
-    suppress_uart_settings_once_   = true;
+    uart_page_entered_at_        = lv_tick_get();
+    suppress_uart_settings_once_ = true;
   } else {
     suppress_uart_settings_once_ = false;
   }
@@ -450,11 +458,13 @@ void ConnectivityTestPage::build_subpage_view_(lv_obj_t* viewport,
 
 void ConnectivityTestPage::update_nav_actions_() {
   app_view_model_ref_().clear_nav_actions();
-  set_nav_action_('4', view::ICON_ARROW_U_UP_LEFT, [this]() {
-    app_view_model_ref_().request_back_or_quit();
-  });
-
   const auto page = connectivity_view_model_.active_page();
+  set_nav_action_(
+      '4',
+      view::ICON_ARROW_U_UP_LEFT,
+      [this]() { app_view_model_ref_().request_back_or_quit(); },
+      page == model::ConnectivitySubPage::UART ? LV_EVENT_LONG_PRESSED : LV_EVENT_CLICKED);
+
   if (page == model::ConnectivitySubPage::LINK_TEST) {
     set_nav_action_('5', view::ICON_ARROWS_CLOCKWISE, [this]() {
       connectivity_view_model_.request_link_restart();
@@ -463,9 +473,11 @@ void ConnectivityTestPage::update_nav_actions_() {
       connectivity_view_model_.request_link_settings();
     });
   } else if (page == model::ConnectivitySubPage::UART) {
-    set_nav_action_('6', view::ICON_GEAR_FINE, [this]() {
-      connectivity_view_model_.request_uart_settings();
-    });
+    set_nav_action_(
+        '6',
+        view::ICON_GEAR_FINE,
+        [this]() { connectivity_view_model_.request_uart_settings(); },
+        LV_EVENT_LONG_PRESSED);
   }
 
   set_nav_action_('8', view::ICON_CHECK_SQUARE, [this]() {
@@ -555,6 +567,11 @@ void ConnectivityTestPage::key_listener(uint32_t key, const char* key_name, void
     }
   }
 
+  if (key == 't' || key == 'T') {
+    page->app_view_model_ref_().toggle_dark_mode();
+    return;
+  }
+
   switch (key) {
     case LV_KEY_UP:
     case '5':
@@ -588,6 +605,40 @@ void ConnectivityTestPage::key_listener(uint32_t key, const char* key_name, void
       break;
     default:
       break;
+  }
+}
+
+void ConnectivityTestPage::key_release_listener(uint32_t key,
+                                                const char* key_name,
+                                                void* user_data) {
+  auto* page = static_cast<ConnectivityTestPage*>(user_data);
+  if (!page) {
+    return;
+  }
+
+  const bool uart_page_active =
+      page->connectivity_view_model_.active_page() == model::ConnectivitySubPage::UART;
+  if (uart_page_active && page->uart_view_) {
+    page->uart_view_->handle_key_release(key, key_name);
+  }
+}
+
+void ConnectivityTestPage::long_key_listener(uint32_t key, const char* key_name, void* user_data) {
+  auto* page = static_cast<ConnectivityTestPage*>(user_data);
+  if (!page) {
+    return;
+  }
+
+  const bool uart_page_active =
+      page->connectivity_view_model_.active_page() == model::ConnectivitySubPage::UART;
+  if (uart_page_active && page->uart_view_) {
+    if (page->uart_view_->handle_long_key(key, key_name)) {
+      return;
+    }
+    if (key == LV_KEY_ESC || key == 27) {
+      page->app_view_model_ref_().request_back_or_quit();
+      return;
+    }
   }
 }
 

@@ -116,9 +116,11 @@ void Dialog::close() {
   if (core_obj_ && lv_obj_is_valid(core_obj_)) {
     lv_obj_delete(core_obj_);
   }
-  core_obj_   = nullptr;
-  content_    = nullptr;
-  button_row_ = nullptr;
+  core_obj_      = nullptr;
+  content_       = nullptr;
+  button_row_    = nullptr;
+  ok_button_     = nullptr;
+  cancel_button_ = nullptr;
 }
 
 lv_obj_t* Dialog::content() const { return content_; }
@@ -168,6 +170,21 @@ lv_obj_t* Dialog::add_textarea(const char* text, const DialogTextareaOptions& op
   return textarea;
 }
 
+lv_obj_t* Dialog::add_dropdown(const char* options, uint32_t selected, int32_t width) {
+  if (!content_) {
+    return nullptr;
+  }
+  auto* dropdown = lv_dropdown_create(content_);
+  lv_dropdown_set_options(dropdown, options ? options : "");
+  lv_dropdown_set_selected(dropdown, selected);
+  lv_dropdown_set_symbol(dropdown, "v");
+  lv_obj_set_width(dropdown, width);
+  auto* font = assets_.load_font("inter-medium.ttf", 11);
+  lv_obj_set_style_text_font(dropdown, font ? font : &lv_font_montserrat_12, 0);
+  reactive::bind_theme(dropdown, app_view_model_.dark_mode_subject(), reactive::ThemeRole::BUTTON);
+  return dropdown;
+}
+
 lv_obj_t* Dialog::add_display_field(const char* text, int32_t width, int32_t height) {
   if (!content_) {
     return nullptr;
@@ -192,6 +209,10 @@ lv_obj_t* Dialog::add_display_field(const char* text, int32_t width, int32_t hei
   lv_obj_align(label, LV_ALIGN_LEFT_MID, 0, 0);
   return label;
 }
+
+lv_obj_t* Dialog::ok_button() const { return ok_button_; }
+
+lv_obj_t* Dialog::cancel_button() const { return cancel_button_; }
 
 lv_obj_t* Dialog::add_button_(lv_obj_t* parent, const char* text, lv_event_cb_t callback) {
   auto* button = lv_button_create(parent);
@@ -261,17 +282,17 @@ void Dialog::add_button_row_() {
   lv_obj_clear_flag(button_row_, LV_OBJ_FLAG_SCROLLABLE);
 
   if (config_.show_cancel_button) {
-    add_button_(button_row_, config_.cancel_button_label.c_str(), cancel_button_cb);
+    cancel_button_ =
+        add_button_(button_row_, config_.cancel_button_label.c_str(), cancel_button_cb);
   }
   if (config_.show_ok_button) {
-    add_button_(button_row_, config_.ok_button_label.c_str(), ok_button_cb);
+    ok_button_ = add_button_(button_row_, config_.ok_button_label.c_str(), ok_button_cb);
   }
 }
 
 bool Dialog::is_ok_key_(uint32_t key, const char* key_name) const {
   return key == LV_KEY_ENTER || key == '\n' || key == '\r' ||
-         key_name_is_one_of_(key_name, "Enter", "Return", "KEY_96") ||
-         (config_.use_nav_action_keys && key == '6');
+         key_name_is_one_of_(key_name, "Enter", "Return", "KEY_96");
 }
 
 bool Dialog::is_cancel_key_(uint32_t key, const char* key_name) const {
@@ -307,8 +328,7 @@ void Dialog::cancel_button_cb(lv_event_t* event) {
 
 void Dialog::textarea_key_cb(lv_event_t* event) {
   auto* state = static_cast<TextareaKeyState*>(lv_event_get_user_data(event));
-  if (!state || !state->dialog ||
-      !state->dialog->is_ok_key_(lv_event_get_key(event), nullptr)) {
+  if (!state || !state->dialog || !state->dialog->is_ok_key_(lv_event_get_key(event), nullptr)) {
     return;
   }
 

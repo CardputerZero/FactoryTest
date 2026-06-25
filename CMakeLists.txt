@@ -34,6 +34,7 @@ set(APP_USE_LIBIPERF 0)
 set(APP_USE_LIBOPING 0)
 set(APP_USE_LIRC 0)
 set(APP_USE_LIBGPIOD 0)
+set(APP_USE_LIBSERIALPORT 0)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "Export compile_commands.json" FORCE)
 
 include(FetchContent)
@@ -209,6 +210,17 @@ if(USE_DESKTOP)
         message(STATUS "libgpiod external bus switch backend enabled")
     else()
         message(WARNING "libgpiod headers/library not found; external I2C/UART bus switching will report unavailable")
+    endif()
+
+    find_path(LIBSERIALPORT_INCLUDE_DIR libserialport.h)
+    find_library(LIBSERIALPORT_LIBRARY serialport)
+    if(LIBSERIALPORT_INCLUDE_DIR AND LIBSERIALPORT_LIBRARY)
+        list(APPEND PLATFORM_INCLUDE_DIR "${LIBSERIALPORT_INCLUDE_DIR}")
+        list(APPEND PLATFORM_LIBS "${LIBSERIALPORT_LIBRARY}")
+        set(APP_USE_LIBSERIALPORT 1)
+        message(STATUS "libserialport UART backend enabled")
+    else()
+        message(WARNING "libserialport headers/library not found; UART backend will report unavailable")
     endif()
 
     set(LVGL_DESKTOP_DEPS ZLIB::ZLIB PNG::PNG ${JPEG_TARGET} Freetype::Freetype ${SDL2_TARGET})
@@ -517,6 +529,18 @@ else()
         message(WARNING "libgpiod headers/library not found; external I2C/UART bus switching will report unavailable")
     endif()
 
+    cm0_find_header(LIBSERIALPORT_INCLUDE_DIR libserialport.h "${CM0_SYSROOT}/usr/include" "${CM0_SDK_ROOT}/usr/include")
+    cm0_find_library(LIBSERIALPORT_LIBRARY serialport libserialport.so libserialport.a)
+    if(LIBSERIALPORT_INCLUDE_DIR AND LIBSERIALPORT_LIBRARY)
+        cm0_add_imported_library(CM0::Libserialport "${LIBSERIALPORT_LIBRARY}" "${LIBSERIALPORT_INCLUDE_DIR}")
+        list(APPEND PLATFORM_INCLUDE_DIR "${LIBSERIALPORT_INCLUDE_DIR}")
+        list(APPEND PLATFORM_LIBS CM0::Libserialport)
+        set(APP_USE_LIBSERIALPORT 1)
+        message(STATUS "libserialport UART backend enabled")
+    else()
+        message(WARNING "libserialport headers/library not found; UART backend will report unavailable")
+    endif()
+
     set(LVGL_INCLUDE_DIR ${FREETYPE_INCLUDE_DIR} ${PNG_INCLUDE_DIR} ${JPEG_INCLUDE_DIR} ${ZLIB_INCLUDE_DIR})
     set(LVGL_LIBS CM0::Freetype CM0::PNG CM0::JPEG ZLIB::ZLIB)
     if(APP_USE_DRM)
@@ -551,6 +575,7 @@ target_compile_definitions(${PROJECT_NAME}_platform PUBLIC
     APP_USE_LIBOPING=${APP_USE_LIBOPING}
     APP_USE_LIRC=${APP_USE_LIRC}
     APP_USE_LIBGPIOD=${APP_USE_LIBGPIOD}
+    APP_USE_LIBSERIALPORT=${APP_USE_LIBSERIALPORT}
     APP_FRAMEBUFFER_DEVICE="${APP_FRAMEBUFFER_DEVICE}"
     APP_DRM_DEVICE="${APP_DRM_DEVICE}"
     APP_DRM_CONNECTOR_ID=${APP_DRM_CONNECTOR_ID}

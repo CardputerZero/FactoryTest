@@ -61,6 +61,8 @@ struct KeyRouterState {
   NavTriggerMode nav_trigger_mode{NavTriggerMode::CLICK};
   KeyListener key_listener{nullptr};
   void* key_listener_user_data{nullptr};
+  KeyReleaseListener key_release_listener{nullptr};
+  void* key_release_listener_user_data{nullptr};
   LongKeyListener long_key_listener{nullptr};
   void* long_key_listener_user_data{nullptr};
   GlobalKeyListener global_key_listener{nullptr};
@@ -98,7 +100,7 @@ constexpr std::array<EventCodeNameEntry, 7> K_EVENT_CODE_NAMES = {{
     {LV_EVENT_KEY, "KEY"},
 }};
 
-constexpr std::array<NavKeyMapEntry, 13> K_NAV_KEY_MAP = {{
+constexpr std::array<NavKeyMapEntry, 12> K_NAV_KEY_MAP = {{
     {'4', 0, 0},
     {LV_KEY_ESC, 0, 0},
     {'5', 1, 1},
@@ -106,7 +108,6 @@ constexpr std::array<NavKeyMapEntry, 13> K_NAV_KEY_MAP = {{
     {'Z', 1, 1},
     {LV_KEY_LEFT, 1, 1},
     {'6', 2, 2},
-    {LV_KEY_ENTER, 2, 2},
     {'7', 3, 3},
     {'8', 4, 4},
     {'c', 3, 4},
@@ -214,24 +215,24 @@ void dispatch_nav_key(uint32_t key, lv_event_code_t event_code) {
   const auto index = nav_key_to_index(key);
   if (index >= state.nav_buttons.size()) {
     LOG_VERBOSE("key router: no nav mapping key={} event={}",
-              key_name(key),
-              event_code_name(event_code));
+                key_name(key),
+                event_code_name(event_code));
     return;
   }
 
   auto* button = state.nav_buttons[index];
   if (!button || !lv_obj_is_valid(button) || !lv_obj_has_flag(button, LV_OBJ_FLAG_CLICKABLE)) {
     LOG_VERBOSE("key router: nav target unavailable key={} index={} event={}",
-              key_name(key),
-              index,
-              event_code_name(event_code));
+                key_name(key),
+                index,
+                event_code_name(event_code));
     return;
   }
 
   LOG_VERBOSE("key router: dispatch key={} index={} event={}",
-            key_name(key),
-            index,
-            event_code_name(event_code));
+              key_name(key),
+              index,
+              event_code_name(event_code));
   lv_obj_send_event(button, event_code, nullptr);
 }
 
@@ -243,6 +244,14 @@ void emit_key(uint32_t key) {
   }
   if (state.key_listener) {
     state.key_listener(key, name.c_str(), state.key_listener_user_data);
+  }
+}
+
+void emit_key_release(uint32_t key) {
+  auto& state     = key_router_state();
+  const auto name = key_name(key);
+  if (state.key_release_listener) {
+    state.key_release_listener(key, name.c_str(), state.key_release_listener_user_data);
   }
 }
 
@@ -271,8 +280,8 @@ void long_press_timer_cb(lv_timer_t* timer) {
 
   state.long_press_sent = true;
   LOG_VERBOSE("key router: long press key={} elapsed={}ms",
-            key_name(state.pressed_key),
-            lv_tick_elaps(state.press_started_at));
+              key_name(state.pressed_key),
+              lv_tick_elaps(state.press_started_at));
   emit_long_key(state.pressed_key);
   dispatch_nav_key(state.pressed_key, LV_EVENT_LONG_PRESSED);
 }
@@ -288,12 +297,12 @@ void route_key_state(uint32_t key, bool pressed, const char* source) {
   auto& state            = key_router_state();
   const bool is_new_hold = !state.last_key_pressed || key != state.pressed_key;
   LOG_VERBOSE("key router: input source={} key={} state={} last_key={} last_pressed={} mode={}",
-            source ? source : "unknown",
-            key_name(key),
-            key_state_name(pressed),
-            key_name(state.last_key),
-            state.last_key_pressed,
-            state.nav_trigger_mode == NavTriggerMode::CLICK ? "click" : "long");
+              source ? source : "unknown",
+              key_name(key),
+              key_state_name(pressed),
+              key_name(state.last_key),
+              state.last_key_pressed,
+              state.nav_trigger_mode == NavTriggerMode::CLICK ? "click" : "long");
   if (pressed) {
     if (is_new_hold) {
       state.pressed_key      = key;
@@ -311,12 +320,13 @@ void route_key_state(uint32_t key, bool pressed, const char* source) {
     }
   } else if (state.last_key_pressed && state.pressed_key == key) {
     dispatch_nav_key(key, LV_EVENT_RELEASED);
+    emit_key_release(key);
     state.pressed_key = 0;
   } else {
     LOG_VERBOSE("key router: ignored release key={} pressed_key={} last_pressed={}",
-              key_name(key),
-              key_name(state.pressed_key),
-              state.last_key_pressed);
+                key_name(key),
+                key_name(state.pressed_key),
+                state.last_key_pressed);
   }
 
   state.last_key         = key;
@@ -380,9 +390,7 @@ int sdl_modifier_event_watch(void* user_data, SDL_Event* event) {
 }
 #endif
 
-const char* named_lv_key(uint32_t key) {
-  return lookup_name(K_LV_KEY_NAMES, key);
-}
+const char* named_lv_key(uint32_t key) { return lookup_name(K_LV_KEY_NAMES, key); }
 
 #if !USE_DESKTOP
 struct EvdevPrintableKeyMapEntry {
@@ -399,62 +407,21 @@ struct EvdevAlphaKeyRange {
 };
 
 constexpr std::array<KeyMapEntry, 32> K_TCA8418_SYMBOL_KEYS = {{
-    {183, '!'},
-    {184, '@'},
-    {185, '#'},
-    {186, '$'},
-    {187, '%'},
-    {188, '^'},
-    {189, '&'},
-    {190, '*'},
-    {191, '('},
-    {192, ')'},
-    {193, '~'},
-    {194, '`'},
-    {195, '+'},
-    {196, '-'},
-    {197, '/'},
-    {198, '\\'},
-    {199, '{'},
-    {200, '}'},
-    {201, '['},
-    {202, ']'},
-    {231, ','},
-    {232, '.'},
-    {233, '|'},
-    {209, '='},
-    {210, ':'},
-    {211, ';'},
-    {212, '_'},
-    {213, '?'},
-    {214, '<'},
-    {215, '>'},
-    {216, '\''},
-    {217, '"'},
+    {183, '!'}, {184, '@'},  {185, '#'},  {186, '$'}, {187, '%'}, {188, '^'}, {189, '&'},
+    {190, '*'}, {191, '('},  {192, ')'},  {193, '~'}, {194, '`'}, {195, '+'}, {196, '-'},
+    {197, '/'}, {198, '\\'}, {199, '{'},  {200, '}'}, {201, '['}, {202, ']'}, {231, ','},
+    {232, '.'}, {233, '|'},  {209, '='},  {210, ':'}, {211, ';'}, {212, '_'}, {213, '?'},
+    {214, '<'}, {215, '>'},  {216, '\''}, {217, '"'},
 }};
 
 constexpr std::array<EvdevPrintableKeyMapEntry, 22> K_PRINTABLE_SYMBOL_KEYS = {{
-    {KEY_1, '1', '!'},
-    {KEY_2, '2', '@'},
-    {KEY_3, '3', '#'},
-    {KEY_4, '4', '$'},
-    {KEY_5, '5', '%'},
-    {KEY_6, '6', '^'},
-    {KEY_7, '7', '&'},
-    {KEY_8, '8', '*'},
-    {KEY_9, '9', '('},
-    {KEY_0, '0', ')'},
-    {KEY_SPACE, ' ', ' '},
-    {KEY_MINUS, '-', '_'},
-    {KEY_EQUAL, '=', '+'},
-    {KEY_LEFTBRACE, '[', '{'},
-    {KEY_RIGHTBRACE, ']', '}'},
-    {KEY_BACKSLASH, '\\', '|'},
-    {KEY_SEMICOLON, ';', ':'},
-    {KEY_APOSTROPHE, '\'', '"'},
-    {KEY_GRAVE, '`', '~'},
-    {KEY_COMMA, ',', '<'},
-    {KEY_DOT, '.', '>'},
+    {KEY_1, '1', '!'},          {KEY_2, '2', '@'},         {KEY_3, '3', '#'},
+    {KEY_4, '4', '$'},          {KEY_5, '5', '%'},         {KEY_6, '6', '^'},
+    {KEY_7, '7', '&'},          {KEY_8, '8', '*'},         {KEY_9, '9', '('},
+    {KEY_0, '0', ')'},          {KEY_SPACE, ' ', ' '},     {KEY_MINUS, '-', '_'},
+    {KEY_EQUAL, '=', '+'},      {KEY_LEFTBRACE, '[', '{'}, {KEY_RIGHTBRACE, ']', '}'},
+    {KEY_BACKSLASH, '\\', '|'}, {KEY_SEMICOLON, ';', ':'}, {KEY_APOSTROPHE, '\'', '"'},
+    {KEY_GRAVE, '`', '~'},      {KEY_COMMA, ',', '<'},     {KEY_DOT, '.', '>'},
     {KEY_SLASH, '/', '?'},
 }};
 
@@ -591,9 +558,9 @@ void queue_router_event(EvdevKeypad* keypad, uint32_t key, bool pressed, const c
   keypad->router_key           = key;
   keypad->router_pressed       = pressed;
   LOG_VERBOSE("evdev: queue router source={} key={} state={}",
-            source ? source : "unknown",
-            key_name(key),
-            key_state_name(pressed));
+              source ? source : "unknown",
+              key_name(key),
+              key_state_name(pressed));
 }
 
 bool has_keyboard_keys(int fd) {
@@ -837,6 +804,20 @@ void clear_key_listener(KeyListener listener, void* user_data) {
   }
 }
 
+void set_key_release_listener(KeyReleaseListener listener, void* user_data) {
+  auto& state                          = key_router_state();
+  state.key_release_listener           = listener;
+  state.key_release_listener_user_data = user_data;
+}
+
+void clear_key_release_listener(KeyReleaseListener listener, void* user_data) {
+  auto& state = key_router_state();
+  if (state.key_release_listener == listener && state.key_release_listener_user_data == user_data) {
+    state.key_release_listener           = nullptr;
+    state.key_release_listener_user_data = nullptr;
+  }
+}
+
 void set_long_key_listener(LongKeyListener listener, void* user_data) {
   auto& state                       = key_router_state();
   state.long_key_listener           = listener;
@@ -868,8 +849,8 @@ void clear_global_key_listener(GlobalKeyListener listener, void* user_data) {
 void set_nav_trigger_mode(NavTriggerMode mode) {
   auto& state = key_router_state();
   LOG_VERBOSE("key router: trigger mode {} -> {}",
-            state.nav_trigger_mode == NavTriggerMode::CLICK ? "click" : "long",
-            mode == NavTriggerMode::CLICK ? "click" : "long");
+              state.nav_trigger_mode == NavTriggerMode::CLICK ? "click" : "long",
+              mode == NavTriggerMode::CLICK ? "click" : "long");
   state.nav_trigger_mode     = mode;
   state.pressed_key          = 0;
   state.last_key_pressed     = false;

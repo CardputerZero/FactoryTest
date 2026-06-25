@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <cstddef>
+
 #include <array>
 #include <cstdint>
 #include <memory>

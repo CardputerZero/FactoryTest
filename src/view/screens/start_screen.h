@@ -6,6 +6,9 @@
 
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+
 #include <memory>
 
 #include "base_screen.h"

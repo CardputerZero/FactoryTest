@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 #include "app_viewmodel.h"
 #include "base_widget.h"
 

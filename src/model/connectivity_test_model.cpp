@@ -11,7 +11,14 @@
 #include <future>
 #include <utility>
 
-#include "connectivity_service.h"
+#include "bluetooth_service.h"
+#include "ethernet_service.h"
+#include "hdmi_service.h"
+#include "i2c_service.h"
+#include "link_service.h"
+#include "spi_service.h"
+#include "usb_service.h"
+#include "wifi_service.h"
 
 namespace model {
 namespace {

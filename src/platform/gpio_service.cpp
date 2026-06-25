@@ -32,7 +32,8 @@ std::string errno_message(const char* prefix) {
 }  // namespace
 
 struct OutputLine::Impl {
-  explicit Impl(OutputLineConfig line_config) : config(std::move(line_config)) {}
+  explicit Impl(OutputLineConfig line_config)
+      : config(std::move(line_config)) {}
 
   bool set_value(bool active, std::string& error_message) {
     std::lock_guard<std::mutex> lock(mutex);
@@ -84,10 +85,10 @@ struct OutputLine::Impl {
       return false;
     }
 
-    gpiod_line_settings* settings         = gpiod_line_settings_new();
-    gpiod_line_config* line_config        = gpiod_line_config_new();
-    gpiod_request_config* request_config  = gpiod_request_config_new();
-    auto cleanup = [&]() {
+    gpiod_line_settings* settings        = gpiod_line_settings_new();
+    gpiod_line_config* line_config       = gpiod_line_config_new();
+    gpiod_request_config* request_config = gpiod_request_config_new();
+    auto cleanup                         = [&]() {
       if (settings) {
         gpiod_line_settings_free(settings);
       }
@@ -148,7 +149,8 @@ struct OutputLine::Impl {
 #endif
 };
 
-OutputLine::OutputLine(OutputLineConfig config) : impl_(std::make_unique<Impl>(std::move(config))) {}
+OutputLine::OutputLine(OutputLineConfig config)
+    : impl_(std::make_unique<Impl>(std::move(config))) {}
 OutputLine::~OutputLine() = default;
 
 bool OutputLine::set_value(bool active, std::string& error_message) {
@@ -161,8 +163,8 @@ bool set_output_value(const OutputLineConfig& config, bool active, std::string& 
   static std::mutex lines_mutex;
   static std::map<std::string, std::unique_ptr<OutputLine>> lines;
 
-  const auto key = config.chip_path + ":" + std::to_string(config.line_offset) + ":" +
-                   config.consumer;
+  const auto key =
+      config.chip_path + ":" + std::to_string(config.line_offset) + ":" + config.consumer;
   std::lock_guard<std::mutex> lock(lines_mutex);
   auto& line = lines[key];
   if (!line) {
@@ -172,9 +174,8 @@ bool set_output_value(const OutputLineConfig& config, bool active, std::string& 
 }
 
 bool set_external_bus_i2c_mode(bool enabled, std::string& error_message) {
-  static OutputLine external_bus_line({K_EXTERNAL_BUS_GPIO_CHIP,
-                                       K_EXTERNAL_BUS_GPIO_LINE,
-                                       K_EXTERNAL_BUS_GPIO_CONSUMER});
+  static OutputLine external_bus_line(
+      {K_EXTERNAL_BUS_GPIO_CHIP, K_EXTERNAL_BUS_GPIO_LINE, K_EXTERNAL_BUS_GPIO_CONSUMER});
   const bool ok = external_bus_line.set_value(enabled, error_message);
   if (ok) {
     LOG_INFO("external bus switched to {} via GPIO4={}", enabled ? "I2C" : "UART", enabled ? 1 : 0);
@@ -182,6 +183,10 @@ bool set_external_bus_i2c_mode(bool enabled, std::string& error_message) {
     LOG_WARN("external bus switch failed: {}", error_message);
   }
   return ok;
+}
+
+bool set_external_bus_uart_mode(std::string& error_message) {
+  return set_external_bus_i2c_mode(false, error_message);
 }
 
 }  // namespace platform::gpio

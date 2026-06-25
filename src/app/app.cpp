@@ -6,6 +6,9 @@
 
 #include "app.h"
 
+#include <cstddef>
+#include <cstring>
+
 #include "app_viewmodel.h"
 #include "asset_manager.h"
 #include "audio_service.h"
@@ -19,13 +22,11 @@
 #include "start_menu_viewmodel.h"
 #include "theme.h"
 
-#include <cstddef>
-#include <cstring>
-
 #if !USE_DESKTOP
 #if APP_USE_DRM
-#include "src/drivers/display/drm/lv_linux_drm.h"
 #include <unistd.h>
+
+#include "src/drivers/display/drm/lv_linux_drm.h"
 #else
 #include "src/drivers/display/fb/lv_linux_fbdev.h"
 #endif
@@ -64,7 +65,9 @@ bool is_theme_toggle_key(uint32_t key) { return key == 't' || key == 'T'; }
 bool is_screenshot_key(uint32_t key) { return key == 'p' || key == 'P'; }
 
 #if !USE_DESKTOP && APP_USE_DRM
-bool is_duplicate_candidate(const char* candidate, const char* const* candidates, std::size_t count) {
+bool is_duplicate_candidate(const char* candidate,
+                            const char* const* candidates,
+                            std::size_t count) {
   if (!candidate || candidate[0] == '\0') {
     return true;
   }
@@ -113,7 +116,7 @@ lv_display_t* init_drm_display() {
       "/dev/dri/card3",
   };
   const char* tried[sizeof(candidates) / sizeof(candidates[0])] = {};
-  std::size_t tried_count = 0;
+  std::size_t tried_count                                       = 0;
 
   for (const char* candidate : candidates) {
     if (is_duplicate_candidate(candidate, tried, tried_count)) {
@@ -139,13 +142,15 @@ void global_key_listener(uint32_t key, const char* key_name, bool long_pressed, 
   }
 
   const bool keyboard_page = app_view_model->current_page() == model::AppPage::KEYBOARD_TEST;
+  const bool connectivity_page =
+      app_view_model->current_page() == model::AppPage::CONNECTIVITY_TEST;
   const bool should_handle = (keyboard_page && long_pressed) || (!keyboard_page && !long_pressed);
-  if (is_theme_toggle_key(key) && should_handle) {
+  if (is_theme_toggle_key(key) && should_handle && !connectivity_page) {
     app_view_model->toggle_dark_mode();
     LOG_DEBUG("theme toggled from {} T key, dark_mode={}",
               keyboard_page ? "keyboard long-press" : "global",
               app_view_model->is_dark_mode());
-  } else if (is_screenshot_key(key) && should_handle) {
+  } else if (is_screenshot_key(key) && should_handle && !connectivity_page) {
     platform::screenshot::capture_active_screen_with_overlay();
   }
 }

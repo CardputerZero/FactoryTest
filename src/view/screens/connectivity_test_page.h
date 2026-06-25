@@ -6,6 +6,9 @@
 
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+
 #include <memory>
 
 #include "base_screen.h"
@@ -28,6 +31,8 @@ class ConnectivityTestPage : public BaseScreen {
  private:
   static bool back_request_handler(void* user_data);
   static void key_listener(uint32_t key, const char* key_name, void* user_data);
+  static void key_release_listener(uint32_t key, const char* key_name, void* user_data);
+  static void long_key_listener(uint32_t key, const char* key_name, void* user_data);
   static void menu_item_clicked(std::size_t index, void* user_data);
   static void selected_observer(lv_observer_t* observer, lv_subject_t* subject);
   static void active_page_observer(lv_observer_t* observer, lv_subject_t* subject);

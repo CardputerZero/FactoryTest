@@ -73,7 +73,10 @@ class Dialog : public BaseWidgets {
                       int32_t width         = 246,
                       lv_text_align_t align = LV_TEXT_ALIGN_LEFT);
   lv_obj_t* add_textarea(const char* text, const DialogTextareaOptions& options = {});
+  lv_obj_t* add_dropdown(const char* options, uint32_t selected, int32_t width = 196);
   lv_obj_t* add_display_field(const char* text, int32_t width = 246, int32_t height = 26);
+  lv_obj_t* ok_button() const;
+  lv_obj_t* cancel_button() const;
 
  private:
   struct TextareaKeyState {
@@ -101,6 +104,8 @@ class Dialog : public BaseWidgets {
   DialogCallbacks callbacks_{};
   lv_obj_t* content_{nullptr};
   lv_obj_t* button_row_{nullptr};
+  lv_obj_t* ok_button_{nullptr};
+  lv_obj_t* cancel_button_{nullptr};
 };
 
 }  // namespace view::widgets

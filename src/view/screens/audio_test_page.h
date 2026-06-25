@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 #include <atomic>
 #include <memory>
 #include <string>

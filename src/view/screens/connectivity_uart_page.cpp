@@ -7,16 +7,19 @@
 #include "connectivity_uart_page.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include <sstream>
 #include <utility>
+#include <unistd.h>
 
 #include "bindings.h"
 #include "connectivity_subpage_common.h"
+#include "gpio_service.h"
 #include "linux_input.h"
+#include "screenshot_service.h"
 #include "theme.h"
 #include "ui_const.h"
 
@@ -29,12 +32,26 @@ constexpr int32_t K_LOG_HEIGHT          = 74;
 constexpr int32_t K_INPUT_HEIGHT        = 26;
 constexpr std::size_t K_MAX_LOG_LINES   = 120;
 constexpr std::size_t K_MAX_INPUT_CHARS = 96;
+constexpr std::array<int, 5> K_BAUD_RATES{9600, 19200, 38400, 57600, 115200};
+constexpr const char* K_BAUD_OPTIONS = "9600\n19200\n38400\n57600\n115200";
 
 bool is_enter_key(uint32_t key, const char* key_name) {
   if (key == LV_KEY_ENTER || key == '\n' || key == '\r') {
     return true;
   }
   return key_name && (std::strcmp(key_name, "Enter") == 0 || std::strcmp(key_name, "Return") == 0);
+}
+
+bool key_name_is(const char* key_name, const char* expected) {
+  return key_name && expected && std::strcmp(key_name, expected) == 0;
+}
+
+bool is_up_key(uint32_t key, const char* key_name) {
+  return key == LV_KEY_UP || key == 'f' || key == 'F' || key_name_is(key_name, "Up");
+}
+
+bool is_down_key(uint32_t key, const char* key_name) {
+  return key == LV_KEY_DOWN || key == 'x' || key == 'X' || key_name_is(key_name, "Down");
 }
 
 std::string escaped_uart_text(const std::string& text) {
@@ -76,7 +93,12 @@ UartConnectivityView::UartConnectivityView() = default;
 
 UartConnectivityView::~UartConnectivityView() {
   delete_timer(poll_timer_);
+  if (theme_observer_handle_) {
+    lv_observer_remove(theme_observer_handle_);
+    theme_observer_handle_ = nullptr;
+  }
   hide_config_dialog_();
+  hold_popup_.reset();
 }
 
 void UartConnectivityView::build(lv_obj_t* parent,
@@ -131,6 +153,7 @@ void UartConnectivityView::build(lv_obj_t* parent,
   lv_obj_set_style_pad_left(input_card, 6, 0);
   lv_obj_set_style_pad_right(input_card, 6, 0);
   lv_obj_clear_flag(input_card, LV_OBJ_FLAG_SCROLLABLE);
+  input_card_ = input_card;
 
   input_label_ = lv_label_create(input_card);
   lv_label_set_long_mode(input_label_, LV_LABEL_LONG_DOT);
@@ -140,6 +163,9 @@ void UartConnectivityView::build(lv_obj_t* parent,
   reactive::bind_theme(input_label_, app_view_model.dark_mode_subject(), reactive::ThemeRole::TEXT);
   lv_obj_center(input_label_);
   update_input_label_();
+  apply_theme_(app_view_model.is_dark_mode());
+  theme_observer_handle_ =
+      reactive::observe_obj(root_, app_view_model.dark_mode_subject(), theme_observer, this);
 
   open_session_();
   poll_timer_ = lv_timer_create(poll_timer_cb, 80, this);
@@ -147,31 +173,16 @@ void UartConnectivityView::build(lv_obj_t* parent,
 
 bool UartConnectivityView::handle_key(uint32_t key, const char* key_name) {
   if (dialog_visible()) {
-    if (is_enter_key(key, key_name)) {
-      apply_config_dialog_();
-      return true;
-    }
-    if (key == LV_KEY_BACKSPACE || key == LV_KEY_DEL) {
-      if (baud_input_) {
-        lv_textarea_delete_char(baud_input_);
-      }
-      return true;
-    }
-    if (dialog_ && dialog_->handle_key(key, key_name)) {
-      return true;
-    }
-    if (key >= '0' && key <= '9') {
-      return append_dialog_char_(static_cast<char>(key));
-    }
-    return true;
+    return handle_dialog_key_(key, key_name);
   }
 
-  if (key == '6') {
-    show_config_dialog();
-    return true;
-  }
   if (is_enter_key(key, key_name)) {
     send_input_();
+    return true;
+  }
+  const auto hold_action = hold_action_for_key_(key);
+  if (hold_action != HoldAction::NONE) {
+    begin_hold_action_(key, hold_action);
     return true;
   }
   if (key == LV_KEY_BACKSPACE || key == LV_KEY_DEL) {
@@ -181,12 +192,64 @@ bool UartConnectivityView::handle_key(uint32_t key, const char* key_name) {
     }
     return true;
   }
-  if (key >= 32 && key <= 126 && input_buffer_.size() < K_MAX_INPUT_CHARS) {
-    input_buffer_.push_back(static_cast<char>(key));
-    update_input_label_();
-    return true;
+  if (key >= 32 && key <= 126) {
+    return append_input_char_(static_cast<char>(key));
   }
   return false;
+}
+
+bool UartConnectivityView::handle_key_release(uint32_t key, const char* key_name) {
+  LV_UNUSED(key_name);
+
+  if (!pending_hold_matches_(key)) {
+    return false;
+  }
+
+  const auto action      = pending_hold_action_;
+  const auto pressed_key = pending_hold_key_;
+  const bool consumed    = pending_hold_consumed_;
+  pending_hold_action_   = HoldAction::NONE;
+  pending_hold_key_      = 0;
+  pending_hold_consumed_ = false;
+  hide_hold_popup_();
+
+  if (!consumed && pressed_key >= 32 && pressed_key <= 126) {
+    append_input_char_(static_cast<char>(pressed_key));
+  }
+  return action != HoldAction::NONE;
+}
+
+bool UartConnectivityView::handle_long_key(uint32_t key, const char* key_name) {
+  LV_UNUSED(key_name);
+
+  const auto action = hold_action_for_key_(key);
+  if (action == HoldAction::NONE || !pending_hold_matches_(key)) {
+    return false;
+  }
+
+  pending_hold_consumed_ = true;
+  hide_hold_popup_();
+  switch (action) {
+    case HoldAction::CLEAR_BUFFER:
+      reset_buffers_();
+      return true;
+    case HoldAction::BAUD_SETTINGS:
+      show_config_dialog();
+      return true;
+    case HoldAction::SCREENSHOT:
+      platform::screenshot::capture_active_screen_with_overlay();
+      return true;
+    case HoldAction::THEME_TOGGLE:
+      if (app_view_model_) {
+        app_view_model_->toggle_dark_mode();
+      }
+      return true;
+    case HoldAction::EXIT_UART:
+      return false;
+    case HoldAction::NONE:
+    default:
+      return false;
+  }
 }
 
 void UartConnectivityView::show_config_dialog() {
@@ -202,8 +265,8 @@ void UartConnectivityView::show_config_dialog() {
   config.width               = 244;
   config.height              = 112;
   config.title               = "UART Baud Rate";
-  config.shortcut_text       = "ESC: Cancel  OK: Confirm";
-  config.use_nav_action_keys = true;
+  config.shortcut_text       = "F/X: Select  Enter: Save";
+  config.use_nav_action_keys = false;
 
   view::widgets::DialogCallbacks callbacks;
   callbacks.ok_action     = [this]() { apply_config_dialog_(); };
@@ -215,20 +278,20 @@ void UartConnectivityView::show_config_dialog() {
                                                                     std::move(callbacks));
   dialog_->build();
 
-  char baud_text[16]{};
-  std::snprintf(baud_text, sizeof(baud_text), "%d", baud_rate_);
-  view::widgets::DialogTextareaOptions options;
-  options.accepted_chars = "0123456789";
-  options.width          = 196;
-  baud_input_            = dialog_->add_textarea(baud_text, options);
-  if (baud_input_) {
-    lv_obj_add_state(baud_input_, LV_STATE_FOCUSED);
+  baud_dropdown_ = dialog_->add_dropdown(K_BAUD_OPTIONS, baud_index_for_rate_(baud_rate_), 196);
+  if (baud_dropdown_) {
+    lv_obj_add_state(baud_dropdown_, LV_STATE_FOCUSED);
   }
 }
 
 bool UartConnectivityView::dialog_visible() const { return dialog_ && dialog_->visible(); }
 
 void UartConnectivityView::open_session_() {
+  std::string gpio_error;
+  platform::gpio::set_external_bus_uart_mode(gpio_error);
+
+  usleep(100000);
+
   platform::connectivity::UartOpenResult result;
   session_ = platform::connectivity::UartDebugSession::open(K_UART_PATH, baud_rate_, result);
   if (session_) {
@@ -300,9 +363,9 @@ void UartConnectivityView::send_input_() {
   if (input_buffer_.empty()) {
     return;
   }
-  const auto text = std::exchange(input_buffer_, {});
+  const auto payload = std::exchange(input_buffer_, {});
   update_input_label_();
-  append_log_(">>>", text);
+  append_log_(">>>", payload);
 
   if (!session_) {
     append_log_("***", "UART is not open");
@@ -310,9 +373,23 @@ void UartConnectivityView::send_input_() {
   }
 
   std::string error;
-  if (!session_->write_text(text, error) && !error.empty()) {
+  if (!session_->write_text(payload, error) && !error.empty()) {
     append_log_("***", error);
   }
+}
+
+void UartConnectivityView::reset_buffers_() {
+  input_buffer_.clear();
+  update_input_label_();
+
+  if (session_) {
+    std::string error;
+    session_->read_available(error);
+  }
+
+  log_lines_.clear();
+  refresh_log_label_();
+  append_log_("***", "UART buffers reset");
 }
 
 void UartConnectivityView::show_status_(const std::string& message) {
@@ -347,20 +424,13 @@ void UartConnectivityView::show_status_(const std::string& message) {
 
 void UartConnectivityView::hide_config_dialog_() {
   dialog_.reset();
-  baud_input_ = nullptr;
+  baud_dropdown_ = nullptr;
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
 }
 
 void UartConnectivityView::apply_config_dialog_() {
-  int new_baud = baud_rate_;
-  if (baud_input_) {
-    new_baud = std::atoi(lv_textarea_get_text(baud_input_));
-  }
+  const int new_baud = selected_baud_rate_();
   hide_config_dialog_();
-  if (new_baud <= 0) {
-    append_log_("***", "Invalid baud rate");
-    return;
-  }
 
   baud_rate_ = new_baud;
   if (session_) {
@@ -389,17 +459,171 @@ void UartConnectivityView::apply_config_dialog_() {
   }
 }
 
-bool UartConnectivityView::append_dialog_char_(char ch) {
-  if (baud_input_ && ch >= '0' && ch <= '9') {
-    lv_textarea_add_char(baud_input_, static_cast<uint32_t>(ch));
+bool UartConnectivityView::handle_dialog_key_(uint32_t key, const char* key_name) {
+  if (is_up_key(key, key_name)) {
+    step_baud_selection_(-1);
+    return true;
+  }
+  if (is_down_key(key, key_name)) {
+    step_baud_selection_(1);
+    return true;
+  }
+
+  if (is_enter_key(key, key_name)) {
+    apply_config_dialog_();
+    return true;
+  }
+  if (key == LV_KEY_ESC || key == 27 || key == '4') {
+    hide_config_dialog_();
+    return true;
+  }
+  if (dialog_ && dialog_->handle_key(key, key_name)) {
+    return true;
   }
   return true;
+}
+
+void UartConnectivityView::step_baud_selection_(int delta) {
+  if (!baud_dropdown_) {
+    return;
+  }
+  const auto count = static_cast<int>(K_BAUD_RATES.size());
+  auto index       = static_cast<int>(lv_dropdown_get_selected(baud_dropdown_));
+  index            = (index + delta + count) % count;
+  lv_dropdown_set_selected(baud_dropdown_, static_cast<uint32_t>(index));
+}
+
+int UartConnectivityView::selected_baud_rate_() const {
+  if (!baud_dropdown_) {
+    return baud_rate_;
+  }
+  const auto selected = lv_dropdown_get_selected(baud_dropdown_);
+  if (selected >= K_BAUD_RATES.size()) {
+    return baud_rate_;
+  }
+  return K_BAUD_RATES[selected];
+}
+
+uint32_t UartConnectivityView::baud_index_for_rate_(int baud_rate) const {
+  const auto it = std::find(K_BAUD_RATES.begin(), K_BAUD_RATES.end(), baud_rate);
+  if (it == K_BAUD_RATES.end()) {
+    return 0;
+  }
+  return static_cast<uint32_t>(it - K_BAUD_RATES.begin());
+}
+
+void UartConnectivityView::show_hold_popup_(HoldAction action) {
+  if (!dialog_parent_ || !app_view_model_) {
+    return;
+  }
+  if (!hold_popup_) {
+    view::widgets::PopupConfig config;
+    config.width       = 250;
+    config.label_width = 234;
+    config.tone        = view::widgets::PopupTone::WARNING;
+    hold_popup_ = std::make_unique<view::widgets::Popup>(dialog_parent_, *app_view_model_, config);
+    hold_popup_->build();
+  }
+
+  const char* message = "";
+  switch (action) {
+    case HoldAction::CLEAR_BUFFER:
+      message = "hold R to clear buffer";
+      break;
+    case HoldAction::BAUD_SETTINGS:
+      message = "hold 6 to open baud rate";
+      break;
+    case HoldAction::SCREENSHOT:
+      message = "hold P to screenshot";
+      break;
+    case HoldAction::THEME_TOGGLE:
+      message = "hold T to switch theme";
+      break;
+    case HoldAction::EXIT_UART:
+      message = "hold ESC/4 to exit UART";
+      break;
+    case HoldAction::NONE:
+    default:
+      break;
+  }
+  hold_popup_->set_text(message);
+  hold_popup_->show();
+}
+
+void UartConnectivityView::hide_hold_popup_() {
+  if (hold_popup_) {
+    hold_popup_->hide();
+  }
+}
+
+UartConnectivityView::HoldAction UartConnectivityView::hold_action_for_key_(uint32_t key) const {
+  if (key == 'r' || key == 'R') {
+    return HoldAction::CLEAR_BUFFER;
+  }
+  if (key == '6') {
+    return HoldAction::BAUD_SETTINGS;
+  }
+  if (key == 'p' || key == 'P') {
+    return HoldAction::SCREENSHOT;
+  }
+  if (key == 't' || key == 'T') {
+    return HoldAction::THEME_TOGGLE;
+  }
+  if (key == LV_KEY_ESC || key == 27 || key == '4') {
+    return HoldAction::EXIT_UART;
+  }
+  return HoldAction::NONE;
+}
+
+void UartConnectivityView::begin_hold_action_(uint32_t key, HoldAction action) {
+  pending_hold_key_      = key;
+  pending_hold_action_   = action;
+  pending_hold_consumed_ = false;
+  show_hold_popup_(action);
+}
+
+bool UartConnectivityView::pending_hold_matches_(uint32_t key) const {
+  if (pending_hold_action_ == HoldAction::NONE) {
+    return false;
+  }
+  return hold_action_for_key_(key) == pending_hold_action_;
+}
+
+bool UartConnectivityView::append_input_char_(char ch) {
+  if (input_buffer_.size() >= K_MAX_INPUT_CHARS) {
+    return true;
+  }
+  input_buffer_.push_back(ch);
+  update_input_label_();
+  return true;
+}
+
+void UartConnectivityView::apply_theme_(bool dark_mode) {
+  const auto colors = view::palette(dark_mode);
+  if (log_view_) {
+    lv_obj_set_style_bg_color(log_view_, colors.button, 0);
+    lv_obj_set_style_border_color(log_view_, colors.border, 0);
+  }
+  if (input_card_) {
+    lv_obj_set_style_bg_color(input_card_, colors.button, 0);
+    lv_obj_set_style_border_color(input_card_, colors.border, 0);
+  }
+  if (status_label_) {
+    lv_obj_set_style_text_color(status_label_, colors.warning, 0);
+  }
 }
 
 void UartConnectivityView::poll_timer_cb(lv_timer_t* timer) {
   auto* view = static_cast<UartConnectivityView*>(lv_timer_get_user_data(timer));
   if (view) {
     view->poll_rx_();
+  }
+}
+
+void UartConnectivityView::theme_observer(lv_observer_t* observer, lv_subject_t* subject) {
+  auto* view = static_cast<UartConnectivityView*>(lv_observer_get_user_data(observer));
+  if (view) {
+    view->apply_theme_(lv_subject_get_int(subject) != 0);
   }
 }
 
