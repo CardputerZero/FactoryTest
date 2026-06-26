@@ -168,6 +168,8 @@ bool ConnectivityTestViewModel::is_menu_active() const {
   return model_.active_page() == model::ConnectivitySubPage::MENU;
 }
 
+bool ConnectivityTestViewModel::is_direct_subpage_active() const { return direct_subpage_active_; }
+
 void ConnectivityTestViewModel::select_previous() {
   if (!is_menu_active()) {
     return;
@@ -196,17 +198,32 @@ void ConnectivityTestViewModel::activate_selected() {
     return;
   }
 
+  direct_subpage_active_ = false;
   model_.activate_selected();
   publish_all_();
 }
 
+void ConnectivityTestViewModel::show_subpage(model::ConnectivitySubPage page, bool direct) {
+  direct_subpage_active_ = direct && page != model::ConnectivitySubPage::MENU;
+  model_.show_subpage(page);
+  publish_all_();
+}
+
 void ConnectivityTestViewModel::show_menu() {
+  direct_subpage_active_ = false;
   model_.show_menu();
   publish_all_();
 }
 
+void ConnectivityTestViewModel::clear_direct_subpage() { direct_subpage_active_ = false; }
+
 bool ConnectivityTestViewModel::request_back() {
   if (is_menu_active()) {
+    return false;
+  }
+
+  if (direct_subpage_active_) {
+    direct_subpage_active_ = false;
     return false;
   }
 

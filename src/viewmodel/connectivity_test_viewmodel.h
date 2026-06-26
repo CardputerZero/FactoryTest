@@ -126,11 +126,14 @@ class ConnectivityTestViewModel {
   std::size_t selected_index() const;
   model::ConnectivitySubPage active_page() const;
   bool is_menu_active() const;
+  bool is_direct_subpage_active() const;
   void select_previous();
   void select_next();
   void set_selected_index(std::size_t index);
   void activate_selected();
+  void show_subpage(model::ConnectivitySubPage page, bool direct = false);
   void show_menu();
+  void clear_direct_subpage();
   bool request_back();
   bool refresh_active();
   void request_link_restart();
@@ -159,6 +162,7 @@ class ConnectivityTestViewModel {
   int32_t link_restart_request_count_{0};
   int32_t link_settings_request_count_{0};
   int32_t uart_settings_request_count_{0};
+  bool direct_subpage_active_{false};
   WifiConnectivityViewModel wifi_view_model_{};
   BluetoothConnectivityViewModel bluetooth_view_model_{};
   EthernetConnectivityViewModel ethernet_view_model_{};

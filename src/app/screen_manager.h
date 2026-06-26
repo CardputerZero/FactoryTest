@@ -15,6 +15,7 @@
 #include "keyboard_test_viewmodel.h"
 #include "lcd_test_viewmodel.h"
 #include "lvgl.h"
+#include "perf_test_viewmodel.h"
 #include "start_menu_viewmodel.h"
 
 namespace app {
@@ -26,6 +27,7 @@ class ScreenManager {
                 viewmodel::KeyboardTestViewModel& keyboard_view_model,
                 viewmodel::LcdTestViewModel& lcd_view_model,
                 viewmodel::ConnectivityTestViewModel& connectivity_view_model,
+                viewmodel::PerfTestViewModel& perf_view_model,
                 AssetManager& assets);
   ~ScreenManager();
 
@@ -43,6 +45,7 @@ class ScreenManager {
   void show_imu_test_page();
   void show_power_info_page();
   void show_device_info_page();
+  void show_perf_test_page();
   void show_placeholder_page(model::AppPage page);
   void request_page(model::AppPage page);
   void flush_requested_page();
@@ -57,6 +60,7 @@ class ScreenManager {
   viewmodel::KeyboardTestViewModel& keyboard_view_model_;
   viewmodel::LcdTestViewModel& lcd_view_model_;
   viewmodel::ConnectivityTestViewModel& connectivity_view_model_;
+  viewmodel::PerfTestViewModel& perf_view_model_;
   AssetManager& assets_;
   std::unique_ptr<screen::BaseScreen> current_screen_{};
   lv_observer_t* page_observer_{nullptr};

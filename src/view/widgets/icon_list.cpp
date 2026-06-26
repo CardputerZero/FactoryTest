@@ -118,6 +118,27 @@ void IconList::set_focused(bool focused) {
   apply_theme_(view_model_.is_dark_mode());
 }
 
+void IconList::set_width(int32_t width) {
+  width_ = std::max(width, 0);
+  if (!core_obj_) {
+    return;
+  }
+
+  lv_obj_set_width(core_obj_, width_);
+  for (auto& row : rows_) {
+    if (row.button) {
+      lv_obj_set_width(row.button, width_);
+    }
+    if (row.text_label) {
+      lv_obj_set_width(row.text_label, std::max(width_ - K_TEXT_OFFSET_X - 14, 0));
+    }
+  }
+}
+
+int32_t IconList::width() const { return width_; }
+
+void IconList::refresh_theme() { apply_theme_(view_model_.is_dark_mode()); }
+
 bool IconList::is_focused() const { return focused_; }
 
 void IconList::apply_theme(bool dark_mode) {

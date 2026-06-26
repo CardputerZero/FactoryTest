@@ -113,6 +113,8 @@ constexpr const char* ICON_GEAR_FINE          = "\uE87C";
 constexpr const char* ICON_BROADCAST          = "\uE0F2";
 constexpr const char* ICON_PAPER_PLANE        = "\uE394";
 constexpr const char* ICON_ENVELOPE_OPEN      = "\uE216";
+constexpr const char* ICON_SIDEBAR            = "\uEAB6";
+constexpr const char* ICON_CHART_BAR_HOR      = "\uE152";
 
 // Naive UI 3 Color Scheme
 // ====================

@@ -8,7 +8,6 @@
 
 #include <cstddef>
 #include <cstdint>
-
 #include <memory>
 
 #include "base_screen.h"
@@ -50,6 +49,7 @@ class ConnectivityTestPage : public BaseScreen {
   void build_subpage_view_(lv_obj_t* viewport, model::ConnectivitySubPage page);
   void switch_external_bus_(model::ConnectivitySubPage page);
   bool should_suppress_uart_settings_();
+  void update_title_(model::ConnectivitySubPage page);
   void update_nav_actions_();
   void show_loading_modal_(model::ConnectivitySubPage page);
   void hide_loading_modal_();

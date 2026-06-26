@@ -7,7 +7,9 @@
     "libjpeg-turbo",
     "zlib",
     "sdl2",
-    "freetype"
+    "freetype",
+    "libyaml",
+    "cjson"
   ],
   "overrides": [
     {

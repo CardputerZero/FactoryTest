@@ -109,6 +109,7 @@ class ConnectivityTestModel {
   void select_next();
   void set_selected_index(std::size_t index);
   void activate_selected();
+  void show_subpage(ConnectivitySubPage page);
   void show_menu();
 
  private:

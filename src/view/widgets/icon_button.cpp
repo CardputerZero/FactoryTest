@@ -14,6 +14,10 @@ namespace view::widgets {
 namespace {
 
 constexpr int32_t K_HOLD_PROGRESS_MAX = 255;
+constexpr int32_t K_INDICATOR_WIDTH   = 2;
+constexpr int32_t K_INDICATOR_HEIGHT  = 6;
+constexpr int32_t K_LABEL_Y           = -3;
+constexpr int32_t K_INDICATOR_Y       = 0;
 
 }  // namespace
 
@@ -26,7 +30,8 @@ IconButton::IconButton(lv_obj_t* parent,
                        lv_color_t light_color,
                        lv_color_t dark_color,
                        lv_event_cb_t click_cb,
-                       void* user_data)
+                       void* user_data,
+                       bool show_indicator)
     : BaseWidgets(parent),
       view_model_(view_model),
       width_(width),
@@ -36,7 +41,8 @@ IconButton::IconButton(lv_obj_t* parent,
       light_color_(light_color),
       dark_color_(dark_color),
       click_cb_(click_cb),
-      user_data_(user_data) {}
+      user_data_(user_data),
+      show_indicator_(show_indicator) {}
 
 void IconButton::build() {
   if (core_obj_) {
@@ -51,6 +57,7 @@ void IconButton::build() {
   lv_obj_set_style_border_width(core_obj_, 0, 0);
   lv_obj_set_style_shadow_width(core_obj_, 0, 0);
   lv_obj_set_style_pad_all(core_obj_, 0, 0);
+  lv_obj_add_flag(core_obj_, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
 
   if (click_cb_) {
     lv_obj_add_event_cb(core_obj_,
@@ -64,7 +71,17 @@ void IconButton::build() {
   if (font_) {
     lv_obj_set_style_text_font(label_, font_, 0);
   }
-  lv_obj_center(label_);
+  lv_obj_align(label_, LV_ALIGN_CENTER, 0, K_LABEL_Y);
+
+  if (show_indicator_) {
+    indicator_ = lv_obj_create(core_obj_);
+    lv_obj_remove_style_all(indicator_);
+    lv_obj_set_size(indicator_, K_INDICATOR_WIDTH, K_INDICATOR_HEIGHT);
+    lv_obj_set_style_radius(indicator_, LV_RADIUS_CIRCLE, 0);
+    lv_obj_clear_flag(indicator_, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(indicator_, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_align(indicator_, LV_ALIGN_BOTTOM_MID, 0, K_INDICATOR_Y);
+  }
 
   bind_theme_(view_model_.dark_mode_subject(), view_model_.is_dark_mode());
 }
@@ -73,15 +90,16 @@ void IconButton::set_text(const char* text) {
   text_ = text ? text : "";
   if (label_) {
     lv_label_set_text(label_, text_.c_str());
-    lv_obj_center(label_);
+    lv_obj_align(label_, LV_ALIGN_CENTER, 0, K_LABEL_Y);
   }
+  apply_indicator_style_();
 }
 
 void IconButton::set_font(const lv_font_t* font) {
   font_ = font;
   if (label_ && font_) {
     lv_obj_set_style_text_font(label_, font_, 0);
-    lv_obj_center(label_);
+    lv_obj_align(label_, LV_ALIGN_CENTER, 0, K_LABEL_Y);
   }
 }
 
@@ -162,6 +180,7 @@ void IconButton::apply_theme(bool dark_mode) {
 
   lv_obj_set_style_bg_opa(core_obj_, LV_OPA_TRANSP, 0);
   apply_text_color_();
+  apply_indicator_style_();
 }
 
 lv_color_t IconButton::base_text_color_() const {
@@ -179,6 +198,7 @@ void IconButton::apply_text_color_() {
 
   if (!enabled_) {
     lv_obj_set_style_text_color(label_, disabled_text_color_(), 0);
+    apply_indicator_style_();
     return;
   }
 
@@ -190,6 +210,18 @@ void IconButton::apply_text_color_() {
         static_cast<uint8_t>(std::clamp(hold_progress_value_, 0, K_HOLD_PROGRESS_MAX)));
   }
   lv_obj_set_style_text_color(label_, color, 0);
+  apply_indicator_style_();
+}
+
+void IconButton::apply_indicator_style_() {
+  if (!indicator_) {
+    return;
+  }
+
+  const bool show_indicator = enabled_ && !text_.empty();
+  lv_obj_set_style_bg_opa(indicator_, show_indicator ? LV_OPA_70 : LV_OPA_TRANSP, 0);
+  lv_obj_set_style_bg_color(indicator_, base_text_color_(), 0);
+  lv_obj_align(indicator_, LV_ALIGN_BOTTOM_MID, 0, K_INDICATOR_Y);
 }
 
 }  // namespace view::widgets

@@ -25,7 +25,8 @@ class IconButton : public BaseWidgets {
              lv_color_t light_color,
              lv_color_t dark_color,
              lv_event_cb_t click_cb = nullptr,
-             void* user_data        = nullptr);
+             void* user_data        = nullptr,
+             bool show_indicator    = false);
 
   void build() override;
   void set_text(const char* text);
@@ -46,6 +47,7 @@ class IconButton : public BaseWidgets {
   lv_color_t base_text_color_() const;
   lv_color_t disabled_text_color_() const;
   void apply_text_color_();
+  void apply_indicator_style_();
 
   viewmodel::AppViewModel& view_model_;
   int32_t width_{0};
@@ -56,7 +58,9 @@ class IconButton : public BaseWidgets {
   lv_color_t dark_color_{};
   lv_event_cb_t click_cb_{nullptr};
   void* user_data_{nullptr};
+  bool show_indicator_{false};
   lv_obj_t* label_{nullptr};
+  lv_obj_t* indicator_{nullptr};
   lv_color_t hold_target_color_{};
   int32_t hold_progress_value_{0};
   bool enabled_{true};

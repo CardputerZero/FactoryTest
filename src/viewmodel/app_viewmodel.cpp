@@ -32,6 +32,8 @@ model::AppPage next_test_page(model::AppPage page) {
     case model::AppPage::IMU_TEST:
       return model::AppPage::DEVICE_INFO;
     case model::AppPage::DEVICE_INFO:
+      return model::AppPage::PERF_TEST;
+    case model::AppPage::PERF_TEST:
     case model::AppPage::START:
       return model::AppPage::START;
   }
@@ -74,12 +76,12 @@ const std::array<NavAction, 5>& AppViewModel::nav_actions() const { return nav_a
 
 void AppViewModel::set_dark_mode(bool enabled) {
   model_.set_dark_mode(enabled);
-  publish_all_();
+  dark_mode_subject_.set(model_.dark_mode());
 }
 
 void AppViewModel::toggle_dark_mode() {
   model_.toggle_dark_mode();
-  publish_all_();
+  dark_mode_subject_.set(model_.dark_mode());
 }
 
 model::AppPage AppViewModel::current_page() const { return model_.current_page(); }
@@ -167,6 +169,8 @@ void AppViewModel::show_imu_test_page() { show_page_(model::AppPage::IMU_TEST); 
 void AppViewModel::show_power_info_page() { show_page_(model::AppPage::POWER_INFO); }
 
 void AppViewModel::show_device_info_page() { show_page_(model::AppPage::DEVICE_INFO); }
+
+void AppViewModel::show_perf_test_page() { show_page_(model::AppPage::PERF_TEST); }
 
 void AppViewModel::start_full_test_sequence() {
   model_.set_test_sequence_active(true);

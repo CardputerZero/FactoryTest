@@ -17,6 +17,7 @@
 #include "lcd_test_viewmodel.h"
 #include "linux_input.h"
 #include "logger.h"
+#include "perf_test_viewmodel.h"
 #include "screen_manager.h"
 #include "screenshot_service.h"
 #include "start_menu_viewmodel.h"
@@ -222,6 +223,7 @@ int Application::run() {
   viewmodel::KeyboardTestViewModel keyboard_view_model;
   viewmodel::LcdTestViewModel lcd_view_model;
   viewmodel::ConnectivityTestViewModel connectivity_view_model;
+  viewmodel::PerfTestViewModel perf_view_model;
   view::apply_lvgl_theme(display, app_view_model.is_dark_mode());
   platform::set_global_key_listener(global_key_listener, &app_view_model);
 
@@ -230,6 +232,7 @@ int Application::run() {
                                keyboard_view_model,
                                lcd_view_model,
                                connectivity_view_model,
+                               perf_view_model,
                                assets);
   screen_manager.start();
 

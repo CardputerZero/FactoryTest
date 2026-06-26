@@ -30,6 +30,8 @@ const char* AppModel::app_title() const {
       return "IMU Test";
     case AppPage::DEVICE_INFO:
       return "Device Information";
+    case AppPage::PERF_TEST:
+      return "Performance Test";
   }
 
   return "Factory Test";

@@ -80,6 +80,7 @@ class AppViewModel {
   void show_imu_test_page();
   void show_power_info_page();
   void show_device_info_page();
+  void show_perf_test_page();
   void start_full_test_sequence();
   void show_single_test_page(model::AppPage page);
   void complete_current_test();

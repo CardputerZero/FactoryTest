@@ -19,6 +19,7 @@ enum class AppPage {
   POWER_INFO        = 7,
   IMU_TEST          = 8,
   DEVICE_INFO       = 9,
+  PERF_TEST         = 10,
 };
 
 class AppModel {

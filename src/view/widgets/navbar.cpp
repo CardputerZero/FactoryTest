@@ -76,20 +76,21 @@ void NavBar::build() {
 void NavBar::create_icon_buttons_() {
   const auto light_color = view::palette(false).text;
   const auto dark_color  = view::palette(true).text;
-  icon_font_             = assets_.load_font("Phosphor-Fill.ttf", 26);
+  icon_font_             = assets_.load_font("Phosphor-Fill.ttf", 22);
 
   for (size_t i = 0; i < icon_buttons_.size(); ++i) {
     icon_buttons_[i] =
         std::make_unique<IconButton>(core_obj_,
                                      app_view_model_,
                                      32,
-                                     22,
+                                     24,
                                      "",
                                      icon_font_ ? icon_font_ : &lv_font_montserrat_14,
                                      light_color,
                                      dark_color,
                                      nullptr,
-                                     &app_view_model_);
+                                     &app_view_model_,
+                                     true);
     icon_buttons_[i]->build();
     lv_obj_set_style_translate_x(icon_buttons_[i]->root(), K_NAV_BUTTON_X_OFFSETS[i], 0);
     lv_obj_add_event_cb(icon_buttons_[i]->root(), nav_button_cb, LV_EVENT_CLICKED, this);
@@ -169,7 +170,7 @@ void NavBar::nav_button_press_cb(lv_event_t* event) {
   if (!nav_bar) {
     return;
   }
-  const auto index = nav_bar->index_for_button_(lv_event_get_target_obj(event));
+  const auto index    = nav_bar->index_for_button_(lv_event_get_target_obj(event));
   const auto& actions = nav_bar->app_view_model_.nav_actions();
   if (index < nav_bar->icon_buttons_.size() &&
       (actions[index].event_code == LV_EVENT_LONG_PRESSED ||

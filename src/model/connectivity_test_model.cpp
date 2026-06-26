@@ -287,9 +287,24 @@ void ConnectivityTestModel::set_selected_index(std::size_t index) {
 
 void ConnectivityTestModel::activate_selected() { active_page_ = selected_item().target_page; }
 
+void ConnectivityTestModel::show_subpage(ConnectivitySubPage page) {
+  if (page == ConnectivitySubPage::MENU) {
+    show_menu();
+    return;
+  }
+
+  for (std::size_t i = 0; i < items().size(); ++i) {
+    if (items()[i].target_page == page) {
+      selected_index_ = i;
+      active_page_    = page;
+      return;
+    }
+  }
+}
+
 void ConnectivityTestModel::show_menu() { active_page_ = ConnectivitySubPage::MENU; }
 
-const char* WifiConnectivityModel::title() const { return "Wi-Fi"; }
+const char* WifiConnectivityModel::title() const { return "Wi-Fi Scan"; }
 
 bool WifiConnectivityModel::refresh(bool force_refresh) {
   bool changed = false;
@@ -325,7 +340,7 @@ bool WifiConnectivityModel::set_scan_result_(std::vector<ConnectivityScanInfo> i
   return true;
 }
 
-const char* BluetoothConnectivityModel::title() const { return "Bluetooth"; }
+const char* BluetoothConnectivityModel::title() const { return "Bluetooth Scan"; }
 
 bool BluetoothConnectivityModel::refresh(bool force_refresh) {
   bool changed = false;
@@ -361,7 +376,7 @@ bool BluetoothConnectivityModel::set_scan_result_(std::vector<ConnectivityScanIn
   return true;
 }
 
-const char* EthernetConnectivityModel::title() const { return "Ethernet"; }
+const char* EthernetConnectivityModel::title() const { return "Ethernet Info"; }
 
 bool EthernetConnectivityModel::refresh(bool force_refresh) {
   bool changed = false;
@@ -397,7 +412,7 @@ bool EthernetConnectivityModel::set_info_(std::vector<ConnectivityInfoField> fie
   return true;
 }
 
-const char* UsbConnectivityModel::title() const { return "USB"; }
+const char* UsbConnectivityModel::title() const { return "USB Devices"; }
 
 bool UsbConnectivityModel::refresh(bool force_refresh) {
   bool changed = false;
@@ -431,10 +446,10 @@ bool UsbConnectivityModel::set_devices_(std::vector<ConnectivityScanInfo> device
   return true;
 }
 
-const char* I2cConnectivityModel::title() const { return "I2C"; }
+const char* I2cConnectivityModel::title() const { return "I2C Scan"; }
 
 bool I2cConnectivityModel::refresh(bool force_refresh) {
-  bool changed = false;
+  bool changed            = false;
   const bool was_scanning = refresh_task_.valid();
   if (future_ready(refresh_task_)) {
     auto result = refresh_task_.get();
@@ -469,7 +484,7 @@ bool I2cConnectivityModel::set_addresses_(std::vector<ConnectivityI2cAddressInfo
   return true;
 }
 
-const char* SpiConnectivityModel::title() const { return "SPI"; }
+const char* SpiConnectivityModel::title() const { return "SPI Scan"; }
 
 bool SpiConnectivityModel::refresh(bool force_refresh) {
   bool changed = false;
@@ -503,7 +518,7 @@ bool SpiConnectivityModel::set_devices_(std::vector<ConnectivityScanInfo> device
   return true;
 }
 
-const char* HdmiConnectivityModel::title() const { return "HDMI"; }
+const char* HdmiConnectivityModel::title() const { return "HDMI Info"; }
 
 bool HdmiConnectivityModel::refresh(bool force_refresh) {
   bool changed = false;
@@ -537,7 +552,7 @@ bool HdmiConnectivityModel::set_info_(std::vector<ConnectivityInfoField> fields,
   return true;
 }
 
-const char* LinkConnectivityModel::title() const { return "Link Test"; }
+const char* LinkConnectivityModel::title() const { return "Network Link Test"; }
 
 bool LinkConnectivityModel::refresh(bool force_refresh) {
   bool changed = false;

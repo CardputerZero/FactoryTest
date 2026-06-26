@@ -6,21 +6,168 @@
 
 #include "start_menu_model.h"
 
+#include <algorithm>
+
+#include "ui_const.h"
+
 namespace model {
 namespace {
 
+constexpr std::size_t category_to_index(StartMenuCategory category) {
+  return static_cast<std::size_t>(category);
+}
+
 const std::array<StartMenuItem, StartMenuModel::K_ITEM_COUNT>& start_menu_items() {
   static const std::array<StartMenuItem, StartMenuModel::K_ITEM_COUNT> ITEMS = {{
-      {"Start Full Test", AppPage::KEYBOARD_TEST, true},
-      {"Input Test", AppPage::KEYBOARD_TEST, false},
-      {"Display Test", AppPage::LCD_TEST, false},
-      {"Audio Test", AppPage::AUDIO_TEST, false},
-      {"Camera Test", AppPage::CAMERA_TEST, false},
-      {"Connectivity Test", AppPage::CONNECTIVITY_TEST, false},
-      {"IR Test", AppPage::IR_TEST, false},
-      {"Power Information", AppPage::POWER_INFO, false},
-      {"IMU Test", AppPage::IMU_TEST, false},
-      {"Device Information", AppPage::DEVICE_INFO, false},
+      {"Start Full Test",
+       view::ICON_FLASK,
+       StartMenuCategory::AUTO,
+       AppPage::KEYBOARD_TEST,
+       PerfSubPage::MENU,
+       ConnectivitySubPage::MENU,
+       true},
+      {"Device Information",
+       view::ICON_INFO,
+       StartMenuCategory::AUTO,
+       AppPage::DEVICE_INFO,
+       PerfSubPage::MENU,
+       ConnectivitySubPage::MENU,
+       false},
+      {"Power Information",
+       view::ICON_LIGHTNING,
+       StartMenuCategory::AUTO,
+       AppPage::POWER_INFO,
+       PerfSubPage::MENU,
+       ConnectivitySubPage::MENU,
+       false},
+      {"CPU Benchmark",
+       view::ICON_CPU,
+       StartMenuCategory::AUTO,
+       AppPage::PERF_TEST,
+       PerfSubPage::CPU,
+       ConnectivitySubPage::MENU,
+       false},
+      {"Mem Stress Test",
+       view::ICON_MEMORY,
+       StartMenuCategory::AUTO,
+       AppPage::PERF_TEST,
+       PerfSubPage::MEM,
+       ConnectivitySubPage::MENU,
+       false},
+      {"SD Card Test",
+       view::ICON_HARDDRIVE,
+       StartMenuCategory::AUTO,
+       AppPage::PERF_TEST,
+       PerfSubPage::SD,
+       ConnectivitySubPage::MENU,
+       false},
+
+      {"Input Test",
+       view::ICON_KEYBOARD,
+       StartMenuCategory::PERIPH,
+       AppPage::KEYBOARD_TEST,
+       PerfSubPage::MENU,
+       ConnectivitySubPage::MENU,
+       false},
+      {"Display Test",
+       view::ICON_MONITOR,
+       StartMenuCategory::PERIPH,
+       AppPage::LCD_TEST,
+       PerfSubPage::MENU,
+       ConnectivitySubPage::MENU,
+       false},
+      {"Audio Test",
+       view::ICON_MICROPHONE,
+       StartMenuCategory::PERIPH,
+       AppPage::AUDIO_TEST,
+       PerfSubPage::MENU,
+       ConnectivitySubPage::MENU,
+       false},
+      {"Camera Test",
+       view::ICON_CAMERA,
+       StartMenuCategory::PERIPH,
+       AppPage::CAMERA_TEST,
+       PerfSubPage::MENU,
+       ConnectivitySubPage::MENU,
+       false},
+      {"IMU Test",
+       view::ICON_VECTOR_THREE,
+       StartMenuCategory::PERIPH,
+       AppPage::IMU_TEST,
+       PerfSubPage::MENU,
+       ConnectivitySubPage::MENU,
+       false},
+      {"IR Test",
+       view::ICON_BROADCAST,
+       StartMenuCategory::PERIPH,
+       AppPage::IR_TEST,
+       PerfSubPage::MENU,
+       ConnectivitySubPage::MENU,
+       false},
+
+      {"Wi-Fi",
+       view::ICON_WIFI,
+       StartMenuCategory::COMMS,
+       AppPage::CONNECTIVITY_TEST,
+       PerfSubPage::MENU,
+       ConnectivitySubPage::WIFI,
+       false},
+      {"Bluetooth",
+       view::ICON_BLUETOOTH,
+       StartMenuCategory::COMMS,
+       AppPage::CONNECTIVITY_TEST,
+       PerfSubPage::MENU,
+       ConnectivitySubPage::BLUETOOTH,
+       false},
+      {"Ethernet",
+       view::ICON_ETHERNET,
+       StartMenuCategory::COMMS,
+       AppPage::CONNECTIVITY_TEST,
+       PerfSubPage::MENU,
+       ConnectivitySubPage::ETHERNET,
+       false},
+      {"USB",
+       view::ICON_USB,
+       StartMenuCategory::COMMS,
+       AppPage::CONNECTIVITY_TEST,
+       PerfSubPage::MENU,
+       ConnectivitySubPage::USB,
+       false},
+      {"HDMI",
+       view::ICON_MONITOR,
+       StartMenuCategory::COMMS,
+       AppPage::CONNECTIVITY_TEST,
+       PerfSubPage::MENU,
+       ConnectivitySubPage::HDMI,
+       false},
+      {"I2C",
+       view::ICON_SCAN,
+       StartMenuCategory::COMMS,
+       AppPage::CONNECTIVITY_TEST,
+       PerfSubPage::MENU,
+       ConnectivitySubPage::I2C,
+       false},
+      {"SPI",
+       view::ICON_LINK_SIMPLE_HOR,
+       StartMenuCategory::COMMS,
+       AppPage::CONNECTIVITY_TEST,
+       PerfSubPage::MENU,
+       ConnectivitySubPage::SPI,
+       false},
+      {"UART",
+       view::ICON_BROADCAST,
+       StartMenuCategory::COMMS,
+       AppPage::CONNECTIVITY_TEST,
+       PerfSubPage::MENU,
+       ConnectivitySubPage::UART,
+       false},
+      {"Link Test",
+       view::ICON_GLOBE,
+       StartMenuCategory::COMMS,
+       AppPage::CONNECTIVITY_TEST,
+       PerfSubPage::MENU,
+       ConnectivitySubPage::LINK_TEST,
+       false},
   }};
   return ITEMS;
 }
@@ -31,24 +178,116 @@ const std::array<StartMenuItem, StartMenuModel::K_ITEM_COUNT>& StartMenuModel::i
   return start_menu_items();
 }
 
-std::size_t StartMenuModel::selected_index() const { return selected_index_; }
+StartMenuCategory StartMenuModel::selected_category() const { return selected_category_; }
+
+std::size_t StartMenuModel::selected_category_index() const {
+  return category_to_index(selected_category_);
+}
+
+std::size_t StartMenuModel::selected_index() const {
+  return selected_index_for_category_(selected_category_);
+}
+
+const StartMenuItem& StartMenuModel::selected_item() const {
+  const auto absolute_index = absolute_index_for_category_(selected_category_, selected_index());
+  return items()[absolute_index];
+}
+
+std::size_t StartMenuModel::item_count_for_category(StartMenuCategory category) const {
+  std::size_t count = 0;
+  for (const auto& item : items()) {
+    if (item.category == category) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+const StartMenuItem* StartMenuModel::item_for_category(StartMenuCategory category,
+                                                       std::size_t index) const {
+  const auto absolute_index = absolute_index_for_category_(category, index);
+  if (absolute_index >= K_ITEM_COUNT) {
+    return nullptr;
+  }
+  return &items()[absolute_index];
+}
 
 void StartMenuModel::select_previous() {
-  if (selected_index_ > 0) {
-    --selected_index_;
+  auto& index = selected_indices_[category_to_index(selected_category_)];
+  if (index > 0) {
+    --index;
   }
 }
 
 void StartMenuModel::select_next() {
-  if (selected_index_ + 1 < K_ITEM_COUNT) {
-    ++selected_index_;
+  auto& index      = selected_indices_[category_to_index(selected_category_)];
+  const auto count = item_count_for_category(selected_category_);
+  if (index + 1 < count) {
+    ++index;
   }
 }
 
 void StartMenuModel::set_selected_index(std::size_t index) {
-  if (index < K_ITEM_COUNT) {
-    selected_index_ = index;
+  const auto count = item_count_for_category(selected_category_);
+  if (index < count) {
+    selected_indices_[category_to_index(selected_category_)] = index;
   }
+}
+
+void StartMenuModel::select_previous_category() {
+  const auto current = selected_category_index();
+  if (current > 0) {
+    set_selected_category(static_cast<StartMenuCategory>(current - 1));
+  }
+}
+
+void StartMenuModel::select_next_category() {
+  const auto current = selected_category_index();
+  if (current + 1 < K_CATEGORY_COUNT) {
+    set_selected_category(static_cast<StartMenuCategory>(current + 1));
+  }
+}
+
+void StartMenuModel::set_selected_category(StartMenuCategory category) {
+  const auto category_index = category_to_index(category);
+  if (category_index >= K_CATEGORY_COUNT) {
+    return;
+  }
+
+  selected_category_ = category;
+  const auto count   = item_count_for_category(category);
+  if (count == 0) {
+    selected_indices_[category_index] = 0;
+  } else {
+    selected_indices_[category_index] = std::min(selected_indices_[category_index], count - 1);
+  }
+}
+
+bool StartMenuModel::drawer_hidden() const { return drawer_hidden_; }
+
+void StartMenuModel::set_drawer_hidden(bool hidden) { drawer_hidden_ = hidden; }
+
+std::size_t StartMenuModel::absolute_index_for_category_(StartMenuCategory category,
+                                                         std::size_t index) const {
+  std::size_t category_index = 0;
+  for (std::size_t i = 0; i < items().size(); ++i) {
+    if (items()[i].category != category) {
+      continue;
+    }
+    if (category_index == index) {
+      return i;
+    }
+    ++category_index;
+  }
+  return K_ITEM_COUNT;
+}
+
+std::size_t StartMenuModel::selected_index_for_category_(StartMenuCategory category) const {
+  const auto category_index = category_to_index(category);
+  if (category_index >= K_CATEGORY_COUNT) {
+    return 0;
+  }
+  return selected_indices_[category_index];
 }
 
 }  // namespace model

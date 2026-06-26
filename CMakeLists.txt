@@ -35,6 +35,8 @@ set(APP_USE_LIBOPING 0)
 set(APP_USE_LIRC 0)
 set(APP_USE_LIBGPIOD 0)
 set(APP_USE_LIBSERIALPORT 0)
+set(APP_USE_LIBYAML 0)
+set(APP_USE_LIBCJSON 0)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "Export compile_commands.json" FORCE)
 
 include(FetchContent)
@@ -221,6 +223,28 @@ if(USE_DESKTOP)
         message(STATUS "libserialport UART backend enabled")
     else()
         message(WARNING "libserialport headers/library not found; UART backend will report unavailable")
+    endif()
+
+    find_path(LIBYAML_INCLUDE_DIR yaml.h)
+    find_library(LIBYAML_LIBRARY yaml)
+    if(LIBYAML_INCLUDE_DIR AND LIBYAML_LIBRARY)
+        list(APPEND PLATFORM_INCLUDE_DIR "${LIBYAML_INCLUDE_DIR}")
+        list(APPEND PLATFORM_LIBS "${LIBYAML_LIBRARY}")
+        set(APP_USE_LIBYAML 1)
+        message(STATUS "libyaml formatted output parser enabled")
+    else()
+        message(WARNING "libyaml headers/library not found; YAML output parsing will report unavailable")
+    endif()
+
+    find_path(LIBCJSON_INCLUDE_DIR NAMES cjson/cJSON.h cJSON.h)
+    find_library(LIBCJSON_LIBRARY NAMES cjson libcjson)
+    if(LIBCJSON_INCLUDE_DIR AND LIBCJSON_LIBRARY)
+        list(APPEND PLATFORM_INCLUDE_DIR "${LIBCJSON_INCLUDE_DIR}")
+        list(APPEND PLATFORM_LIBS "${LIBCJSON_LIBRARY}")
+        set(APP_USE_LIBCJSON 1)
+        message(STATUS "cJSON formatted output parser enabled")
+    else()
+        message(WARNING "libcjson headers/library not found; JSON output parsing will report unavailable")
     endif()
 
     set(LVGL_DESKTOP_DEPS ZLIB::ZLIB PNG::PNG ${JPEG_TARGET} Freetype::Freetype ${SDL2_TARGET})
@@ -541,6 +565,33 @@ else()
         message(WARNING "libserialport headers/library not found; UART backend will report unavailable")
     endif()
 
+    cm0_find_header(LIBYAML_INCLUDE_DIR yaml.h "${CM0_SYSROOT}/usr/include" "${CM0_SDK_ROOT}/usr/include")
+    cm0_find_library(LIBYAML_LIBRARY yaml libyaml.so libyaml.a)
+    if(LIBYAML_INCLUDE_DIR AND LIBYAML_LIBRARY)
+        cm0_add_imported_library(CM0::Libyaml "${LIBYAML_LIBRARY}" "${LIBYAML_INCLUDE_DIR}")
+        list(APPEND PLATFORM_INCLUDE_DIR "${LIBYAML_INCLUDE_DIR}")
+        list(APPEND PLATFORM_LIBS CM0::Libyaml)
+        set(APP_USE_LIBYAML 1)
+        message(STATUS "libyaml formatted output parser enabled")
+    else()
+        message(WARNING "libyaml headers/library not found; YAML output parsing will report unavailable")
+    endif()
+
+    cm0_find_header(LIBCJSON_INCLUDE_DIR cjson/cJSON.h "${CM0_SYSROOT}/usr/include" "${CM0_SDK_ROOT}/usr/include")
+    if(NOT LIBCJSON_INCLUDE_DIR)
+        cm0_find_header(LIBCJSON_INCLUDE_DIR cJSON.h "${CM0_SYSROOT}/usr/include" "${CM0_SDK_ROOT}/usr/include")
+    endif()
+    cm0_find_library(LIBCJSON_LIBRARY cjson libcjson.so libcjson.a)
+    if(LIBCJSON_INCLUDE_DIR AND LIBCJSON_LIBRARY)
+        cm0_add_imported_library(CM0::Libcjson "${LIBCJSON_LIBRARY}" "${LIBCJSON_INCLUDE_DIR}")
+        list(APPEND PLATFORM_INCLUDE_DIR "${LIBCJSON_INCLUDE_DIR}")
+        list(APPEND PLATFORM_LIBS CM0::Libcjson)
+        set(APP_USE_LIBCJSON 1)
+        message(STATUS "cJSON formatted output parser enabled")
+    else()
+        message(WARNING "libcjson headers/library not found; JSON output parsing will report unavailable")
+    endif()
+
     set(LVGL_INCLUDE_DIR ${FREETYPE_INCLUDE_DIR} ${PNG_INCLUDE_DIR} ${JPEG_INCLUDE_DIR} ${ZLIB_INCLUDE_DIR})
     set(LVGL_LIBS CM0::Freetype CM0::PNG CM0::JPEG ZLIB::ZLIB)
     if(APP_USE_DRM)
@@ -576,22 +627,27 @@ target_compile_definitions(${PROJECT_NAME}_platform PUBLIC
     APP_USE_LIRC=${APP_USE_LIRC}
     APP_USE_LIBGPIOD=${APP_USE_LIBGPIOD}
     APP_USE_LIBSERIALPORT=${APP_USE_LIBSERIALPORT}
+    APP_USE_LIBYAML=${APP_USE_LIBYAML}
+    APP_USE_LIBCJSON=${APP_USE_LIBCJSON}
     APP_FRAMEBUFFER_DEVICE="${APP_FRAMEBUFFER_DEVICE}"
     APP_DRM_DEVICE="${APP_DRM_DEVICE}"
     APP_DRM_CONNECTOR_ID=${APP_DRM_CONNECTOR_ID}
 )
 target_link_libraries(${PROJECT_NAME}_platform PUBLIC lvgl fmt::fmt Threads::Threads ${PLATFORM_LIBS})
 
+# model src
 file(GLOB_RECURSE MODEL_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/model/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/model/*.cpp")
 add_library(${PROJECT_NAME}_model STATIC ${MODEL_SOURCES})
 target_include_directories(${PROJECT_NAME}_model PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src/model")
 target_link_libraries(${PROJECT_NAME}_model PRIVATE ${PROJECT_NAME}_platform)
 
+# lvgl reactive src
 file(GLOB_RECURSE REACTIVE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/reactive/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/reactive/*.cpp")
 add_library(${PROJECT_NAME}_reactive STATIC ${REACTIVE_SOURCES})
 target_include_directories(${PROJECT_NAME}_reactive PUBLIC ${LVGL_INCLUDE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src/reactive ${CMAKE_CURRENT_SOURCE_DIR}/src/view)
 target_link_libraries(${PROJECT_NAME}_reactive PUBLIC lvgl)
 
+# view (ui) src
 file(GLOB_RECURSE UI_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/view/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/view/*.cpp")
 add_library(${PROJECT_NAME}_view STATIC ${UI_SOURCES})
 target_include_directories(${PROJECT_NAME}_view PUBLIC
@@ -607,11 +663,13 @@ target_include_directories(${PROJECT_NAME}_view PUBLIC
 )
 target_link_libraries(${PROJECT_NAME}_view PUBLIC lvgl ${PROJECT_NAME}_reactive ${PROJECT_NAME}_platform)
 
+# viewmodel src
 file(GLOB_RECURSE VIEWMODEL_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/viewmodel/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/viewmodel/*.cpp")
 add_library(${PROJECT_NAME}_viewmodel STATIC ${VIEWMODEL_SOURCES})
 target_include_directories(${PROJECT_NAME}_viewmodel PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src/viewmodel" "${CMAKE_CURRENT_SOURCE_DIR}/src/model" ${LVGL_INCLUDE_DIR})
 target_link_libraries(${PROJECT_NAME}_viewmodel PUBLIC lvgl ${PROJECT_NAME}_reactive ${PROJECT_NAME}_model)
 
+# app src
 file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/app/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/app/*.cpp")
 file(GLOB_RECURSE LOGGER_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/logger/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/logger/*.cpp")
 add_library(logger STATIC ${LOGGER_SOURCES})

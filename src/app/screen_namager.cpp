@@ -12,6 +12,7 @@
 #include "ir_test_page.h"
 #include "keyboard_test_page.h"
 #include "lcd_test_page.h"
+#include "perf_test_page.h"
 #include "placeholder_test_page.h"
 #include "power_info_page.h"
 #include "screen_manager.h"
@@ -52,6 +53,8 @@ const char* placeholder_title(model::AppPage page) {
       return "Power Information";
     case model::AppPage::DEVICE_INFO:
       return "Device Information";
+    case model::AppPage::PERF_TEST:
+      return "Performance Test";
     case model::AppPage::START:
     case model::AppPage::KEYBOARD_TEST:
     case model::AppPage::LCD_TEST:
@@ -68,12 +71,14 @@ ScreenManager::ScreenManager(viewmodel::AppViewModel& app_view_model,
                              viewmodel::KeyboardTestViewModel& keyboard_view_model,
                              viewmodel::LcdTestViewModel& lcd_view_model,
                              viewmodel::ConnectivityTestViewModel& connectivity_view_model,
+                             viewmodel::PerfTestViewModel& perf_view_model,
                              AssetManager& assets)
     : app_view_model_(app_view_model),
       start_menu_view_model_(start_menu_view_model),
       keyboard_view_model_(keyboard_view_model),
       lcd_view_model_(lcd_view_model),
       connectivity_view_model_(connectivity_view_model),
+      perf_view_model_(perf_view_model),
       assets_(assets) {}
 
 ScreenManager::~ScreenManager() {
@@ -98,8 +103,11 @@ void ScreenManager::start() {
 }
 
 void ScreenManager::show_start_page() {
-  load_screen_(
-      std::make_unique<screen::StartScreen>(app_view_model_, start_menu_view_model_, assets_));
+  load_screen_(std::make_unique<screen::StartScreen>(app_view_model_,
+                                                     start_menu_view_model_,
+                                                     perf_view_model_,
+                                                     connectivity_view_model_,
+                                                     assets_));
   loaded_page_     = model::AppPage::START;
   has_loaded_page_ = true;
 }
@@ -161,6 +169,12 @@ void ScreenManager::show_device_info_page() {
   has_loaded_page_ = true;
 }
 
+void ScreenManager::show_perf_test_page() {
+  load_screen_(std::make_unique<screen::PerfTestPage>(app_view_model_, perf_view_model_, assets_));
+  loaded_page_     = model::AppPage::PERF_TEST;
+  has_loaded_page_ = true;
+}
+
 void ScreenManager::show_placeholder_page(model::AppPage page) {
   load_screen_(
       std::make_unique<screen::PlaceholderTestPage>(app_view_model_,
@@ -218,6 +232,9 @@ void ScreenManager::flush_requested_page() {
       return;
     case model::AppPage::DEVICE_INFO:
       show_device_info_page();
+      return;
+    case model::AppPage::PERF_TEST:
+      show_perf_test_page();
       return;
   }
 }

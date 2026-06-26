@@ -55,6 +55,32 @@ const char* icon_for_page(model::ConnectivitySubPage page) {
   }
 }
 
+const char* title_for_page(model::ConnectivitySubPage page) {
+  switch (page) {
+    case model::ConnectivitySubPage::WIFI:
+      return "Wi-Fi Scan";
+    case model::ConnectivitySubPage::BLUETOOTH:
+      return "Bluetooth Scan";
+    case model::ConnectivitySubPage::ETHERNET:
+      return "Ethernet Info";
+    case model::ConnectivitySubPage::USB:
+      return "USB Devices";
+    case model::ConnectivitySubPage::HDMI:
+      return "HDMI Info";
+    case model::ConnectivitySubPage::I2C:
+      return "I2C Scan";
+    case model::ConnectivitySubPage::SPI:
+      return "SPI Scan";
+    case model::ConnectivitySubPage::UART:
+      return "UART Console";
+    case model::ConnectivitySubPage::LINK_TEST:
+      return "Network Link Test";
+    case model::ConnectivitySubPage::MENU:
+    default:
+      return "Connectivity Test";
+  }
+}
+
 }  // namespace
 
 ConnectivityTestPage::ConnectivityTestPage(
@@ -64,7 +90,9 @@ ConnectivityTestPage::ConnectivityTestPage(
     : BaseScreen(app_view_model, assets),
       connectivity_view_model_(connectivity_view_model) {
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
-  connectivity_view_model_.show_menu();
+  if (!connectivity_view_model_.is_direct_subpage_active()) {
+    connectivity_view_model_.show_menu();
+  }
   set_default_test_nav_();
   app_view_model_ref_().set_back_request_handler(back_request_handler, this);
   init();
@@ -113,6 +141,7 @@ ConnectivityTestPage::~ConnectivityTestPage() {
   spi_view_.reset();
   uart_view_.reset();
   link_view_.reset();
+  connectivity_view_model_.clear_direct_subpage();
 }
 
 void ConnectivityTestPage::build_content(lv_obj_t* content) {
@@ -245,6 +274,7 @@ void ConnectivityTestPage::show_page_(model::ConnectivitySubPage page, bool anim
   reset_subpage_views_(page);
   switch_external_bus_(page);
   ensure_subpage_view_(page);
+  update_title_(page);
   update_nav_actions_();
   const auto index = viewport_index_(page);
   if (menu_list_) {
@@ -283,6 +313,10 @@ bool ConnectivityTestPage::should_suppress_uart_settings_() {
   }
   suppress_uart_settings_once_ = false;
   return lv_tick_elaps(uart_page_entered_at_) < K_UART_SETTINGS_SUPPRESS_MS;
+}
+
+void ConnectivityTestPage::update_title_(model::ConnectivitySubPage page) {
+  app_view_model_ref_().set_title_text(title_for_page(page));
 }
 
 void ConnectivityTestPage::update_selection_(std::size_t index) {
