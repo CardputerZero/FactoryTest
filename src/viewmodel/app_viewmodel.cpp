@@ -68,6 +68,10 @@ lv_subject_t* AppViewModel::dark_mode_subject() { return dark_mode_subject_.nati
 
 lv_subject_t* AppViewModel::current_page_subject() { return current_page_subject_.native(); }
 
+lv_subject_t* AppViewModel::ftl_page_requested_subject() {
+  return ftl_page_requested_subject_.native();
+}
+
 lv_subject_t* AppViewModel::quit_requested_subject() { return quit_requested_subject_.native(); }
 
 bool AppViewModel::is_dark_mode() const { return model_.dark_mode(); }
@@ -172,6 +176,8 @@ void AppViewModel::show_device_info_page() { show_page_(model::AppPage::DEVICE_I
 
 void AppViewModel::show_perf_test_page() { show_page_(model::AppPage::PERF_TEST); }
 
+void AppViewModel::request_ftl_page() { ftl_page_requested_subject_.set(++ftl_request_revision_); }
+
 void AppViewModel::start_full_test_sequence() {
   model_.set_test_sequence_active(true);
   show_keyboard_test_page();
@@ -181,6 +187,8 @@ void AppViewModel::show_single_test_page(model::AppPage page) {
   model_.set_test_sequence_active(false);
   show_page_(page);
 }
+
+void AppViewModel::refresh_current_page() { current_page_subject_.notify(); }
 
 void AppViewModel::complete_current_test() {
   if (!model_.test_sequence_active()) {

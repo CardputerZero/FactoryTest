@@ -26,7 +26,8 @@ enum class ConnectivitySubPage {
   I2C       = 6,
   SPI       = 7,
   UART      = 8,
-  LINK_TEST = 9,
+  EXT_IO    = 9,
+  LINK_TEST = 10,
 };
 
 struct ConnectivityMenuItem {
@@ -99,7 +100,7 @@ struct LinkTestSnapshot {
 
 class ConnectivityTestModel {
  public:
-  static constexpr std::size_t K_ITEM_COUNT = 9;
+  static constexpr std::size_t K_ITEM_COUNT = 10;
 
   const std::array<ConnectivityMenuItem, K_ITEM_COUNT>& items() const;
   std::size_t selected_index() const;

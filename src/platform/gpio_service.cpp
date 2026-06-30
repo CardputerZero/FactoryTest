@@ -29,6 +29,139 @@ std::string errno_message(const char* prefix) {
   return std::string(prefix) + ": " + std::strerror(errno);
 }
 
+std::string line_key(const OutputLineConfig& config) {
+  return config.chip_path + ":" + std::to_string(config.line_offset) + ":" + config.consumer;
+}
+
+std::mutex& output_lines_mutex() {
+  static std::mutex mutex;
+  return mutex;
+}
+
+std::map<std::string, std::unique_ptr<OutputLine>>& output_lines() {
+  static std::map<std::string, std::unique_ptr<OutputLine>> lines;
+  return lines;
+}
+
+#if APP_USE_LIBGPIOD
+struct LineRequestOwner {
+  gpiod_line_request* request{nullptr};
+
+  ~LineRequestOwner() {
+    if (request) {
+      gpiod_line_request_release(request);
+    }
+  }
+
+  LineRequestOwner() = default;
+  explicit LineRequestOwner(gpiod_line_request* line_request)
+      : request(line_request) {}
+
+  LineRequestOwner(const LineRequestOwner&)            = delete;
+  LineRequestOwner& operator=(const LineRequestOwner&) = delete;
+
+  gpiod_line_request* release() {
+    auto* result = request;
+    request      = nullptr;
+    return result;
+  }
+};
+
+bool request_line(const OutputLineConfig& config,
+                  gpiod_line_direction direction,
+                  gpiod_line_value initial_value,
+                  LineRequestOwner& owner,
+                  std::string& error_message) {
+  error_message.clear();
+
+  gpiod_chip* chip = gpiod_chip_open(config.chip_path.c_str());
+  if (!chip) {
+    error_message = errno_message((std::string("Failed to open ") + config.chip_path).c_str());
+    return false;
+  }
+
+  gpiod_line_settings* settings        = gpiod_line_settings_new();
+  gpiod_line_config* line_config       = gpiod_line_config_new();
+  gpiod_request_config* request_config = gpiod_request_config_new();
+  auto cleanup                         = [&]() {
+    if (settings) {
+      gpiod_line_settings_free(settings);
+    }
+    if (line_config) {
+      gpiod_line_config_free(line_config);
+    }
+    if (request_config) {
+      gpiod_request_config_free(request_config);
+    }
+    gpiod_chip_close(chip);
+  };
+
+  if (!settings || !line_config || !request_config) {
+    error_message = errno_message("Failed to allocate GPIO request");
+    cleanup();
+    return false;
+  }
+
+  int result = gpiod_line_settings_set_direction(settings, direction);
+  if (result == 0 && direction == GPIOD_LINE_DIRECTION_OUTPUT) {
+    result = gpiod_line_settings_set_output_value(settings, initial_value);
+  }
+  if (result == 0) {
+    result = gpiod_line_config_add_line_settings(line_config, &config.line_offset, 1, settings);
+  }
+  gpiod_request_config_set_consumer(request_config, config.consumer.c_str());
+
+  if (result == 0) {
+    owner.request = gpiod_chip_request_lines(chip, request_config, line_config);
+  }
+  if (result < 0 || !owner.request) {
+    error_message = errno_message("Failed to request GPIO line");
+    cleanup();
+    return false;
+  }
+
+  cleanup();
+  return true;
+}
+
+bool read_requested_value(const OutputLineConfig& config,
+                          gpiod_line_request* request,
+                          bool& active,
+                          std::string& error_message) {
+  const auto value = gpiod_line_request_get_value(request, config.line_offset);
+  if (value == GPIOD_LINE_VALUE_ERROR) {
+    error_message = errno_message("Failed to read GPIO value");
+    LOG_WARN("GPIO{} read failed: {}", config.line_offset, error_message);
+    return false;
+  }
+
+  active = value == GPIOD_LINE_VALUE_ACTIVE;
+  return true;
+}
+
+bool read_line_value_preserving_direction(const OutputLineConfig& config,
+                                          bool& active,
+                                          gpiod_line_request*& retained_request,
+                                          std::string& error_message) {
+  LineRequestOwner owner;
+  if (!request_line(config,
+                    GPIOD_LINE_DIRECTION_AS_IS,
+                    GPIOD_LINE_VALUE_INACTIVE,
+                    owner,
+                    error_message)) {
+    LOG_WARN("GPIO{} read failed: {}", config.line_offset, error_message);
+    return false;
+  }
+
+  if (!read_requested_value(config, owner.request, active, error_message)) {
+    return false;
+  }
+
+  retained_request = owner.release();
+  return true;
+}
+#endif
+
 }  // namespace
 
 struct OutputLine::Impl {
@@ -41,7 +174,7 @@ struct OutputLine::Impl {
 
 #if APP_USE_LIBGPIOD
     const auto value = active ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE;
-    if (!request && !request_line_locked(value, error_message)) {
+    if (!request && !request_line_locked(GPIOD_LINE_DIRECTION_OUTPUT, value, error_message)) {
       return false;
     }
 
@@ -52,7 +185,7 @@ struct OutputLine::Impl {
     // If the request became invalid, release and try once more with the requested value.
     LOG_WARN("GPIO{} set failed, retrying request: {}", config.line_offset, std::strerror(errno));
     release_locked();
-    if (!request_line_locked(value, error_message)) {
+    if (!request_line_locked(GPIOD_LINE_DIRECTION_OUTPUT, value, error_message)) {
       return false;
     }
     if (gpiod_line_request_set_value(request, config.line_offset, value) == 0) {
@@ -76,59 +209,35 @@ struct OutputLine::Impl {
     release_locked();
   }
 
+  bool get_value(bool& active, std::string& error_message) {
+    std::lock_guard<std::mutex> lock(mutex);
+    error_message.clear();
+
 #if APP_USE_LIBGPIOD
-  bool request_line_locked(gpiod_line_value initial_value, std::string& error_message) {
-    gpiod_chip* chip = gpiod_chip_open(config.chip_path.c_str());
-    if (!chip) {
-      error_message = errno_message((std::string("Failed to open ") + config.chip_path).c_str());
+    if (!request) {
+      return read_line_value_preserving_direction(config, active, request, error_message);
+    }
+
+    return read_requested_value(config, request, active, error_message);
+#else
+    (void)active;
+    error_message = "libgpiod headers/library not found; cannot read GPIO";
+    LOG_WARN("GPIO{} unavailable: {}", config.line_offset, error_message);
+    return false;
+#endif
+  }
+
+#if APP_USE_LIBGPIOD
+  bool request_line_locked(gpiod_line_direction direction,
+                           gpiod_line_value initial_value,
+                           std::string& error_message) {
+    LineRequestOwner owner;
+    if (!request_line(config, direction, initial_value, owner, error_message)) {
       LOG_WARN("GPIO{} request failed: {}", config.line_offset, error_message);
       return false;
     }
 
-    gpiod_line_settings* settings        = gpiod_line_settings_new();
-    gpiod_line_config* line_config       = gpiod_line_config_new();
-    gpiod_request_config* request_config = gpiod_request_config_new();
-    auto cleanup                         = [&]() {
-      if (settings) {
-        gpiod_line_settings_free(settings);
-      }
-      if (line_config) {
-        gpiod_line_config_free(line_config);
-      }
-      if (request_config) {
-        gpiod_request_config_free(request_config);
-      }
-      gpiod_chip_close(chip);
-    };
-
-    if (!settings || !line_config || !request_config) {
-      error_message = errno_message("Failed to allocate GPIO request");
-      cleanup();
-      LOG_WARN("GPIO{} request failed: {}", config.line_offset, error_message);
-      return false;
-    }
-
-    int result = gpiod_line_settings_set_direction(settings, GPIOD_LINE_DIRECTION_OUTPUT);
-    if (result == 0) {
-      result = gpiod_line_settings_set_output_value(settings, initial_value);
-    }
-    if (result == 0) {
-      result = gpiod_line_config_add_line_settings(line_config, &config.line_offset, 1, settings);
-    }
-    gpiod_request_config_set_consumer(request_config, config.consumer.c_str());
-
-    if (result == 0) {
-      request = gpiod_chip_request_lines(chip, request_config, line_config);
-    }
-
-    if (result < 0 || !request) {
-      error_message = errno_message("Failed to request GPIO line");
-      cleanup();
-      LOG_WARN("GPIO{} request failed: {}", config.line_offset, error_message);
-      return false;
-    }
-
-    cleanup();
+    request = owner.release();
     return true;
   }
 #endif
@@ -157,20 +266,71 @@ bool OutputLine::set_value(bool active, std::string& error_message) {
   return impl_->set_value(active, error_message);
 }
 
+bool OutputLine::get_value(bool& active, std::string& error_message) {
+  return impl_->get_value(active, error_message);
+}
+
 void OutputLine::release() { impl_->release(); }
 
 bool set_output_value(const OutputLineConfig& config, bool active, std::string& error_message) {
-  static std::mutex lines_mutex;
-  static std::map<std::string, std::unique_ptr<OutputLine>> lines;
-
-  const auto key =
-      config.chip_path + ":" + std::to_string(config.line_offset) + ":" + config.consumer;
-  std::lock_guard<std::mutex> lock(lines_mutex);
-  auto& line = lines[key];
+  std::lock_guard<std::mutex> lock(output_lines_mutex());
+  auto& line = output_lines()[line_key(config)];
   if (!line) {
     line = std::make_unique<OutputLine>(config);
   }
   return line->set_value(active, error_message);
+}
+
+bool get_output_value(const OutputLineConfig& config, bool& active, std::string& error_message) {
+  std::lock_guard<std::mutex> lock(output_lines_mutex());
+  const auto it = output_lines().find(line_key(config));
+  if (it != output_lines().end() && it->second) {
+    return it->second->get_value(active, error_message);
+  }
+
+#if APP_USE_LIBGPIOD
+  gpiod_line_request* retained_request = nullptr;
+  const bool ok =
+      read_line_value_preserving_direction(config, active, retained_request, error_message);
+  if (retained_request) {
+    gpiod_line_request_release(retained_request);
+  }
+  return ok;
+#else
+  (void)active;
+  error_message = "libgpiod headers/library not found; cannot read GPIO";
+  LOG_WARN("GPIO{} unavailable: {}", config.line_offset, error_message);
+  return false;
+#endif
+}
+
+bool get_input_value(const OutputLineConfig& config, bool& active, std::string& error_message) {
+  {
+    std::lock_guard<std::mutex> lock(output_lines_mutex());
+    const auto it = output_lines().find(line_key(config));
+    if (it != output_lines().end()) {
+      output_lines().erase(it);
+    }
+  }
+
+#if APP_USE_LIBGPIOD
+  LineRequestOwner owner;
+  if (!request_line(config,
+                    GPIOD_LINE_DIRECTION_INPUT,
+                    GPIOD_LINE_VALUE_INACTIVE,
+                    owner,
+                    error_message)) {
+    LOG_WARN("GPIO{} input request failed: {}", config.line_offset, error_message);
+    return false;
+  }
+
+  return read_requested_value(config, owner.request, active, error_message);
+#else
+  (void)active;
+  error_message = "libgpiod headers/library not found; cannot read GPIO input";
+  LOG_WARN("GPIO{} unavailable: {}", config.line_offset, error_message);
+  return false;
+#endif
 }
 
 bool set_external_bus_i2c_mode(bool enabled, std::string& error_message) {

@@ -18,9 +18,18 @@ namespace view::widgets {
 
 class IconList : public BaseWidgets {
  public:
+  enum class Status {
+    NONE,
+    PASS,
+    WARN,
+    FAIL,
+  };
+
   struct Item {
     const char* icon;
     const char* title;
+    bool hidden{false};
+    Status status{Status::NONE};
   };
 
   using ItemClickedCallback = void (*)(std::size_t index, void* user_data);
@@ -51,10 +60,14 @@ class IconList : public BaseWidgets {
     lv_obj_t* button{nullptr};
     lv_obj_t* icon_label{nullptr};
     lv_obj_t* text_label{nullptr};
+    lv_obj_t* status_label{nullptr};
     std::size_t index{0};
   };
 
   static void item_clicked_cb(lv_event_t* event);
+  bool is_item_visible_(std::size_t index) const;
+  std::size_t nearest_visible_index_(std::size_t index) const;
+  Row* row_for_index_(std::size_t index);
   void apply_row_style_(Row& row, bool dark_mode);
   void scroll_selected_to_view_();
 

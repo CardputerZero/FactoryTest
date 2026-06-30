@@ -68,6 +68,48 @@ bool is_tab_key(uint32_t key) {
   return false;
 }
 
+enum class FtlSequenceKey {
+  UP,
+  DOWN,
+  LEFT,
+  RIGHT,
+  B,
+  A,
+};
+
+constexpr std::array<FtlSequenceKey, 12> K_FTL_EASTER_EGG_SEQUENCE = {
+    FtlSequenceKey::UP,
+    FtlSequenceKey::UP,
+    FtlSequenceKey::DOWN,
+    FtlSequenceKey::DOWN,
+    FtlSequenceKey::LEFT,
+    FtlSequenceKey::LEFT,
+    FtlSequenceKey::RIGHT,
+    FtlSequenceKey::RIGHT,
+    FtlSequenceKey::B,
+    FtlSequenceKey::A,
+    FtlSequenceKey::B,
+    FtlSequenceKey::A,
+};
+
+bool key_matches_ftl_sequence(uint32_t key, FtlSequenceKey sequence_key) {
+  switch (sequence_key) {
+    case FtlSequenceKey::UP:
+      return key == LV_KEY_UP || key == 'f' || key == 'F';
+    case FtlSequenceKey::DOWN:
+      return key == LV_KEY_DOWN || key == 'x' || key == 'X';
+    case FtlSequenceKey::LEFT:
+      return key == LV_KEY_LEFT || key == 'z' || key == 'Z';
+    case FtlSequenceKey::RIGHT:
+      return key == LV_KEY_RIGHT || key == 'c' || key == 'C';
+    case FtlSequenceKey::B:
+      return key == 'b' || key == 'B';
+    case FtlSequenceKey::A:
+      return key == 'a' || key == 'A';
+  }
+  return false;
+}
+
 }  // namespace
 
 StartScreen::StartScreen(viewmodel::AppViewModel& app_view_model,
@@ -307,6 +349,21 @@ void StartScreen::set_focus_area_(FocusArea area) {
   apply_drawer_theme_(app_view_model_ref_().is_dark_mode());
 }
 
+bool StartScreen::update_ftl_easter_egg_(uint32_t key) {
+  if (key_matches_ftl_sequence(key, K_FTL_EASTER_EGG_SEQUENCE[ftl_sequence_index_])) {
+    ++ftl_sequence_index_;
+    if (ftl_sequence_index_ >= K_FTL_EASTER_EGG_SEQUENCE.size()) {
+      ftl_sequence_index_ = 0;
+      app_view_model_ref_().request_ftl_page();
+      return true;
+    }
+    return false;
+  }
+
+  ftl_sequence_index_ = key_matches_ftl_sequence(key, K_FTL_EASTER_EGG_SEQUENCE[0]) ? 1 : 0;
+  return false;
+}
+
 void StartScreen::apply_screen_theme_(bool dark_mode) {
   apply_content_theme_(dark_mode);
   apply_drawer_theme_(dark_mode);
@@ -520,6 +577,10 @@ void StartScreen::key_listener(uint32_t key, const char* key_name, void* user_da
 
   auto* page = static_cast<StartScreen*>(user_data);
   if (!page) {
+    return;
+  }
+
+  if (page->update_ftl_easter_egg_(key)) {
     return;
   }
 

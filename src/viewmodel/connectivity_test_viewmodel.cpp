@@ -248,6 +248,7 @@ bool ConnectivityTestViewModel::refresh_active() {
     case model::ConnectivitySubPage::HDMI:
       return hdmi_view_model_.refresh(true);
     case model::ConnectivitySubPage::UART:
+    case model::ConnectivitySubPage::EXT_IO:
       return false;
     case model::ConnectivitySubPage::LINK_TEST:
       return link_view_model_.refresh(true);

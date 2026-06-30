@@ -35,8 +35,40 @@ std::string truncate_line(std::string line, std::size_t max_size = 92) {
   return line.substr(0, max_size - 3) + "...";
 }
 
-const char* result_icon(bool passed) {
-  return passed ? view::ICON_CHECK_SQUARE : view::ICON_X_SQUARE;
+const char* result_icon(platform::perf::TestStatus status) {
+  switch (status) {
+    case platform::perf::TestStatus::PASS:
+      return view::ICON_CHECK_SQUARE;
+    case platform::perf::TestStatus::WARNING:
+      return view::ICON_INFO;
+    case platform::perf::TestStatus::FAIL:
+      return view::ICON_X_SQUARE;
+  }
+  return view::ICON_INFO;
+}
+
+const char* result_status_text(platform::perf::TestStatus status) {
+  switch (status) {
+    case platform::perf::TestStatus::PASS:
+      return " PASS";
+    case platform::perf::TestStatus::WARNING:
+      return " WARNING";
+    case platform::perf::TestStatus::FAIL:
+      return " FAILED";
+  }
+  return " WARNING";
+}
+
+const char* test_hint(platform::perf::TestKind kind) {
+  switch (kind) {
+    case platform::perf::TestKind::CPU:
+      return "CPU: Tested with sysbench";
+    case platform::perf::TestKind::MEMORY:
+      return "MEM: Tested with stress-ng";
+    case platform::perf::TestKind::SD_CARD:
+      return "SD: Tested with fio";
+  }
+  return "Tested with benchmark tool";
 }
 
 }  // namespace
@@ -96,13 +128,13 @@ void PerfCommandView::build(lv_obj_t* parent,
 
   command_label_ = lv_label_create(group);
   lv_obj_set_width(command_label_, K_CONTENT_WIDTH);
-  lv_label_set_long_mode(command_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
+  lv_label_set_long_mode(command_label_, LV_LABEL_LONG_DOT);
   lv_obj_set_style_text_align(command_label_, LV_TEXT_ALIGN_LEFT, 0);
   set_label_font(command_label_, body_font, &lv_font_montserrat_12);
   reactive::bind_theme(command_label_,
                        app_view_model.dark_mode_subject(),
                        reactive::ThemeRole::TEXT);
-  lv_label_set_text(command_label_, platform::perf::command_to_string(command_).c_str());
+  lv_label_set_text(command_label_, test_hint(command_.kind));
 
   stdout_card_ = lv_obj_create(group);
   lv_obj_remove_style_all(stdout_card_);
@@ -145,7 +177,11 @@ void PerfCommandView::start_() {
   auto runner = runner_;
   std::thread([state, runner]() {
     auto result = runner([state](const platform::perf::TestProgress& progress) {
-      state->percent.store(progress.percent);
+      const auto clamped_percent = std::max(0, std::min(100, progress.percent));
+      state->percent.store(clamped_percent);
+      if (!progress.line.empty() || clamped_percent > 0) {
+        state->has_real_progress.store(true);
+      }
       if (!progress.line.empty()) {
         std::lock_guard<std::mutex> lock(state->mutex);
         auto line = progress.stderr_line ? std::string("err: ") + progress.line : progress.line;
@@ -170,7 +206,7 @@ void PerfCommandView::update_() {
     return;
   }
 
-  update_progress_(state_->percent.load());
+  update_progress_(displayed_progress_(state_->percent.load()));
   update_stdout_buffer_();
 
   if (!state_->done.load() || report_shown_) {
@@ -197,6 +233,20 @@ void PerfCommandView::update_progress_(int percent) {
   if (status_label_ && !report_shown_) {
     lv_label_set_text(status_label_, (title_ + " " + std::to_string(percent) + "%").c_str());
   }
+}
+
+int PerfCommandView::displayed_progress_(int percent) {
+  if (!state_ || command_.kind != platform::perf::TestKind::MEMORY || state_->done.load() ||
+      state_->has_real_progress.load()) {
+    return percent;
+  }
+
+  ++fake_progress_tick_;
+  if (fake_progress_tick_ >= 3) {
+    fake_progress_tick_ = 0;
+    fake_progress_      = std::min(90, fake_progress_ + 1);
+  }
+  return std::max(percent, fake_progress_);
 }
 
 void PerfCommandView::update_stdout_buffer_() {
@@ -234,15 +284,18 @@ void PerfCommandView::update_stdout_buffer_() {
 
 void PerfCommandView::show_report_(const platform::perf::TestResult& result) {
   const auto colors = view::palette(app_view_model_ && app_view_model_->is_dark_mode());
+  const auto status_color = result.status == platform::perf::TestStatus::PASS
+                                ? colors.success
+                                : (result.status == platform::perf::TestStatus::WARNING
+                                       ? colors.warning
+                                       : colors.error);
   if (status_label_) {
-    lv_label_set_text(status_label_, (title_ + (result.passed ? " PASS" : " FAILED")).c_str());
-    lv_obj_set_style_text_color(status_label_, result.passed ? colors.success : colors.error, 0);
+    lv_label_set_text(status_label_, (title_ + result_status_text(result.status)).c_str());
+    lv_obj_set_style_text_color(status_label_, status_color, 0);
   }
   if (progress_bar_) {
     lv_bar_set_value(progress_bar_, 100, LV_ANIM_ON);
-    lv_obj_set_style_bg_color(progress_bar_,
-                              result.passed ? colors.success : colors.error,
-                              LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(progress_bar_, status_color, LV_PART_INDICATOR);
   }
   if (!report_host_ || !app_view_model_ || !assets_) {
     return;
@@ -253,7 +306,7 @@ void PerfCommandView::show_report_(const platform::perf::TestResult& result) {
   report_items_.reserve(report_titles_.size());
   for (std::size_t i = 0; i < report_titles_.size(); ++i) {
     report_items_.push_back(
-        {i == 0 ? result_icon(result.passed) : view::ICON_INFO, report_titles_[i].c_str()});
+        {i == 0 ? result_icon(result.status) : view::ICON_INFO, report_titles_[i].c_str()});
   }
 
   auto* text_font = assets_->load_font("inter-medium.ttf", 11);
@@ -297,12 +350,13 @@ std::vector<std::string> PerfCommandView::report_lines_(
     }
   }
 
-  if (!result.passed) {
+  if (result.status != platform::perf::TestStatus::PASS) {
     if (!result.structured_output.error_message.empty()) {
       lines.push_back("parse: " + result.structured_output.error_message);
     } else if (!result.process.stderr_text.empty()) {
       lines.push_back("stderr: " + truncate_line(result.process.stderr_text, 72));
-    } else if (!result.process.error_message.empty()) {
+    } else if (!result.process.error_message.empty() &&
+               result.process.error_message != result.summary) {
       lines.push_back("error: " + result.process.error_message);
     }
   }

@@ -52,6 +52,7 @@ class AppViewModel {
   lv_subject_t* nav_actions_subject();
   lv_subject_t* dark_mode_subject();
   lv_subject_t* current_page_subject();
+  lv_subject_t* ftl_page_requested_subject();
   lv_subject_t* quit_requested_subject();
 
   bool is_dark_mode() const;
@@ -81,8 +82,10 @@ class AppViewModel {
   void show_power_info_page();
   void show_device_info_page();
   void show_perf_test_page();
+  void request_ftl_page();
   void start_full_test_sequence();
   void show_single_test_page(model::AppPage page);
+  void refresh_current_page();
   void complete_current_test();
   void set_back_request_handler(BackRequestHandler handler, void* user_data);
   void clear_back_request_handler(BackRequestHandler handler, void* user_data);
@@ -101,9 +104,11 @@ class AppViewModel {
   reactive::IntSubject title_y_offset_subject_;
   reactive::IntSubject nav_actions_subject_{0};
   int32_t nav_actions_revision_{0};
+  int32_t ftl_request_revision_{0};
   std::array<NavAction, 5> nav_actions_{};
   reactive::BoolSubject dark_mode_subject_;
   reactive::IntSubject current_page_subject_;
+  reactive::IntSubject ftl_page_requested_subject_{0};
   reactive::BoolSubject quit_requested_subject_;
   BackRequestHandler back_request_handler_{nullptr};
   void* back_request_user_data_{nullptr};

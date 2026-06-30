@@ -37,6 +37,7 @@ const std::array<ConnectivityMenuItem, ConnectivityTestModel::K_ITEM_COUNT>& con
       {"I2C", ConnectivitySubPage::I2C},
       {"SPI", ConnectivitySubPage::SPI},
       {"UART", ConnectivitySubPage::UART},
+      {"EXT.IO", ConnectivitySubPage::EXT_IO},
       {"Link Test", ConnectivitySubPage::LINK_TEST},
   }};
   return ITEMS;

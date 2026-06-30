@@ -65,6 +65,7 @@ class ConnectivityTestPage : public BaseScreen {
   std::unique_ptr<I2cConnectivityView> i2c_view_{};
   std::unique_ptr<SpiConnectivityView> spi_view_{};
   std::unique_ptr<UartConnectivityView> uart_view_{};
+  std::unique_ptr<ExtIoConnectivityView> ext_io_view_{};
   std::unique_ptr<LinkConnectivityView> link_view_{};
   lv_obj_t* loading_modal_{nullptr};
   lv_timer_t* loading_modal_timer_{nullptr};

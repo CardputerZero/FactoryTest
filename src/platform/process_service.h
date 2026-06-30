@@ -8,14 +8,17 @@
 
 #include <cstddef>
 #include <functional>
-#include <map>
 #include <string>
 #include <vector>
+
+#include "serialization.h"
 
 namespace platform::process {
 
 using OutputHandler     = std::function<void(const char* data, std::size_t size)>;
 using OutputLineHandler = std::function<void(const std::string& line)>;
+using OutputValue       = ::platform::serialization::OutputValue;
+using ParseResult       = ::platform::serialization::ParseResult;
 
 struct ProcessOptions {
   // Non-zero values kill the child process if it runs longer than the limit.
@@ -38,31 +41,6 @@ struct ProcessResult {
   std::string error_message{};
 
   bool success() const { return exited && exit_code == 0 && !timed_out && error_message.empty(); }
-};
-
-struct OutputValue {
-  enum class Type { Null, Boolean, Number, String, Array, Object };
-
-  Type type{Type::Null};
-  bool bool_value{false};
-  double number_value{0.0};
-  std::string string_value{};
-  std::vector<OutputValue> array_values{};
-  std::map<std::string, OutputValue> object_values{};
-
-  static OutputValue null();
-  static OutputValue boolean(bool value);
-  static OutputValue number(double value);
-  static OutputValue string(std::string value);
-  static OutputValue array(std::vector<OutputValue> value);
-  static OutputValue object(std::map<std::string, OutputValue> value);
-};
-
-struct ParseResult {
-  OutputValue value{};
-  std::string error_message{};
-
-  bool success() const { return error_message.empty(); }
 };
 
 ProcessResult run_command(const std::string& executable,

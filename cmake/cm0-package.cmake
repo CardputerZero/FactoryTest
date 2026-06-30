@@ -133,10 +133,16 @@ set(APP_DEBIAN_PACKAGE_DEPENDS
     libjpeg62-turbo
     zlib1g
     libfmt10
-    libcamera-dev
-    libcamera-apps
     util-linux-extra
+    sysbench
+    stress-ng
+    fio
 )
+if(APP_USE_LIBCAMERA)
+    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS
+        "libcamera0.7 | libcamera0.6 | libcamera0.5 | libcamera0.4 | libcamera0.3 | libcamera0.2 | libcamera0"
+    )
+endif()
 if(APP_USE_PIPEWIRE)
     list(APPEND APP_DEBIAN_PACKAGE_DEPENDS libpipewire-0.3-0 pipewire wireplumber)
 endif()
@@ -168,7 +174,16 @@ if(APP_USE_BLUEZ)
     list(APPEND APP_DEBIAN_PACKAGE_DEPENDS bluez)
 endif()
 if(APP_USE_LIBGPIOD)
-    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS libgpiod-dev)
+    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS "libgpiod3 | libgpiod2")
+endif()
+if(APP_USE_LIBSERIALPORT)
+    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS libserialport0)
+endif()
+if(APP_USE_LIBYAML)
+    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS libyaml-0-2)
+endif()
+if(APP_USE_LIBCJSON)
+    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS libcjson1)
 endif()
 list(REMOVE_DUPLICATES APP_DEBIAN_PACKAGE_DEPENDS)
 string(REPLACE ";" ", " CPACK_DEBIAN_PACKAGE_DEPENDS "${APP_DEBIAN_PACKAGE_DEPENDS}")

@@ -16,6 +16,7 @@
 namespace platform::perf {
 
 enum class TestKind { CPU, MEMORY, SD_CARD };
+enum class TestStatus { PASS, FAIL, WARNING };
 
 struct TestCommand {
   TestKind kind{TestKind::CPU};
@@ -47,6 +48,7 @@ struct TestResult {
   std::map<std::string, std::string> metrics{};
   std::string summary{};
   bool passed{false};
+  TestStatus status{TestStatus::FAIL};
 };
 
 TestCommand make_cpu_sysbench_command();

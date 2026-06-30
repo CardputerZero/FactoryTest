@@ -47,6 +47,8 @@ const char* icon_for_page(model::ConnectivitySubPage page) {
       return view::ICON_LINK_SIMPLE_HOR;
     case model::ConnectivitySubPage::UART:
       return view::ICON_BROADCAST;
+    case model::ConnectivitySubPage::EXT_IO:
+      return view::ICON_PLUGS_CONNECTED;
     case model::ConnectivitySubPage::LINK_TEST:
       return view::ICON_GLOBE;
     case model::ConnectivitySubPage::MENU:
@@ -73,6 +75,8 @@ const char* title_for_page(model::ConnectivitySubPage page) {
       return "SPI Scan";
     case model::ConnectivitySubPage::UART:
       return "UART Console";
+    case model::ConnectivitySubPage::EXT_IO:
+      return "EXT.IO";
     case model::ConnectivitySubPage::LINK_TEST:
       return "Network Link Test";
     case model::ConnectivitySubPage::MENU:
@@ -140,6 +144,7 @@ ConnectivityTestPage::~ConnectivityTestPage() {
   i2c_view_.reset();
   spi_view_.reset();
   uart_view_.reset();
+  ext_io_view_.reset();
   link_view_.reset();
   connectivity_view_model_.clear_direct_subpage();
 }
@@ -258,8 +263,10 @@ std::size_t ConnectivityTestPage::viewport_index_(model::ConnectivitySubPage pag
       return 7;
     case model::ConnectivitySubPage::UART:
       return 8;
-    case model::ConnectivitySubPage::LINK_TEST:
+    case model::ConnectivitySubPage::EXT_IO:
       return 9;
+    case model::ConnectivitySubPage::LINK_TEST:
+      return 10;
     case model::ConnectivitySubPage::MENU:
     default:
       return 0;
@@ -374,6 +381,7 @@ void ConnectivityTestPage::reset_subpage_views_(model::ConnectivitySubPage keep_
   reset_page(model::ConnectivitySubPage::I2C, i2c_view_);
   reset_page(model::ConnectivitySubPage::SPI, spi_view_);
   reset_page(model::ConnectivitySubPage::UART, uart_view_);
+  reset_page(model::ConnectivitySubPage::EXT_IO, ext_io_view_);
   reset_page(model::ConnectivitySubPage::LINK_TEST, link_view_);
 }
 
@@ -420,6 +428,11 @@ void ConnectivityTestPage::ensure_subpage_view_(model::ConnectivitySubPage page)
       break;
     case model::ConnectivitySubPage::UART:
       if (uart_view_) {
+        return;
+      }
+      break;
+    case model::ConnectivitySubPage::EXT_IO:
+      if (ext_io_view_) {
         return;
       }
       break;
@@ -479,6 +492,10 @@ void ConnectivityTestPage::build_subpage_view_(lv_obj_t* viewport,
       uart_view_ = std::make_unique<UartConnectivityView>();
       uart_view_->build(viewport, root(), app_view_model_ref_(), assets_ref_());
       break;
+    case model::ConnectivitySubPage::EXT_IO:
+      ext_io_view_ = std::make_unique<ExtIoConnectivityView>();
+      ext_io_view_->build(viewport, root(), app_view_model_ref_(), assets_ref_());
+      break;
     case model::ConnectivitySubPage::LINK_TEST:
       link_view_ =
           std::make_unique<LinkConnectivityView>(connectivity_view_model_.link_view_model());
@@ -512,6 +529,12 @@ void ConnectivityTestPage::update_nav_actions_() {
         view::ICON_GEAR_FINE,
         [this]() { connectivity_view_model_.request_uart_settings(); },
         LV_EVENT_LONG_PRESSED);
+  } else if (page == model::ConnectivitySubPage::EXT_IO) {
+    set_nav_action_('6', view::ICON_GEAR_FINE, [this]() {
+      if (ext_io_view_) {
+        ext_io_view_->show_config_dialog();
+      }
+    });
   }
 
   set_nav_action_('8', view::ICON_CHECK_SQUARE, [this]() {
@@ -525,6 +548,10 @@ void ConnectivityTestPage::show_loading_modal_(model::ConnectivitySubPage page) 
   }
 
   if (page == model::ConnectivitySubPage::I2C) {
+    hide_loading_modal_();
+    return;
+  }
+  if (page == model::ConnectivitySubPage::EXT_IO) {
     hide_loading_modal_();
     return;
   }
@@ -599,6 +626,12 @@ void ConnectivityTestPage::key_listener(uint32_t key, const char* key_name, void
       page->link_view_->show_config_dialog();
       return;
     }
+  }
+
+  const bool ext_io_page_active =
+      page->connectivity_view_model_.active_page() == model::ConnectivitySubPage::EXT_IO;
+  if (ext_io_page_active && page->ext_io_view_ && page->ext_io_view_->handle_key(key, key_name)) {
+    return;
   }
 
   if (key == 't' || key == 'T') {

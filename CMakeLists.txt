@@ -6,7 +6,7 @@
 
 cmake_minimum_required(VERSION 3.23)
 
-project(factory_test VERSION 0.0.1 LANGUAGES C CXX)
+project(factory_test VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -69,6 +69,8 @@ get_filename_component(LVGL_INCLUDE_PARENT "${LVGL_SOURCE_DIR}" DIRECTORY)
 
 set(PLATFORM_INCLUDE_DIR)
 set(PLATFORM_LIBS)
+set(SERIALIZATION_INCLUDE_DIR)
+set(SERIALIZATION_LIBS)
 set(LVGL_INCLUDE_DIR)
 set(LVGL_LIBS)
 
@@ -228,8 +230,8 @@ if(USE_DESKTOP)
     find_path(LIBYAML_INCLUDE_DIR yaml.h)
     find_library(LIBYAML_LIBRARY yaml)
     if(LIBYAML_INCLUDE_DIR AND LIBYAML_LIBRARY)
-        list(APPEND PLATFORM_INCLUDE_DIR "${LIBYAML_INCLUDE_DIR}")
-        list(APPEND PLATFORM_LIBS "${LIBYAML_LIBRARY}")
+        list(APPEND SERIALIZATION_INCLUDE_DIR "${LIBYAML_INCLUDE_DIR}")
+        list(APPEND SERIALIZATION_LIBS "${LIBYAML_LIBRARY}")
         set(APP_USE_LIBYAML 1)
         message(STATUS "libyaml formatted output parser enabled")
     else()
@@ -239,8 +241,8 @@ if(USE_DESKTOP)
     find_path(LIBCJSON_INCLUDE_DIR NAMES cjson/cJSON.h cJSON.h)
     find_library(LIBCJSON_LIBRARY NAMES cjson libcjson)
     if(LIBCJSON_INCLUDE_DIR AND LIBCJSON_LIBRARY)
-        list(APPEND PLATFORM_INCLUDE_DIR "${LIBCJSON_INCLUDE_DIR}")
-        list(APPEND PLATFORM_LIBS "${LIBCJSON_LIBRARY}")
+        list(APPEND SERIALIZATION_INCLUDE_DIR "${LIBCJSON_INCLUDE_DIR}")
+        list(APPEND SERIALIZATION_LIBS "${LIBCJSON_LIBRARY}")
         set(APP_USE_LIBCJSON 1)
         message(STATUS "cJSON formatted output parser enabled")
     else()
@@ -569,8 +571,8 @@ else()
     cm0_find_library(LIBYAML_LIBRARY yaml libyaml.so libyaml.a)
     if(LIBYAML_INCLUDE_DIR AND LIBYAML_LIBRARY)
         cm0_add_imported_library(CM0::Libyaml "${LIBYAML_LIBRARY}" "${LIBYAML_INCLUDE_DIR}")
-        list(APPEND PLATFORM_INCLUDE_DIR "${LIBYAML_INCLUDE_DIR}")
-        list(APPEND PLATFORM_LIBS CM0::Libyaml)
+        list(APPEND SERIALIZATION_INCLUDE_DIR "${LIBYAML_INCLUDE_DIR}")
+        list(APPEND SERIALIZATION_LIBS CM0::Libyaml)
         set(APP_USE_LIBYAML 1)
         message(STATUS "libyaml formatted output parser enabled")
     else()
@@ -584,8 +586,8 @@ else()
     cm0_find_library(LIBCJSON_LIBRARY cjson libcjson.so libcjson.a)
     if(LIBCJSON_INCLUDE_DIR AND LIBCJSON_LIBRARY)
         cm0_add_imported_library(CM0::Libcjson "${LIBCJSON_LIBRARY}" "${LIBCJSON_INCLUDE_DIR}")
-        list(APPEND PLATFORM_INCLUDE_DIR "${LIBCJSON_INCLUDE_DIR}")
-        list(APPEND PLATFORM_LIBS CM0::Libcjson)
+        list(APPEND SERIALIZATION_INCLUDE_DIR "${LIBCJSON_INCLUDE_DIR}")
+        list(APPEND SERIALIZATION_LIBS CM0::Libcjson)
         set(APP_USE_LIBCJSON 1)
         message(STATUS "cJSON formatted output parser enabled")
     else()
@@ -601,6 +603,8 @@ else()
 
     list(REMOVE_DUPLICATES PLATFORM_INCLUDE_DIR)
     list(REMOVE_DUPLICATES PLATFORM_LIBS)
+    list(REMOVE_DUPLICATES SERIALIZATION_INCLUDE_DIR)
+    list(REMOVE_DUPLICATES SERIALIZATION_LIBS)
     list(REMOVE_DUPLICATES LVGL_INCLUDE_DIR)
     list(REMOVE_DUPLICATES LVGL_LIBS)
 
@@ -609,9 +613,23 @@ else()
     target_link_libraries(lvgl PUBLIC ${LVGL_LIBS} ${PLATFORM_LIBS})
 endif()
 
+if(USE_DESKTOP)
+    list(REMOVE_DUPLICATES SERIALIZATION_INCLUDE_DIR)
+    list(REMOVE_DUPLICATES SERIALIZATION_LIBS)
+endif()
+
+file(GLOB_RECURSE SERIALIZATION_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/serialization/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/serialization/*.cpp")
+add_library(serialization STATIC ${SERIALIZATION_SOURCES})
+target_include_directories(serialization PUBLIC ${SERIALIZATION_INCLUDE_DIR} ${PLATFORM_INCLUDE_DIR} "${CMAKE_CURRENT_SOURCE_DIR}/src/serialization")
+target_compile_definitions(serialization PUBLIC
+    APP_USE_LIBYAML=${APP_USE_LIBYAML}
+    APP_USE_LIBCJSON=${APP_USE_LIBCJSON}
+)
+target_link_libraries(serialization PUBLIC ${SERIALIZATION_LIBS})
+
 file(GLOB_RECURSE PLATFORM_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/*.cpp")
 add_library(${PROJECT_NAME}_platform STATIC ${PLATFORM_SOURCES})
-target_include_directories(${PROJECT_NAME}_platform PUBLIC ${LVGL_INCLUDE_DIR} ${PLATFORM_INCLUDE_DIR} "${CMAKE_CURRENT_SOURCE_DIR}/src/platform" "${CMAKE_CURRENT_SOURCE_DIR}/src/logger" "${CMAKE_CURRENT_SOURCE_DIR}/src/view" "${CMAKE_CURRENT_SOURCE_DIR}/src/view/widgets")
+target_include_directories(${PROJECT_NAME}_platform PUBLIC ${LVGL_INCLUDE_DIR} ${PLATFORM_INCLUDE_DIR} "${CMAKE_CURRENT_SOURCE_DIR}/src/platform" "${CMAKE_CURRENT_SOURCE_DIR}/src/serialization" "${CMAKE_CURRENT_SOURCE_DIR}/src/logger" "${CMAKE_CURRENT_SOURCE_DIR}/src/view" "${CMAKE_CURRENT_SOURCE_DIR}/src/view/widgets")
 target_compile_definitions(${PROJECT_NAME}_platform PUBLIC
     APP_KEY_INPUT_DEVICE="${APP_KEY_INPUT_DEVICE}"
     APP_USE_LIBCAMERA=${APP_USE_LIBCAMERA}
@@ -627,13 +645,11 @@ target_compile_definitions(${PROJECT_NAME}_platform PUBLIC
     APP_USE_LIRC=${APP_USE_LIRC}
     APP_USE_LIBGPIOD=${APP_USE_LIBGPIOD}
     APP_USE_LIBSERIALPORT=${APP_USE_LIBSERIALPORT}
-    APP_USE_LIBYAML=${APP_USE_LIBYAML}
-    APP_USE_LIBCJSON=${APP_USE_LIBCJSON}
     APP_FRAMEBUFFER_DEVICE="${APP_FRAMEBUFFER_DEVICE}"
     APP_DRM_DEVICE="${APP_DRM_DEVICE}"
     APP_DRM_CONNECTOR_ID=${APP_DRM_CONNECTOR_ID}
 )
-target_link_libraries(${PROJECT_NAME}_platform PUBLIC lvgl fmt::fmt Threads::Threads ${PLATFORM_LIBS})
+target_link_libraries(${PROJECT_NAME}_platform PUBLIC lvgl fmt::fmt Threads::Threads serialization ${PLATFORM_LIBS})
 
 # model src
 file(GLOB_RECURSE MODEL_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/model/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/model/*.cpp")
@@ -681,6 +697,7 @@ target_include_directories(${PROJECT_NAME}_core PUBLIC
     ${LVGL_INCLUDE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/src/app
     ${CMAKE_CURRENT_SOURCE_DIR}/src/logger
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/serialization
     ${CMAKE_CURRENT_SOURCE_DIR}/src/view/screens
     ${CMAKE_CURRENT_SOURCE_DIR}/src/view/widgets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/viewmodel

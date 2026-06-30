@@ -17,7 +17,37 @@ namespace {
 constexpr int32_t K_ROW_HEIGHT    = 22;
 constexpr int32_t K_ICON_WIDTH    = 20;
 constexpr int32_t K_TEXT_OFFSET_X = 26;
+constexpr int32_t K_STATUS_WIDTH  = 34;
+constexpr int32_t K_RIGHT_PADDING = 8;
 constexpr int32_t K_ROW_RADIUS    = 4;
+
+const char* status_text(IconList::Status status) {
+  switch (status) {
+    case IconList::Status::PASS:
+      return "PASS";
+    case IconList::Status::WARN:
+      return "WARN";
+    case IconList::Status::FAIL:
+      return "FAIL";
+    case IconList::Status::NONE:
+    default:
+      return "";
+  }
+}
+
+lv_color_t status_color(IconList::Status status, const view::ThemePalette& colors) {
+  switch (status) {
+    case IconList::Status::PASS:
+      return colors.success;
+    case IconList::Status::WARN:
+      return colors.warning;
+    case IconList::Status::FAIL:
+      return colors.error;
+    case IconList::Status::NONE:
+    default:
+      return colors.text_muted;
+  }
+}
 
 }  // namespace
 
@@ -60,7 +90,14 @@ void IconList::build() {
 
   rows_.clear();
   rows_.reserve(items_.size());
+  const bool has_status = std::any_of(items_.begin(), items_.end(), [](const Item& item) {
+    return !item.hidden && item.status != Status::NONE;
+  });
   for (std::size_t i = 0; i < items_.size(); ++i) {
+    if (items_[i].hidden) {
+      continue;
+    }
+
     Row row{};
     row.index  = i;
     row.button = lv_button_create(core_obj_);
@@ -85,11 +122,26 @@ void IconList::build() {
     row.text_label = lv_label_create(row.button);
     lv_label_set_text(row.text_label, items_[i].title ? items_[i].title : "");
     lv_label_set_long_mode(row.text_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_obj_set_width(row.text_label, width_ - K_TEXT_OFFSET_X - 14);
+    const int32_t status_space = has_status ? K_STATUS_WIDTH + K_RIGHT_PADDING : 0;
+    lv_obj_set_width(row.text_label,
+                     std::max(width_ - K_TEXT_OFFSET_X - K_RIGHT_PADDING - status_space, 0));
     if (text_font_) {
       lv_obj_set_style_text_font(row.text_label, text_font_, 0);
     }
     lv_obj_align(row.text_label, LV_ALIGN_LEFT_MID, K_TEXT_OFFSET_X, 0);
+
+    row.status_label = lv_label_create(row.button);
+    lv_label_set_text(row.status_label, status_text(items_[i].status));
+    lv_label_set_long_mode(row.status_label, LV_LABEL_LONG_CLIP);
+    lv_obj_set_width(row.status_label, K_STATUS_WIDTH);
+    lv_obj_set_style_text_align(row.status_label, LV_TEXT_ALIGN_RIGHT, 0);
+    if (text_font_) {
+      lv_obj_set_style_text_font(row.status_label, text_font_, 0);
+    }
+    lv_obj_align(row.status_label, LV_ALIGN_RIGHT_MID, 0, 0);
+    if (!has_status || items_[i].status == Status::NONE) {
+      lv_obj_add_flag(row.status_label, LV_OBJ_FLAG_HIDDEN);
+    }
 
     rows_.push_back(row);
   }
@@ -104,7 +156,7 @@ void IconList::set_selected_index(std::size_t index) {
     return;
   }
 
-  selected_index_ = std::min(index, items_.size() - 1);
+  selected_index_ = nearest_visible_index_(std::min(index, items_.size() - 1));
   apply_theme_(view_model_.is_dark_mode());
   scroll_selected_to_view_();
 }
@@ -125,12 +177,17 @@ void IconList::set_width(int32_t width) {
   }
 
   lv_obj_set_width(core_obj_, width_);
+  const bool has_status = std::any_of(items_.begin(), items_.end(), [](const Item& item) {
+    return !item.hidden && item.status != Status::NONE;
+  });
   for (auto& row : rows_) {
     if (row.button) {
       lv_obj_set_width(row.button, width_);
     }
     if (row.text_label) {
-      lv_obj_set_width(row.text_label, std::max(width_ - K_TEXT_OFFSET_X - 14, 0));
+      const int32_t status_space = has_status ? K_STATUS_WIDTH + K_RIGHT_PADDING : 0;
+      lv_obj_set_width(row.text_label,
+                       std::max(width_ - K_TEXT_OFFSET_X - K_RIGHT_PADDING - status_space, 0));
     }
   }
 }
@@ -140,6 +197,42 @@ int32_t IconList::width() const { return width_; }
 void IconList::refresh_theme() { apply_theme_(view_model_.is_dark_mode()); }
 
 bool IconList::is_focused() const { return focused_; }
+
+bool IconList::is_item_visible_(std::size_t index) const {
+  return index < items_.size() && !items_[index].hidden;
+}
+
+std::size_t IconList::nearest_visible_index_(std::size_t index) const {
+  if (items_.empty()) {
+    return 0;
+  }
+
+  if (is_item_visible_(index)) {
+    return index;
+  }
+
+  for (std::size_t i = index + 1; i < items_.size(); ++i) {
+    if (is_item_visible_(i)) {
+      return i;
+    }
+  }
+
+  for (std::size_t i = index; i > 0; --i) {
+    const auto candidate = i - 1;
+    if (is_item_visible_(candidate)) {
+      return candidate;
+    }
+  }
+
+  return 0;
+}
+
+IconList::Row* IconList::row_for_index_(std::size_t index) {
+  const auto row_it = std::find_if(rows_.begin(), rows_.end(), [index](const Row& row) {
+    return row.index == index;
+  });
+  return row_it == rows_.end() ? nullptr : &(*row_it);
+}
 
 void IconList::apply_theme(bool dark_mode) {
   if (!core_obj_) {
@@ -156,7 +249,7 @@ void IconList::apply_theme(bool dark_mode) {
 }
 
 void IconList::apply_row_style_(Row& row, bool dark_mode) {
-  if (!row.button || !row.text_label || !row.icon_label) {
+  if (!row.button || !row.text_label || !row.icon_label || row.index >= items_.size()) {
     return;
   }
 
@@ -181,14 +274,19 @@ void IconList::apply_row_style_(Row& row, bool dark_mode) {
       selected ? (focused_ ? selected_text : unfocused_selected_text) : normal_text;
   lv_obj_set_style_text_color(row.text_label, text_color, 0);
   lv_obj_set_style_text_color(row.icon_label, text_color, 0);
+  if (row.status_label) {
+    const auto status = items_[row.index].status;
+    lv_obj_set_style_text_color(row.status_label, status_color(status, colors), 0);
+  }
 }
 
 void IconList::scroll_selected_to_view_() {
-  if (selected_index_ >= rows_.size() || !rows_[selected_index_].button) {
+  auto* row = row_for_index_(selected_index_);
+  if (!row || !row->button) {
     return;
   }
 
-  lv_obj_scroll_to_view(rows_[selected_index_].button, LV_ANIM_OFF);
+  lv_obj_scroll_to_view(row->button, LV_ANIM_OFF);
 }
 
 void IconList::item_clicked_cb(lv_event_t* event) {

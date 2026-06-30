@@ -38,6 +38,7 @@ class PerfCommandView {
   struct JobState {
     std::atomic<bool> done{false};
     std::atomic<int> percent{0};
+    std::atomic<bool> has_real_progress{false};
     std::atomic<uint32_t> line_revision{0};
     std::mutex mutex{};
     std::deque<std::string> lines{};
@@ -47,6 +48,7 @@ class PerfCommandView {
   void start_();
   void update_();
   void update_progress_(int percent);
+  int displayed_progress_(int percent);
   void update_stdout_buffer_();
   void show_report_(const platform::perf::TestResult& result);
   std::vector<std::string> report_lines_(const platform::perf::TestResult& result) const;
@@ -72,6 +74,8 @@ class PerfCommandView {
   std::vector<std::string> report_titles_{};
   std::vector<view::widgets::IconList::Item> report_items_{};
   uint32_t last_line_revision_{0};
+  int fake_progress_{0};
+  int fake_progress_tick_{0};
   bool report_shown_{false};
 };
 

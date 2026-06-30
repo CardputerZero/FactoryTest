@@ -12,9 +12,11 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <iomanip>
 #include <regex>
 #include <sstream>
+#include <string>
 #include <utility>
 
 #include "logger.h"
@@ -28,6 +30,11 @@ constexpr int K_SD_DURATION_SECONDS     = 20;
 
 constexpr const char* K_STRESS_NG_YAML_PATH = "/tmp/factory_test_mem_stress.yaml";
 constexpr const char* K_FIO_DATA_PATH       = "/var/tmp/factory_test_sdcard.bin";
+
+void mark_passed(TestResult& result, bool passed) {
+  result.passed = passed;
+  result.status = passed ? TestStatus::PASS : TestStatus::FAIL;
+}
 
 std::string quote_arg(const std::string& arg) {
   if (arg.empty()) {
@@ -74,6 +81,44 @@ std::string trim(std::string value) {
   value.erase(value.begin(), std::find_if(value.begin(), value.end(), not_space));
   value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
   return value;
+}
+
+bool executable_exists(const std::filesystem::path& path) {
+  std::error_code ec;
+  return std::filesystem::exists(path, ec) && !std::filesystem::is_directory(path, ec);
+}
+
+bool executable_on_path(const std::string& executable) {
+  if (executable.empty()) {
+    return false;
+  }
+
+  if (executable.find('/') != std::string::npos) {
+    return executable_exists(executable);
+  }
+
+  const char* raw_path = std::getenv("PATH");
+  const std::string path = raw_path && raw_path[0] != '\0' ? raw_path : "/usr/local/bin:/usr/bin:/bin";
+  std::size_t start = 0;
+  while (start <= path.size()) {
+    const auto end = path.find(':', start);
+    const auto segment =
+        path.substr(start, end == std::string::npos ? std::string::npos : end - start);
+    const auto dir = segment.empty() ? std::filesystem::path(".") : std::filesystem::path(segment);
+    if (executable_exists(dir / executable)) {
+      return true;
+    }
+    if (end == std::string::npos) {
+      break;
+    }
+    start = end + 1;
+  }
+  return false;
+}
+
+std::string binary_not_found_message(const TestCommand& command) {
+  return command.executable.empty() ? "benchmark binary not found"
+                                    : command.executable + " binary not found";
 }
 
 std::string final_json_document(const std::string& text) {
@@ -166,7 +211,7 @@ void parse_sysbench_stdout(const std::string& output, TestResult& result) {
                  " ms");
 
   const auto events = result.metrics.find("events_per_second");
-  result.passed     = result.process.success() && events != result.metrics.end();
+  mark_passed(result, result.process.success() && events != result.metrics.end());
   if (events != result.metrics.end()) {
     result.summary = "CPU: " + events->second + " events/s";
   } else if (result.process.success()) {
@@ -232,14 +277,14 @@ void parse_fio_json(TestResult& result) {
   const auto* jobs = object_child(result.structured_output.value, "jobs");
   const auto* job  = jobs ? array_child(*jobs, 0) : nullptr;
   if (!job) {
-    result.passed  = false;
+    mark_passed(result, false);
     result.summary = "SD: fio JSON does not contain a job result";
     return;
   }
 
   double value = 0.0;
   if (number_at(*job, {"error"}, value) && value != 0.0) {
-    result.passed  = false;
+    mark_passed(result, false);
     result.summary = "SD: fio reported job error " + number_string(value, 0);
     return;
   }
@@ -256,8 +301,8 @@ void parse_fio_json(TestResult& result) {
     result.metrics["write_clat_95th"] = milliseconds_string_from_ns(value);
   }
 
-  result.passed =
-      result.process.success() && result.metrics.find("write_bw") != result.metrics.end();
+  mark_passed(result,
+              result.process.success() && result.metrics.find("write_bw") != result.metrics.end());
   const auto write_bw = result.metrics.find("write_bw");
   const auto iops     = result.metrics.find("write_iops");
   if (write_bw != result.metrics.end()) {
@@ -331,8 +376,9 @@ void parse_stress_yaml(TestResult& result) {
   result.metrics["yaml_output"] = K_STRESS_NG_YAML_PATH;
   const bool stdout_ok =
       parse_stress_stdout(result.process.stdout_text + "\n" + result.process.stderr_text, result);
-  result.passed = !result.process.timed_out && result.process.error_message.empty() &&
-                  (result.process.exit_code == 0 || stdout_ok) && (first != nullptr || stdout_ok);
+  mark_passed(result,
+              !result.process.timed_out && result.process.error_message.empty() &&
+                  (result.process.exit_code == 0 || stdout_ok) && (first != nullptr || stdout_ok));
   if (result.passed && result.summary.empty()) {
     result.summary = "Memory: stress-ng YAML metrics parsed";
   } else if (!result.passed && first == nullptr) {
@@ -373,6 +419,17 @@ TestResult run_command_and_collect(const TestCommand& command,
   result.name         = command.name;
   result.command_line = command_to_string(command);
 
+  if (!executable_on_path(command.executable)) {
+    result.status  = TestStatus::WARNING;
+    result.passed  = false;
+    result.summary = binary_not_found_message(command);
+    result.process.error_message = result.summary;
+    if (progress_callback) {
+      progress_callback({command.kind, {}, false, 0, 100});
+    }
+    return result;
+  }
+
   process::ProcessOptions options;
   options.timeout_ms       = command.timeout_ms;
   options.max_output_bytes = 512U * 1024U;
@@ -394,7 +451,7 @@ TestResult run_command_and_collect(const TestCommand& command,
   if (progress_callback) {
     progress_callback({command.kind, {}, false, command.duration_seconds, 100});
   }
-  result.passed = result.process.success();
+  mark_passed(result, result.process.success());
   if (!result.passed) {
     result.summary =
         result.process.error_message.empty() ? "command failed" : result.process.error_message;
@@ -489,12 +546,18 @@ std::string command_to_string(const TestCommand& command) {
 
 TestResult run_cpu_sysbench(ProgressCallback progress_callback) {
   auto result = run_command_and_collect(make_cpu_sysbench_command(), progress_callback);
+  if (result.status == TestStatus::WARNING) {
+    return result;
+  }
   parse_sysbench_stdout(result.process.stdout_text, result);
   return result;
 }
 
 TestResult run_memory_stress_ng(ProgressCallback progress_callback) {
   auto result = run_command_and_collect(make_memory_stress_ng_command(), progress_callback);
+  if (result.status == TestStatus::WARNING) {
+    return result;
+  }
   const bool stdout_ok =
       parse_stress_stdout(result.process.stdout_text + "\n" + result.process.stderr_text, result);
   if (result.process.success()) {
@@ -503,24 +566,27 @@ TestResult run_memory_stress_ng(ProgressCallback progress_callback) {
     if (yaml_ok) {
       parse_stress_yaml(result);
     } else {
-      result.passed =
-          stdout_ok && !result.process.timed_out && result.process.error_message.empty();
+      mark_passed(result,
+                  stdout_ok && !result.process.timed_out && result.process.error_message.empty());
       if (!result.passed) {
         result.summary = "Memory: failed to parse stress-ng YAML output";
       }
     }
   } else if (stdout_ok && !result.process.timed_out && result.process.error_message.empty()) {
-    result.passed = true;
+    mark_passed(result, true);
   }
   return result;
 }
 
 TestResult run_sd_card_fio(ProgressCallback progress_callback) {
   auto result = run_command_and_collect(make_sd_card_fio_command(), progress_callback);
+  if (result.status == TestStatus::WARNING) {
+    return result;
+  }
   if (result.process.success()) {
     result.structured_output =
         process::parse_json_output(final_json_document(result.process.stdout_text));
-    result.passed = result.structured_output.success();
+    mark_passed(result, result.structured_output.success());
     if (result.passed) {
       parse_fio_json(result);
     } else {
