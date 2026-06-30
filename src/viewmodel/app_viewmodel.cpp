@@ -6,6 +6,7 @@
 
 #include "app_viewmodel.h"
 
+#include <array>
 #include <utility>
 
 namespace viewmodel {
@@ -13,32 +14,40 @@ namespace {
 
 int page_to_int(model::AppPage page) { return static_cast<int>(page); }
 
-model::AppPage next_test_page(model::AppPage page) {
-  switch (page) {
-    case model::AppPage::KEYBOARD_TEST:
-      return model::AppPage::LCD_TEST;
-    case model::AppPage::LCD_TEST:
-      return model::AppPage::AUDIO_TEST;
-    case model::AppPage::AUDIO_TEST:
-      return model::AppPage::CAMERA_TEST;
-    case model::AppPage::CAMERA_TEST:
-      return model::AppPage::CONNECTIVITY_TEST;
-    case model::AppPage::CONNECTIVITY_TEST:
-      return model::AppPage::IR_TEST;
-    case model::AppPage::IR_TEST:
-      return model::AppPage::POWER_INFO;
-    case model::AppPage::POWER_INFO:
-      return model::AppPage::IMU_TEST;
-    case model::AppPage::IMU_TEST:
-      return model::AppPage::DEVICE_INFO;
-    case model::AppPage::DEVICE_INFO:
-      return model::AppPage::PERF_TEST;
-    case model::AppPage::PERF_TEST:
-    case model::AppPage::START:
-      return model::AppPage::START;
-  }
+struct TestSequenceItem {
+  const char* name;
+  model::AppPage page;
+};
 
-  return model::AppPage::START;
+constexpr std::array<TestSequenceItem, 21> K_TEST_SEQUENCE = {{
+    {"Input Test", model::AppPage::KEYBOARD_TEST},
+    {"Display Test", model::AppPage::LCD_TEST},
+    {"Audio Test", model::AppPage::AUDIO_TEST},
+    {"Camera Test", model::AppPage::CAMERA_TEST},
+    {"IR Test", model::AppPage::IR_TEST},
+    {"Wi-Fi", model::AppPage::WIFI_TEST},
+    {"Bluetooth", model::AppPage::BT_TEST},
+    {"Ethernet", model::AppPage::ETH_TEST},
+    {"USB", model::AppPage::USB_TEST},
+    {"HDMI", model::AppPage::HDMI_TEST},
+    {"I2C", model::AppPage::I2C_TEST},
+    {"SPI", model::AppPage::SPI_TEST},
+    {"UART", model::AppPage::UART_TEST},
+    {"EXT.IO", model::AppPage::EXT_IO_TEST},
+    {"Link Test", model::AppPage::LINK_TEST},
+    {"Device Information", model::AppPage::DEVICE_INFO},
+    {"Power Information", model::AppPage::POWER_INFO},
+    {"IMU Test", model::AppPage::IMU_TEST},
+    {"CPU Benchmark", model::AppPage::CPU_BENCHMARK},
+    {"Mem Stress Test", model::AppPage::MEM_STRESS_TEST},
+    {"SD Card Test", model::AppPage::SD_CARD_TEST},
+}};
+
+const TestSequenceItem* sequence_item(std::size_t index) {
+  if (index >= K_TEST_SEQUENCE.size()) {
+    return nullptr;
+  }
+  return &K_TEST_SEQUENCE[index];
 }
 
 }  // namespace
@@ -176,11 +185,19 @@ void AppViewModel::show_device_info_page() { show_page_(model::AppPage::DEVICE_I
 
 void AppViewModel::show_perf_test_page() { show_page_(model::AppPage::PERF_TEST); }
 
+void AppViewModel::show_test_result_page() { show_page_(model::AppPage::TEST_RESULT); }
+
 void AppViewModel::request_ftl_page() { ftl_page_requested_subject_.set(++ftl_request_revision_); }
 
 void AppViewModel::start_full_test_sequence() {
   model_.set_test_sequence_active(true);
-  show_keyboard_test_page();
+  test_sequence_index_ = 0;
+  test_session_.start();
+  if (const auto* item = sequence_item(test_sequence_index_)) {
+    show_page_(item->page);
+  } else {
+    show_start_page();
+  }
 }
 
 void AppViewModel::show_single_test_page(model::AppPage page) {
@@ -191,19 +208,100 @@ void AppViewModel::show_single_test_page(model::AppPage page) {
 void AppViewModel::refresh_current_page() { current_page_subject_.notify(); }
 
 void AppViewModel::complete_current_test() {
+  complete_current_test(model::TestResult::PASS);
+}
+
+void AppViewModel::complete_current_test(model::TestResult result) {
+  if (model_.test_sequence_active()) {
+    test_session_.append_result(current_test_name(), result);
+  }
+
   if (!model_.test_sequence_active()) {
     show_start_page();
     return;
   }
 
-  const auto next_page = next_test_page(model_.current_page());
-  if (next_page == model::AppPage::START) {
-    show_start_page();
+  ++test_sequence_index_;
+  if (const auto* item = sequence_item(test_sequence_index_)) {
+    show_page_(item->page);
     return;
   }
 
-  show_page_(next_page);
+  model_.set_test_sequence_active(false);
+  show_test_result_page();
 }
+
+const char* AppViewModel::current_test_name() const {
+  if (model_.test_sequence_active()) {
+    if (const auto* item = sequence_item(test_sequence_index_)) {
+      return item->name;
+    }
+  }
+
+  switch (model_.current_page()) {
+    case model::AppPage::KEYBOARD_TEST:
+      return "Input Test";
+    case model::AppPage::LCD_TEST:
+      return "Display Test";
+    case model::AppPage::AUDIO_TEST:
+      return "Audio Test";
+    case model::AppPage::CAMERA_TEST:
+      return "Camera Test";
+    case model::AppPage::IR_TEST:
+      return "IR Test";
+    case model::AppPage::CONNECTIVITY_TEST:
+      return "Connectivity Test";
+    case model::AppPage::WIFI_TEST:
+      return "Wi-Fi";
+    case model::AppPage::BT_TEST:
+      return "Bluetooth";
+    case model::AppPage::ETH_TEST:
+      return "Ethernet";
+    case model::AppPage::USB_TEST:
+      return "USB";
+    case model::AppPage::HDMI_TEST:
+      return "HDMI";
+    case model::AppPage::I2C_TEST:
+      return "I2C";
+    case model::AppPage::SPI_TEST:
+      return "SPI";
+    case model::AppPage::UART_TEST:
+      return "UART";
+    case model::AppPage::EXT_IO_TEST:
+      return "EXT.IO";
+    case model::AppPage::LINK_TEST:
+      return "Link Test";
+    case model::AppPage::POWER_INFO:
+      return "Power Information";
+    case model::AppPage::IMU_TEST:
+      return "IMU Test";
+    case model::AppPage::DEVICE_INFO:
+      return "Device Information";
+    case model::AppPage::PERF_TEST:
+      return "Performance Test";
+    case model::AppPage::CPU_BENCHMARK:
+      return "CPU Benchmark";
+    case model::AppPage::MEM_STRESS_TEST:
+      return "Mem Stress Test";
+    case model::AppPage::SD_CARD_TEST:
+      return "SD Card Test";
+    case model::AppPage::START:
+    case model::AppPage::TEST_RESULT:
+    default:
+      return "Factory Test";
+  }
+}
+
+std::size_t AppViewModel::current_test_number() const {
+  if (!model_.test_sequence_active() || test_sequence_index_ >= K_TEST_SEQUENCE.size()) {
+    return 0;
+  }
+  return test_sequence_index_ + 1;
+}
+
+std::size_t AppViewModel::test_count() const { return K_TEST_SEQUENCE.size(); }
+
+const std::string& AppViewModel::test_result_path() const { return test_session_.output_path(); }
 
 void AppViewModel::set_back_request_handler(BackRequestHandler handler, void* user_data) {
   back_request_handler_   = handler;

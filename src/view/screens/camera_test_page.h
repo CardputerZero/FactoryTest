@@ -24,6 +24,7 @@ class CameraTestPage : public BaseScreen {
 
  private:
   void update_preview_frame_();
+  static void key_listener(uint32_t key, const char* key_name, void* user_data);
   static void frame_timer_cb(lv_timer_t* timer);
 
   platform::camera::CameraInfo camera_{};

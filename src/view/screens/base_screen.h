@@ -14,6 +14,7 @@
 #include "app_viewmodel.h"
 #include "lvgl.h"
 #include "navbar.h"
+#include "dialog.h"
 #include "titlebar.h"
 
 namespace app {
@@ -44,8 +45,12 @@ class BaseScreen {
                        std::function<void()> action,
                        lv_event_code_t event_code           = LV_EVENT_CLICKED,
                        viewmodel::NavHoldTarget hold_target = viewmodel::NavHoldTarget::NONE,
-                       bool force_enabled                   = false);
+                       bool force_enabled                   = false,
+                       std::function<void()> press_action   = {},
+                       std::function<void()> release_action = {});
   void set_default_test_nav_(bool show_complete = true);
+  void show_test_result_dialog_();
+  bool handle_test_result_dialog_key_(uint32_t key, const char* key_name = nullptr);
   view::widgets::TitleBar* title_bar_ref_();
 
  private:
@@ -55,6 +60,7 @@ class BaseScreen {
   lv_obj_t* content_{nullptr};
   std::unique_ptr<view::widgets::TitleBar> title_bar_{};
   std::unique_ptr<view::widgets::NavBar> nav_bar_{};
+  std::unique_ptr<view::widgets::Dialog> test_result_dialog_{};
 };
 
 }  // namespace screen

@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstring>
 #include <cstdlib>
 #include <utility>
 
@@ -46,8 +47,21 @@ const std::array<LcdColorStep, model::LcdTestModel::K_COLOR_STEP_COUNT>& lcd_col
 constexpr uint32_t K_BRIGHTNESS_COMMIT_DELAY_MS = 320;
 constexpr uint32_t K_BRIGHTNESS_SMOOTH_STEP_MS  = 20;
 constexpr int32_t K_BRIGHTNESS_SMOOTH_STEP      = 2;
-constexpr uint32_t K_LCD_NAV_DEBOUNCE_MS        = 220;
-constexpr uint32_t K_LCD_COMPLETE_LOCKOUT_MS    = 450;
+
+bool is_tab_input(uint32_t key, const char* key_name) {
+  if (key == '\t') {
+    return true;
+  }
+#ifdef LV_KEY_NEXT
+  if (key == LV_KEY_NEXT) {
+    return true;
+  }
+#endif
+  if (!key_name) {
+    return false;
+  }
+  return std::strcmp(key_name, "Tab") == 0 || std::strcmp(key_name, "Next") == 0;
+}
 
 }  // namespace
 
@@ -60,9 +74,11 @@ LcdTestPage::LcdTestPage(viewmodel::AppViewModel& app_view_model,
   lcd_view_model_.reset_test();
   update_nav_actions_();
   init();
+  platform::set_key_listener(key_listener, this);
 }
 
 LcdTestPage::~LcdTestPage() {
+  platform::clear_key_listener(key_listener, this);
   if (color_observer_handle_) {
     lv_observer_remove(color_observer_handle_);
     color_observer_handle_ = nullptr;
@@ -90,8 +106,28 @@ LcdTestPage::~LcdTestPage() {
 }
 
 void LcdTestPage::build_content(lv_obj_t* content) {
-  prompt_ = lv_label_create(content);
-  lv_label_set_text(prompt_, "Press 6 or Enter to start display test");
+  tileview_ = lv_tileview_create(content);
+  lv_obj_set_size(tileview_, LV_PCT(100), LV_PCT(100));
+  lv_obj_center(tileview_);
+  lv_obj_set_scrollbar_mode(tileview_, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_set_style_bg_opa(tileview_, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_border_width(tileview_, 0, 0);
+  lv_obj_set_style_pad_all(tileview_, 0, 0);
+  lv_obj_add_event_cb(tileview_, tile_scroll_end_cb, LV_EVENT_SCROLL_END, this);
+
+  tiles_[K_COLOR_TILE_INDEX] =
+      lv_tileview_add_tile(tileview_, K_COLOR_TILE_INDEX, 0, LV_DIR_RIGHT);
+  tiles_[K_BRIGHTNESS_TILE_INDEX] =
+      lv_tileview_add_tile(tileview_, K_BRIGHTNESS_TILE_INDEX, 0, LV_DIR_LEFT);
+  for (auto* tile : tiles_) {
+    lv_obj_set_style_bg_opa(tile, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(tile, 0, 0);
+    lv_obj_set_style_pad_all(tile, 0, 0);
+    lv_obj_set_scrollbar_mode(tile, LV_SCROLLBAR_MODE_OFF);
+  }
+
+  prompt_ = lv_label_create(tiles_[K_COLOR_TILE_INDEX]);
+  lv_label_set_text(prompt_, "Press Enter to step through LCD colors.");
   lv_obj_set_width(prompt_, 280);
   lv_obj_set_style_text_align(prompt_, LV_TEXT_ALIGN_CENTER, 0);
   auto* prompt_font = assets_ref_().load_font("inter-medium.ttf", 16);
@@ -101,7 +137,7 @@ void LcdTestPage::build_content(lv_obj_t* content) {
                        app_view_model_ref_().dark_mode_subject(),
                        reactive::ThemeRole::TEXT);
 
-  brightness_group_ = lv_obj_create(content);
+  brightness_group_ = lv_obj_create(tiles_[K_BRIGHTNESS_TILE_INDEX]);
   lv_obj_remove_style_all(brightness_group_);
   lv_obj_set_size(brightness_group_, 300, 118);
   lv_obj_set_flex_flow(brightness_group_, LV_FLEX_FLOW_COLUMN);
@@ -112,7 +148,6 @@ void LcdTestPage::build_content(lv_obj_t* content) {
   lv_obj_set_style_pad_row(brightness_group_, 12, 0);
   lv_obj_clear_flag(brightness_group_, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_center(brightness_group_);
-  lv_obj_add_flag(brightness_group_, LV_OBJ_FLAG_HIDDEN);
 
   brightness_label_ = lv_label_create(brightness_group_);
   lv_obj_set_width(brightness_label_, 290);
@@ -168,33 +203,33 @@ void LcdTestPage::build_content(lv_obj_t* content) {
   apply_color_index_(0);
   apply_brightness_active_(lcd_view_model_.is_brightness_test_active());
   apply_brightness_percent_(model::LcdTestModel::K_INITIAL_BRIGHTNESS_PERCENT);
+  show_tile_(K_COLOR_TILE_INDEX, false);
 }
 
 void LcdTestPage::apply_color_index_(int32_t index) {
   if (!prompt_ || !color_layer_ || !brightness_group_) {
     return;
   }
+  current_color_index_ = index;
 
   if (lcd_view_model_.is_brightness_test_active()) {
     lv_obj_add_flag(prompt_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(color_layer_, LV_OBJ_FLAG_HIDDEN);
+    show_tile_(K_BRIGHTNESS_TILE_INDEX, true);
     return;
   }
 
   if (index <= 0) {
-    lv_label_set_text(prompt_, "Press 6 or Enter to start display test");
+    lv_label_set_text(prompt_, "Press Enter to step through LCD colors.");
     lv_obj_remove_flag(prompt_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(color_layer_, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(brightness_group_, LV_OBJ_FLAG_HIDDEN);
     return;
   }
 
   if (index > model::LcdTestModel::K_COLOR_STEP_COUNT) {
-    lv_label_set_text(prompt_,
-                      "Did all display colors display correctly?\nPress 6 or Enter to continue.");
+    lv_label_set_text(prompt_, "LCD color test complete.");
     lv_obj_remove_flag(prompt_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(color_layer_, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(brightness_group_, LV_OBJ_FLAG_HIDDEN);
     return;
   }
 
@@ -202,7 +237,6 @@ void LcdTestPage::apply_color_index_(int32_t index) {
   const auto& step                   = steps[static_cast<std::size_t>(index - 1)];
   const bool was_color_layer_visible = !lv_obj_has_flag(color_layer_, LV_OBJ_FLAG_HIDDEN);
   lv_obj_add_flag(prompt_, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_add_flag(brightness_group_, LV_OBJ_FLAG_HIDDEN);
   lv_obj_remove_flag(color_layer_, LV_OBJ_FLAG_HIDDEN);
   lv_obj_set_style_bg_opa(color_layer_, LV_OPA_COVER, 0);
   if (was_color_layer_visible) {
@@ -230,12 +264,11 @@ void LcdTestPage::apply_brightness_active_(bool active) {
   if (active) {
     lv_obj_add_flag(prompt_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(color_layer_, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_remove_flag(brightness_group_, LV_OBJ_FLAG_HIDDEN);
+    show_tile_(K_BRIGHTNESS_TILE_INDEX, true);
     update_nav_actions_();
     return;
   }
 
-  lv_obj_add_flag(brightness_group_, LV_OBJ_FLAG_HIDDEN);
   update_nav_actions_();
 }
 
@@ -271,71 +304,89 @@ void LcdTestPage::update_nav_actions_() {
   back.action = [this]() { app_view_model_ref_().request_back_or_quit(); };
   actions[0]  = std::move(back);
 
-  if (lcd_view_model_.is_brightness_test_active()) {
+  if (active_tile_index_ == K_BRIGHTNESS_TILE_INDEX) {
     viewmodel::NavAction decrease;
     decrease.icon   = view::ICON_MINUS;
-    decrease.action = [this]() {
-      if (can_trigger_lcd_brightness_()) {
-        lcd_view_model_.decrease_brightness();
-      }
-    };
-    actions[1] = std::move(decrease);
-
-    viewmodel::NavAction complete;
-    complete.icon   = view::ICON_CHECK_SQUARE;
-    complete.action = [this]() {
-      if (can_complete_lcd_test_()) {
-        app_view_model_ref_().complete_current_test();
-      }
-    };
-    actions[2] = std::move(complete);
+    decrease.action = [this]() { lcd_view_model_.decrease_brightness(); };
+    actions[1]      = std::move(decrease);
 
     viewmodel::NavAction increase;
     increase.icon   = view::ICON_PLUS;
-    increase.action = [this]() {
-      if (can_trigger_lcd_brightness_()) {
-        lcd_view_model_.increase_brightness();
-      }
-    };
-    actions[3] = std::move(increase);
-  } else {
-    viewmodel::NavAction advance;
-    advance.icon   = view::ICON_CHECK_SQUARE;
-    advance.action = [this]() {
-      if (can_trigger_lcd_color_()) {
-        lcd_view_model_.advance_color();
-      }
-    };
-    actions[2] = std::move(advance);
+    increase.action = [this]() { lcd_view_model_.increase_brightness(); };
+    actions[3]      = std::move(increase);
   }
+
+  viewmodel::NavAction complete;
+  complete.icon   = view::ICON_CHECK_SQUARE;
+  complete.action = [this]() { show_test_result_dialog_(); };
+  actions[4]      = std::move(complete);
 
   app_view_model_ref_().set_nav_actions(std::move(actions));
 }
 
-bool LcdTestPage::can_trigger_lcd_color_() {
-  if (has_lcd_color_trigger_ && lv_tick_elaps(last_lcd_color_trigger_at_) < K_LCD_NAV_DEBOUNCE_MS) {
-    return false;
+void LcdTestPage::advance_color_step_() {
+  if (active_tile_index_ != K_COLOR_TILE_INDEX || lcd_view_model_.is_brightness_test_active()) {
+    return;
   }
-
-  last_lcd_color_trigger_at_ = lv_tick_get();
-  has_lcd_color_trigger_     = true;
-  return true;
+  lcd_view_model_.advance_color();
 }
 
-bool LcdTestPage::can_trigger_lcd_brightness_() {
-  if (has_lcd_brightness_trigger_ &&
-      lv_tick_elaps(last_lcd_brightness_trigger_at_) < K_LCD_NAV_DEBOUNCE_MS) {
-    return false;
+void LcdTestPage::show_tile_(std::size_t index, bool animate) {
+  if (!tileview_ || index >= tiles_.size() || !tiles_[index]) {
+    return;
   }
 
-  last_lcd_brightness_trigger_at_ = lv_tick_get();
-  has_lcd_brightness_trigger_     = true;
-  return true;
+  if (index == K_BRIGHTNESS_TILE_INDEX && !lcd_view_model_.is_brightness_test_active()) {
+    lcd_view_model_.start_brightness_test();
+    return;
+  }
+
+  active_tile_index_ = index;
+  update_nav_actions_();
+  if (color_layer_) {
+    if (active_tile_index_ == K_COLOR_TILE_INDEX && current_color_index_ > 0 &&
+        current_color_index_ <= model::LcdTestModel::K_COLOR_STEP_COUNT &&
+        !lcd_view_model_.is_brightness_test_active()) {
+      lv_obj_remove_flag(color_layer_, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_add_flag(color_layer_, LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+  lv_tileview_set_tile(tileview_, tiles_[index], animate ? LV_ANIM_ON : LV_ANIM_OFF);
 }
 
-bool LcdTestPage::can_complete_lcd_test_() {
-  return !has_lcd_color_trigger_ ||
-         lv_tick_elaps(last_lcd_color_trigger_at_) >= K_LCD_COMPLETE_LOCKOUT_MS;
+void LcdTestPage::switch_to_next_tile_() {
+  if (lcd_view_model_.is_brightness_test_active()) {
+    show_tile_(K_BRIGHTNESS_TILE_INDEX, true);
+    return;
+  }
+  const auto next = active_tile_index_ == K_COLOR_TILE_INDEX ? K_BRIGHTNESS_TILE_INDEX
+                                                             : K_COLOR_TILE_INDEX;
+  show_tile_(next, true);
+}
+
+void LcdTestPage::sync_active_tile_() {
+  if (!tileview_) {
+    return;
+  }
+
+  auto* active_tile = lv_tileview_get_tile_active(tileview_);
+  for (std::size_t i = 0; i < tiles_.size(); ++i) {
+    if (active_tile == tiles_[i]) {
+      active_tile_index_ = i;
+      update_nav_actions_();
+      if (color_layer_) {
+        if (active_tile_index_ == K_COLOR_TILE_INDEX && current_color_index_ > 0 &&
+            current_color_index_ <= model::LcdTestModel::K_COLOR_STEP_COUNT &&
+            !lcd_view_model_.is_brightness_test_active()) {
+          lv_obj_remove_flag(color_layer_, LV_OBJ_FLAG_HIDDEN);
+        } else {
+          lv_obj_add_flag(color_layer_, LV_OBJ_FLAG_HIDDEN);
+        }
+      }
+      return;
+    }
+  }
 }
 
 void LcdTestPage::schedule_brightness_commit_() {
@@ -437,6 +488,50 @@ void LcdTestPage::theme_observer(lv_observer_t* observer, lv_subject_t* subject)
   auto* page = static_cast<LcdTestPage*>(lv_observer_get_user_data(observer));
   if (page) {
     page->apply_brightness_theme_(lv_subject_get_int(subject) != 0);
+  }
+}
+
+void LcdTestPage::tile_scroll_end_cb(lv_event_t* event) {
+  auto* page = static_cast<LcdTestPage*>(lv_event_get_user_data(event));
+  if (page) {
+    page->sync_active_tile_();
+  }
+}
+
+void LcdTestPage::key_listener(uint32_t key, const char* key_name, void* user_data) {
+  auto* page = static_cast<LcdTestPage*>(user_data);
+  if (!page) {
+    return;
+  }
+  if (page->handle_test_result_dialog_key_(key, key_name)) {
+    return;
+  }
+
+  if (is_tab_input(key, key_name)) {
+    page->switch_to_next_tile_();
+    return;
+  }
+
+  switch (key) {
+    case LV_KEY_ENTER:
+      page->advance_color_step_();
+      break;
+    case LV_KEY_UP:
+    case LV_KEY_RIGHT:
+    case '7':
+    case 'x':
+    case 'X':
+      page->lcd_view_model_.increase_brightness();
+      break;
+    case LV_KEY_DOWN:
+    case LV_KEY_LEFT:
+    case '5':
+    case 'f':
+    case 'F':
+      page->lcd_view_model_.decrease_brightness();
+      break;
+    default:
+      break;
   }
 }
 

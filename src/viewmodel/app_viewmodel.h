@@ -16,6 +16,7 @@
 #include "app_model.h"
 #include "lvgl.h"
 #include "subjects.h"
+#include "test_session.h"
 
 namespace viewmodel {
 
@@ -82,11 +83,17 @@ class AppViewModel {
   void show_power_info_page();
   void show_device_info_page();
   void show_perf_test_page();
+  void show_test_result_page();
   void request_ftl_page();
   void start_full_test_sequence();
   void show_single_test_page(model::AppPage page);
   void refresh_current_page();
   void complete_current_test();
+  void complete_current_test(model::TestResult result);
+  const char* current_test_name() const;
+  std::size_t current_test_number() const;
+  std::size_t test_count() const;
+  const std::string& test_result_path() const;
   void set_back_request_handler(BackRequestHandler handler, void* user_data);
   void clear_back_request_handler(BackRequestHandler handler, void* user_data);
   void request_back_or_quit();
@@ -98,6 +105,8 @@ class AppViewModel {
 
  private:
   model::AppModel model_{};
+  model::TestSession test_session_{};
+  std::size_t test_sequence_index_{0};
   reactive::StringSubject<48> title_subject_;
   reactive::IntSubject title_alignment_subject_;
   reactive::IntSubject title_x_offset_subject_;

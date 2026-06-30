@@ -36,9 +36,11 @@ CameraTestPage::CameraTestPage(viewmodel::AppViewModel& app_view_model, app::Ass
     }
   }
   init();
+  platform::set_key_listener(key_listener, this);
 }
 
 CameraTestPage::~CameraTestPage() {
+  platform::clear_key_listener(key_listener, this);
   if (frame_timer_) {
     lv_timer_delete(frame_timer_);
     frame_timer_ = nullptr;
@@ -127,6 +129,13 @@ void CameraTestPage::update_preview_frame_() {
   std::copy(frame.begin(), frame.end(), preview_buffer_.begin());
   preview_image_dsc_.data = reinterpret_cast<const uint8_t*>(preview_buffer_.data());
   lv_obj_invalidate(preview_image_);
+}
+
+void CameraTestPage::key_listener(uint32_t key, const char* key_name, void* user_data) {
+  auto* page = static_cast<CameraTestPage*>(user_data);
+  if (page) {
+    page->handle_test_result_dialog_key_(key, key_name);
+  }
 }
 
 void CameraTestPage::frame_timer_cb(lv_timer_t* timer) {

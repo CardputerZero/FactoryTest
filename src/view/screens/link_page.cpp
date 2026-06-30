@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "connectivity_link_page.h"
+#include "link_page.h"
 
 #include <cstdlib>
 #include <iomanip>
@@ -13,7 +13,7 @@
 #include <utility>
 
 #include "bindings.h"
-#include "connectivity_subpage_common.h"
+#include "io_page_common.h"
 #include "linux_input.h"
 #include "theme.h"
 

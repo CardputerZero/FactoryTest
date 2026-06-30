@@ -267,7 +267,7 @@ void PerfTestPage::update_nav_actions_() {
     app_view_model_ref_().request_back_or_quit();
   });
   set_nav_action_('8', view::ICON_CHECK_SQUARE, [this]() {
-    app_view_model_ref_().complete_current_test();
+    show_test_result_dialog_();
   });
 }
 
@@ -276,10 +276,11 @@ void PerfTestPage::update_title_(model::PerfSubPage page) {
 }
 
 void PerfTestPage::key_listener(uint32_t key, const char* key_name, void* user_data) {
-  LV_UNUSED(key_name);
-
   auto* page = static_cast<PerfTestPage*>(user_data);
   if (!page) {
+    return;
+  }
+  if (page->handle_test_result_dialog_key_(key, key_name)) {
     return;
   }
 

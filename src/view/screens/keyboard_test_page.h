@@ -17,6 +17,7 @@
 #include "base_screen.h"
 #include "icon_button.h"
 #include "keyboard_test_viewmodel.h"
+#include "popup.h"
 
 namespace screen {
 
@@ -36,6 +37,7 @@ class KeyboardTestPage : public BaseScreen {
  protected:
   void build_content(lv_obj_t* content) override;
   static void key_listener(uint32_t key, const char* key_name, void* user_data);
+  static void key_release_listener(uint32_t key, const char* key_name, void* user_data);
 
  private:
   enum class KeyState {
@@ -49,8 +51,11 @@ class KeyboardTestPage : public BaseScreen {
   void build_layer_(KeyLayer layer);
   void mark_key_pressed_(uint32_t key, const char* key_name);
   void transition_to_(KeyLayer layer, bool animate = true);
+  void update_nav_actions_();
   void switch_to_next_layout_();
   void sync_active_tile_();
+  void show_hold_popup_(const char* message, view::widgets::PopupTone tone);
+  void hide_hold_popup_();
   static void tile_scroll_end_cb(lv_event_t* event);
   static void long_key_listener(uint32_t key, const char* key_name, void* user_data);
 
@@ -66,6 +71,8 @@ class KeyboardTestPage : public BaseScreen {
   lv_font_t* key_font_{nullptr};
   lv_font_t* extra_key_font_{nullptr};
   lv_obj_t* tileview_{nullptr};
+  std::unique_ptr<view::widgets::Popup> hold_popup_{};
+  view::widgets::PopupTone hold_popup_tone_{view::widgets::PopupTone::DEFAULT};
 };
 
 }  // namespace screen

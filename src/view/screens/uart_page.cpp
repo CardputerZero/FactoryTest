@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "connectivity_uart_page.h"
+#include "uart_page.h"
 
 #include <algorithm>
 #include <array>
@@ -16,7 +16,7 @@
 #include <unistd.h>
 
 #include "bindings.h"
-#include "connectivity_subpage_common.h"
+#include "io_page_common.h"
 #include "gpio_service.h"
 #include "linux_input.h"
 #include "screenshot_service.h"

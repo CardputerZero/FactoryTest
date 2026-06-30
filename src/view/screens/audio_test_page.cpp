@@ -217,8 +217,11 @@ void AudioTestPage::key_listener(uint32_t key, const char* key_name, void* user_
   if (!page) {
     return;
   }
+  if (page->handle_test_result_dialog_key_(key, key_name)) {
+    return;
+  }
 
-  if (key == '6' || key == LV_KEY_ENTER) {
+  if (key == '6') {
     page->start_recording_();
   }
 }

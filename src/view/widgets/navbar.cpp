@@ -16,7 +16,7 @@
 namespace view::widgets {
 namespace {
 
-constexpr std::array<int32_t, 5> K_NAV_BUTTON_X_OFFSETS = {36, 17, 2, -17, -36};
+constexpr std::array<int32_t, 5> K_NAV_BUTTON_X_OFFSETS = {36, 17, 2, -17, -28};
 constexpr uint32_t K_LONG_PRESS_PROGRESS_MS             = 700;
 constexpr std::size_t K_NO_NAV_INDEX                    = 5;
 

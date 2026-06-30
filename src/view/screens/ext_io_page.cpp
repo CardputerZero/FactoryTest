@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "connectivity_ext_io_page.h"
+#include "ext_io_page.h"
 
 #include <chrono>
 #include <cstring>

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "connectivity_subpage_common.h"
+#include "io_page_common.h"
 
 #include <cstddef>
 #include <memory>

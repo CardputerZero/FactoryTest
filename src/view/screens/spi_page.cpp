@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "connectivity_spi_page.h"
+#include "spi_page.h"
 
-#include "connectivity_subpage_common.h"
+#include "io_page_common.h"
 
 #include <string>
 #include <vector>

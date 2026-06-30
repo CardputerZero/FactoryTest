@@ -501,20 +501,18 @@ KeyboardTestPage::KeyboardTestPage(viewmodel::AppViewModel& app_view_model,
     : BaseScreen(app_view_model, assets),
       keyboard_view_model_(keyboard_view_model) {
   platform::set_nav_trigger_mode(platform::NavTriggerMode::LONG_PRESS);
-  set_nav_action_(
-      '4',
-      view::ICON_ARROW_U_UP_LEFT,
-      [this]() { app_view_model_ref_().request_back_or_quit(); },
-      LV_EVENT_LONG_PRESSED,
-      viewmodel::NavHoldTarget::ERROR);
+  update_nav_actions_();
   init();
   platform::set_key_listener(key_listener, this);
+  platform::set_key_release_listener(key_release_listener, this);
   platform::set_long_key_listener(long_key_listener, this);
 }
 
 KeyboardTestPage::~KeyboardTestPage() {
   platform::clear_long_key_listener(long_key_listener, this);
+  platform::clear_key_release_listener(key_release_listener, this);
   platform::clear_key_listener(key_listener, this);
+  hold_popup_.reset();
 }
 
 void KeyboardTestPage::build_content(lv_obj_t* content) {
@@ -660,6 +658,7 @@ void KeyboardTestPage::build_layer_(KeyLayer layer) {
 void KeyboardTestPage::transition_to_(KeyLayer layer, bool animate) {
   active_layer_ = layer;
   update_progress_();
+  update_nav_actions_();
   build_layer_(layer);
 
   const auto index = layer_index(layer);
@@ -681,13 +680,75 @@ void KeyboardTestPage::sync_active_tile_() {
       active_layer_ = static_cast<KeyLayer>(i);
       build_layer_(active_layer_);
       update_progress_();
+      update_nav_actions_();
       return;
     }
   }
 }
 
+void KeyboardTestPage::update_nav_actions_() {
+  app_view_model_ref_().clear_nav_actions();
+  set_nav_action_(
+      '4',
+      view::ICON_ARROW_U_UP_LEFT,
+      [this]() {
+        hide_hold_popup_();
+        app_view_model_ref_().request_back_or_quit();
+      },
+      LV_EVENT_LONG_PRESSED,
+      viewmodel::NavHoldTarget::ERROR,
+      false,
+      [this]() { show_hold_popup_("Hold 4 to exit", view::widgets::PopupTone::ERROR); },
+      [this]() { hide_hold_popup_(); });
+
+  if (active_layer_ == KeyLayer::SYM_KEY) {
+    set_nav_action_(
+        '8',
+        view::ICON_CHECK_SQUARE,
+        [this]() {
+          hide_hold_popup_();
+          show_test_result_dialog_();
+        },
+        LV_EVENT_LONG_PRESSED,
+        viewmodel::NavHoldTarget::SUCCESS,
+        false,
+        [this]() {
+          show_hold_popup_("Hold 8 to confirm test", view::widgets::PopupTone::SUCCESS);
+        },
+        [this]() { hide_hold_popup_(); });
+  }
+}
+
 void KeyboardTestPage::switch_to_next_layout_() {
   transition_to_(next_layer_cyclic(active_layer_));
+}
+
+void KeyboardTestPage::show_hold_popup_(const char* message, view::widgets::PopupTone tone) {
+  if (!root()) {
+    return;
+  }
+  if (hold_popup_ && hold_popup_tone_ != tone) {
+    hold_popup_.reset();
+  }
+  if (!hold_popup_) {
+    view::widgets::PopupConfig config;
+    config.width       = 250;
+    config.label_width = 234;
+    config.message     = message ? message : "";
+    config.tone        = tone;
+    hold_popup_tone_   = tone;
+    hold_popup_ = std::make_unique<view::widgets::Popup>(root(), app_view_model_ref_(), config);
+    hold_popup_->build();
+  } else {
+    hold_popup_->set_text(message ? message : "");
+  }
+  hold_popup_->show();
+}
+
+void KeyboardTestPage::hide_hold_popup_() {
+  if (hold_popup_) {
+    hold_popup_->hide();
+  }
 }
 
 void KeyboardTestPage::mark_key_pressed_(uint32_t key, const char* key_name) {
@@ -721,9 +782,23 @@ void KeyboardTestPage::key_listener(uint32_t key, const char* key_name, void* us
   if (!page) {
     return;
   }
+  if (page->handle_test_result_dialog_key_(key, key_name)) {
+    return;
+  }
+
+  if (is_tab_input(key, key_name)) {
+    page->show_hold_popup_("Hold Tab to switch layout", view::widgets::PopupTone::WARNING);
+  }
 
   page->keyboard_view_model_.record_key(key_name ? key_name : "");
   page->mark_key_pressed_(key, key_name);
+}
+
+void KeyboardTestPage::key_release_listener(uint32_t key, const char* key_name, void* user_data) {
+  auto* page = static_cast<KeyboardTestPage*>(user_data);
+  if (page && is_tab_input(key, key_name)) {
+    page->hide_hold_popup_();
+  }
 }
 
 void KeyboardTestPage::long_key_listener(uint32_t key, const char* key_name, void* user_data) {
@@ -732,6 +807,7 @@ void KeyboardTestPage::long_key_listener(uint32_t key, const char* key_name, voi
     return;
   }
 
+  page->hide_hold_popup_();
   page->switch_to_next_layout_();
 }
 

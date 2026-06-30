@@ -65,6 +65,25 @@ bool is_theme_toggle_key(uint32_t key) { return key == 't' || key == 'T'; }
 
 bool is_screenshot_key(uint32_t key) { return key == 'p' || key == 'P'; }
 
+bool is_io_page(model::AppPage page) {
+  switch (page) {
+    case model::AppPage::CONNECTIVITY_TEST:
+    case model::AppPage::WIFI_TEST:
+    case model::AppPage::BT_TEST:
+    case model::AppPage::ETH_TEST:
+    case model::AppPage::USB_TEST:
+    case model::AppPage::HDMI_TEST:
+    case model::AppPage::I2C_TEST:
+    case model::AppPage::SPI_TEST:
+    case model::AppPage::UART_TEST:
+    case model::AppPage::EXT_IO_TEST:
+    case model::AppPage::LINK_TEST:
+      return true;
+    default:
+      return false;
+  }
+}
+
 #if !USE_DESKTOP && APP_USE_DRM
 bool is_duplicate_candidate(const char* candidate,
                             const char* const* candidates,
@@ -143,8 +162,7 @@ void global_key_listener(uint32_t key, const char* key_name, bool long_pressed, 
   }
 
   const bool keyboard_page = app_view_model->current_page() == model::AppPage::KEYBOARD_TEST;
-  const bool connectivity_page =
-      app_view_model->current_page() == model::AppPage::CONNECTIVITY_TEST;
+  const bool connectivity_page = is_io_page(app_view_model->current_page());
   const bool should_handle = (keyboard_page && long_pressed) || (!keyboard_page && !long_pressed);
   if (is_theme_toggle_key(key) && should_handle && !connectivity_page) {
     app_view_model->toggle_dark_mode();

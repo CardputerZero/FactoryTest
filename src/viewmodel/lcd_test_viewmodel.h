@@ -27,6 +27,7 @@ class LcdTestViewModel {
   bool is_brightness_test_active() const;
   void reset_test();
   void advance_color();
+  void start_brightness_test();
   void increase_brightness();
   void decrease_brightness();
 

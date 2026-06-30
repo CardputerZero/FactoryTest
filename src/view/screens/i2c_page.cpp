@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "connectivity_i2c_page.h"
+#include "i2c_page.h"
 
-#include "connectivity_subpage_common.h"
+#include "io_page_common.h"
 
 #include <array>
 #include <cstdint>

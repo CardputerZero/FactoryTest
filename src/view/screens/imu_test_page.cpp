@@ -264,10 +264,11 @@ void ImuTestPage::scroll_bounce_timer_cb(lv_timer_t* timer) {
 }
 
 void ImuTestPage::key_listener(uint32_t key, const char* key_name, void* user_data) {
-  LV_UNUSED(key_name);
-
   auto* page = static_cast<ImuTestPage*>(user_data);
   if (!page) {
+    return;
+  }
+  if (page->handle_test_result_dialog_key_(key, key_name)) {
     return;
   }
 

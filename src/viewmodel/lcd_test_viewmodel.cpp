@@ -37,6 +37,11 @@ void LcdTestViewModel::advance_color() {
   publish_all_();
 }
 
+void LcdTestViewModel::start_brightness_test() {
+  model_.start_brightness_test();
+  publish_all_();
+}
+
 void LcdTestViewModel::increase_brightness() {
   model_.increase_brightness();
   publish_all_();

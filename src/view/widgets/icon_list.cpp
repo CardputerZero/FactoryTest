@@ -17,7 +17,7 @@ namespace {
 constexpr int32_t K_ROW_HEIGHT    = 22;
 constexpr int32_t K_ICON_WIDTH    = 20;
 constexpr int32_t K_TEXT_OFFSET_X = 26;
-constexpr int32_t K_STATUS_WIDTH  = 34;
+constexpr int32_t K_STATUS_WIDTH  = 40;
 constexpr int32_t K_RIGHT_PADDING = 8;
 constexpr int32_t K_ROW_RADIUS    = 4;
 

@@ -11,7 +11,7 @@
 #include <memory>
 
 #include "base_screen.h"
-#include "connectivity_subpage_views.h"
+#include "io_page_views.h"
 #include "connectivity_test_viewmodel.h"
 #include "icon_list.h"
 

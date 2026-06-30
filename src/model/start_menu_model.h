@@ -10,8 +10,6 @@
 #include <cstddef>
 
 #include "app_model.h"
-#include "connectivity_test_model.h"
-#include "perf_test_model.h"
 
 namespace model {
 
@@ -26,8 +24,6 @@ struct StartMenuItem {
   const char* icon;
   StartMenuCategory category;
   AppPage target_page;
-  PerfSubPage perf_subpage;
-  ConnectivitySubPage connectivity_subpage;
   bool starts_sequence;
 };
 

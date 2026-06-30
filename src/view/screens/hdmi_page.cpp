@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "connectivity_hdmi_page.h"
+#include "hdmi_page.h"
 
-#include "connectivity_subpage_common.h"
+#include "io_page_common.h"
 
 #include <string>
 #include <vector>

@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <array>
 #include <cstdint>
 
 #include "base_screen.h"
@@ -27,9 +28,10 @@ class LcdTestPage : public BaseScreen {
   void apply_brightness_percent_(int32_t percent);
   void apply_brightness_theme_(bool dark_mode);
   void update_nav_actions_();
-  bool can_trigger_lcd_color_();
-  bool can_trigger_lcd_brightness_();
-  bool can_complete_lcd_test_();
+  void advance_color_step_();
+  void show_tile_(std::size_t index, bool animate);
+  void switch_to_next_tile_();
+  void sync_active_tile_();
   void schedule_brightness_commit_();
   void begin_brightness_transition_();
   void step_brightness_transition_();
@@ -39,9 +41,17 @@ class LcdTestPage : public BaseScreen {
   static void theme_observer(lv_observer_t* observer, lv_subject_t* subject);
   static void brightness_commit_timer_cb(lv_timer_t* timer);
   static void brightness_smooth_timer_cb(lv_timer_t* timer);
+  static void tile_scroll_end_cb(lv_event_t* event);
+  static void key_listener(uint32_t key, const char* key_name, void* user_data);
 
  private:
+  static constexpr std::size_t K_COLOR_TILE_INDEX      = 0;
+  static constexpr std::size_t K_BRIGHTNESS_TILE_INDEX = 1;
+  static constexpr std::size_t K_TILE_COUNT            = 2;
+
   viewmodel::LcdTestViewModel& lcd_view_model_;
+  lv_obj_t* tileview_{nullptr};
+  std::array<lv_obj_t*, K_TILE_COUNT> tiles_{};
   lv_obj_t* prompt_{nullptr};
   lv_obj_t* color_layer_{nullptr};
   lv_obj_t* brightness_group_{nullptr};
@@ -54,13 +64,11 @@ class LcdTestPage : public BaseScreen {
   lv_timer_t* brightness_commit_timer_{nullptr};
   lv_timer_t* brightness_smooth_timer_{nullptr};
   int32_t requested_brightness_percent_{model::LcdTestModel::K_INITIAL_BRIGHTNESS_PERCENT};
+  int32_t current_color_index_{0};
   int32_t hardware_brightness_percent_{model::LcdTestModel::K_INITIAL_BRIGHTNESS_PERCENT};
   int32_t target_brightness_percent_{model::LcdTestModel::K_INITIAL_BRIGHTNESS_PERCENT};
+  std::size_t active_tile_index_{K_COLOR_TILE_INDEX};
   bool hardware_brightness_loaded_{false};
-  uint32_t last_lcd_color_trigger_at_{0};
-  uint32_t last_lcd_brightness_trigger_at_{0};
-  bool has_lcd_color_trigger_{false};
-  bool has_lcd_brightness_trigger_{false};
 };
 
 }  // namespace screen

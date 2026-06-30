@@ -537,18 +537,8 @@ void StartScreen::activate_selected_item_() {
     return;
   }
 
-  if (item.perf_subpage != model::PerfSubPage::MENU) {
-    perf_view_model_.show_subpage(item.perf_subpage, true);
-  } else {
-    perf_view_model_.clear_direct_subpage();
-  }
-
-  if (item.connectivity_subpage != model::ConnectivitySubPage::MENU) {
-    connectivity_view_model_.show_subpage(item.connectivity_subpage, true);
-  } else {
-    connectivity_view_model_.clear_direct_subpage();
-  }
-
+  perf_view_model_.clear_direct_subpage();
+  connectivity_view_model_.clear_direct_subpage();
   app_view_model_ref_().show_single_test_page(item.target_page);
 }
 

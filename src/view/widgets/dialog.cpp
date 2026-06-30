@@ -6,6 +6,7 @@
 
 #include "dialog.h"
 
+#include <algorithm>
 #include <cstring>
 #include <utility>
 
@@ -37,15 +38,9 @@ void Dialog::build() {
   lv_obj_remove_style_all(core_obj_);
   lv_obj_set_size(core_obj_, config_.width, config_.height);
   lv_obj_align(core_obj_, config_.align, config_.offset_x, config_.offset_y);
-  lv_obj_set_flex_flow(core_obj_, LV_FLEX_FLOW_COLUMN);
-  lv_obj_set_flex_align(core_obj_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
   lv_obj_set_style_pad_all(core_obj_, config_.pad_all, 0);
   lv_obj_set_style_pad_row(core_obj_, config_.pad_row, 0);
   lv_obj_set_style_radius(core_obj_, 12, 0);
-  lv_obj_set_style_bg_color(core_obj_, colors.button, 0);
-  lv_obj_set_style_bg_opa(core_obj_, LV_OPA_90, 0);
-  lv_obj_set_style_border_color(core_obj_, colors.border, 0);
-  lv_obj_set_style_border_width(core_obj_, 1, 0);
   lv_obj_set_style_shadow_width(core_obj_, 12, 0);
   lv_obj_set_style_shadow_opa(core_obj_, LV_OPA_20, 0);
   if (config_.scroll_y) {
@@ -62,21 +57,52 @@ void Dialog::build() {
 
   content_ = lv_obj_create(core_obj_);
   lv_obj_remove_style_all(content_);
-  lv_obj_set_width(content_, config_.width - config_.pad_all * 2);
-  lv_obj_set_height(content_, LV_SIZE_CONTENT);
+  const int32_t title_height = (config_.show_title || config_.show_shortcuts) ? 18 : 0;
+  const int32_t button_height =
+      (config_.show_ok_button || config_.show_skip_button || config_.show_cancel_button)
+          ? config_.button_height
+          : 0;
+  const int32_t content_y = config_.pad_all + title_height +
+                            ((config_.show_title || config_.show_shortcuts) ? config_.pad_row : 0);
+  const int32_t button_y = config_.height - config_.pad_all - config_.button_bottom_pad -
+                           config_.button_height;
+  const int32_t content_height =
+      std::max<int32_t>(24, button_y - content_y - config_.pad_row);
+  lv_obj_set_size(content_, config_.width - config_.pad_all * 2, content_height);
   lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN);
-  lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
   lv_obj_set_style_pad_row(content_, config_.pad_row, 0);
   lv_obj_clear_flag(content_, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_align(content_, LV_ALIGN_TOP_MID, 0, content_y + config_.body_offset_y);
 
   add_button_row_();
+  bind_theme_(app_view_model_.dark_mode_subject(), app_view_model_.is_dark_mode());
+  update_button_focus_();
   lv_obj_move_foreground(core_obj_);
 }
 
 bool Dialog::visible() const { return core_obj_ && lv_obj_is_valid(core_obj_); }
 
 bool Dialog::handle_key(uint32_t key, const char* key_name) {
-  if (!visible()) {
+  if (!visible() || action_triggered_) {
+    return false;
+  }
+  if (config_.focus_button_navigation) {
+    if (is_cancel_key_(key, key_name)) {
+      return true;
+    }
+    if (is_focus_previous_key_(key, key_name)) {
+      move_button_focus_(-1);
+      return true;
+    }
+    if (is_focus_next_key_(key, key_name)) {
+      move_button_focus_(1);
+      return true;
+    }
+    if (is_ok_key_(key, key_name)) {
+      trigger_focused_button_();
+      return true;
+    }
     return false;
   }
   if (is_cancel_key_(key, key_name)) {
@@ -94,17 +120,39 @@ void Dialog::set_ok_action(std::function<void()> action) {
   callbacks_.ok_action = std::move(action);
 }
 
+void Dialog::set_skip_action(std::function<void()> action) {
+  callbacks_.skip_action = std::move(action);
+}
+
 void Dialog::set_cancel_action(std::function<void()> action) {
   callbacks_.cancel_action = std::move(action);
 }
 
 void Dialog::trigger_ok() {
+  if (action_triggered_) {
+    return;
+  }
+  action_triggered_ = true;
   if (callbacks_.ok_action) {
     callbacks_.ok_action();
   }
 }
 
+void Dialog::trigger_skip() {
+  if (action_triggered_) {
+    return;
+  }
+  action_triggered_ = true;
+  if (callbacks_.skip_action) {
+    callbacks_.skip_action();
+  }
+}
+
 void Dialog::trigger_cancel() {
+  if (action_triggered_) {
+    return;
+  }
+  action_triggered_ = true;
   if (callbacks_.cancel_action) {
     callbacks_.cancel_action();
   } else {
@@ -120,7 +168,10 @@ void Dialog::close() {
   content_       = nullptr;
   button_row_    = nullptr;
   ok_button_     = nullptr;
+  skip_button_   = nullptr;
   cancel_button_ = nullptr;
+  button_entries_.clear();
+  action_triggered_ = false;
 }
 
 lv_obj_t* Dialog::content() const { return content_; }
@@ -134,7 +185,7 @@ lv_obj_t* Dialog::add_label(const char* text, int32_t width, lv_text_align_t ali
   lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
   lv_obj_set_width(label, width);
   lv_obj_set_style_text_align(label, align, 0);
-  auto* font = assets_.load_font("inter-medium.ttf", 10);
+  auto* font = assets_.load_font("inter-medium.ttf", config_.body_font_size);
   lv_obj_set_style_text_font(label, font ? font : &lv_font_montserrat_12, 0);
   reactive::bind_theme(label, app_view_model_.dark_mode_subject(), reactive::ThemeRole::TEXT);
   return label;
@@ -212,23 +263,158 @@ lv_obj_t* Dialog::add_display_field(const char* text, int32_t width, int32_t hei
 
 lv_obj_t* Dialog::ok_button() const { return ok_button_; }
 
+lv_obj_t* Dialog::skip_button() const { return skip_button_; }
+
 lv_obj_t* Dialog::cancel_button() const { return cancel_button_; }
 
-lv_obj_t* Dialog::add_button_(lv_obj_t* parent, const char* text, lv_event_cb_t callback) {
+lv_obj_t* Dialog::add_button_(lv_obj_t* parent,
+                              const char* text,
+                              DialogButtonTone tone,
+                              lv_event_cb_t callback) {
   auto* button = lv_button_create(parent);
   lv_obj_remove_style_all(button);
-  lv_obj_set_size(button, 78, 24);
+  lv_obj_set_size(button, config_.button_width, config_.button_height);
   lv_obj_set_style_radius(button, 8, 0);
-  reactive::bind_theme(button, app_view_model_.dark_mode_subject(), reactive::ThemeRole::BUTTON);
   lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, this);
 
   auto* label = lv_label_create(button);
   lv_label_set_text(label, text ? text : "OK");
   auto* font = assets_.load_font("inter-semibold.ttf", 11);
   lv_obj_set_style_text_font(label, font ? font : &lv_font_montserrat_12, 0);
-  reactive::bind_theme(label, app_view_model_.dark_mode_subject(), reactive::ThemeRole::TEXT);
+  apply_button_tone_(button, label, tone);
   lv_obj_center(label);
+  button_entries_.push_back({button, label, tone, ButtonRole::OK});
   return button;
+}
+
+void Dialog::apply_button_tone_(lv_obj_t* button, lv_obj_t* label, DialogButtonTone tone) {
+  if (!button || !label) {
+    return;
+  }
+
+  if (tone == DialogButtonTone::DEFAULT) {
+    reactive::bind_theme(button, app_view_model_.dark_mode_subject(), reactive::ThemeRole::BUTTON);
+    reactive::bind_theme(label, app_view_model_.dark_mode_subject(), reactive::ThemeRole::TEXT);
+    return;
+  }
+
+  const auto colors = view::palette(app_view_model_.is_dark_mode());
+  const auto color  = tone_color_(tone);
+  lv_obj_set_style_bg_opa(button, LV_OPA_COVER, 0);
+  lv_obj_set_style_bg_color(button, lv_color_mix(color, colors.button, 54), 0);
+  lv_obj_set_style_border_width(button, 1, 0);
+  lv_obj_set_style_border_color(button, color, 0);
+  lv_obj_set_style_text_color(label, color, 0);
+}
+
+lv_color_t Dialog::tone_color_(DialogButtonTone tone) const {
+  const auto colors = view::palette(app_view_model_.is_dark_mode());
+  switch (tone) {
+    case DialogButtonTone::SUCCESS:
+      return colors.success;
+    case DialogButtonTone::WARNING:
+      return colors.warning;
+    case DialogButtonTone::ERROR:
+      return colors.error;
+    case DialogButtonTone::DEFAULT:
+    default:
+      return colors.primary;
+  }
+}
+
+void Dialog::update_button_focus_() {
+  if (!config_.focus_button_navigation || button_entries_.empty()) {
+    return;
+  }
+  if (focused_button_index_ >= button_entries_.size()) {
+    focused_button_index_ = button_entries_.size() - 1;
+  }
+
+  const auto colors = view::palette(app_view_model_.is_dark_mode());
+  for (std::size_t i = 0; i < button_entries_.size(); ++i) {
+    auto& entry = button_entries_[i];
+    if (!entry.button || !entry.label) {
+      continue;
+    }
+
+    const auto tone_color = tone_color_(entry.tone);
+    if (i == focused_button_index_) {
+      const auto focus_bg = lv_color_mix(tone_color, colors.button, 76);
+      view::animate_style_color(entry.button, LV_STYLE_BG_COLOR, focus_bg, 140);
+      lv_obj_set_style_bg_opa(entry.button, LV_OPA_COVER, 0);
+      lv_obj_set_style_border_width(entry.button, 1, 0);
+      lv_obj_set_style_border_color(entry.button, tone_color, 0);
+      lv_obj_set_style_outline_width(entry.button, 2, 0);
+      lv_obj_set_style_outline_pad(entry.button, 0, 0);
+      lv_obj_set_style_outline_opa(entry.button, LV_OPA_COVER, 0);
+      lv_obj_set_style_outline_color(entry.button, tone_color, 0);
+      view::animate_style_color(entry.label, LV_STYLE_TEXT_COLOR, tone_color, 140);
+      continue;
+    }
+
+    const auto idle_bg = entry.tone == DialogButtonTone::DEFAULT
+                             ? colors.button
+                             : lv_color_mix(tone_color, colors.button, 54);
+    view::animate_style_color(entry.button, LV_STYLE_BG_COLOR, idle_bg, 140);
+    lv_obj_set_style_bg_opa(entry.button, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(entry.button, 1, 0);
+    lv_obj_set_style_border_color(entry.button,
+                                  entry.tone == DialogButtonTone::DEFAULT ? colors.border
+                                                                          : tone_color,
+	                                  0);
+    lv_obj_set_style_outline_width(entry.button, 0, 0);
+    view::animate_style_color(entry.label, LV_STYLE_TEXT_COLOR, tone_color, 140);
+  }
+}
+
+void Dialog::apply_dialog_theme_(bool dark_mode) {
+  if (!core_obj_) {
+    return;
+  }
+
+  const auto colors = view::palette(dark_mode);
+  lv_obj_set_style_bg_color(core_obj_, colors.button, 0);
+  lv_obj_set_style_bg_opa(core_obj_, LV_OPA_90, 0);
+  lv_obj_set_style_border_color(core_obj_, colors.border, 0);
+  lv_obj_set_style_border_width(core_obj_, 1, 0);
+  update_button_focus_();
+}
+
+void Dialog::apply_theme(bool dark_mode) { apply_dialog_theme_(dark_mode); }
+
+void Dialog::move_button_focus_(int32_t direction) {
+  if (button_entries_.empty() || direction == 0) {
+    return;
+  }
+
+  const auto count = static_cast<int32_t>(button_entries_.size());
+  auto next = static_cast<int32_t>(focused_button_index_) + (direction > 0 ? 1 : -1);
+  if (next < 0) {
+    next = count - 1;
+  } else if (next >= count) {
+    next = 0;
+  }
+  focused_button_index_ = static_cast<std::size_t>(next);
+  update_button_focus_();
+}
+
+void Dialog::trigger_focused_button_() {
+  if (button_entries_.empty() || focused_button_index_ >= button_entries_.size()) {
+    return;
+  }
+
+  switch (button_entries_[focused_button_index_].role) {
+    case ButtonRole::CANCEL:
+      trigger_cancel();
+      break;
+    case ButtonRole::SKIP:
+      trigger_skip();
+      break;
+    case ButtonRole::OK:
+    default:
+      trigger_ok();
+      break;
+  }
 }
 
 void Dialog::add_title_row_() {
@@ -245,9 +431,11 @@ void Dialog::add_title_row_() {
   auto* title = lv_label_create(row);
   lv_label_set_text(title, config_.show_title ? config_.title.c_str() : "");
   lv_label_set_long_mode(title, LV_LABEL_LONG_DOT);
-  lv_obj_set_width(title,
-                   config_.show_shortcuts ? (config_.width / 2 - config_.pad_all)
-                                          : (config_.width - config_.pad_all * 2));
+  const int32_t row_width      = config_.width - config_.pad_all * 2;
+  const int32_t shortcut_width = config_.shortcut_width > 0
+                                     ? std::min(config_.shortcut_width, row_width - 48)
+                                     : (config_.width / 2 - config_.pad_all);
+  lv_obj_set_width(title, config_.show_shortcuts ? row_width - shortcut_width : row_width);
   auto* title_font = assets_.load_font("inter-semibold.ttf", 12);
   lv_obj_set_style_text_font(title, title_font ? title_font : &lv_font_montserrat_12, 0);
   reactive::bind_theme(title, app_view_model_.dark_mode_subject(), reactive::ThemeRole::TEXT);
@@ -256,7 +444,7 @@ void Dialog::add_title_row_() {
     auto* hint = lv_label_create(row);
     lv_label_set_text(hint, config_.shortcut_text.c_str());
     lv_label_set_long_mode(hint, LV_LABEL_LONG_DOT);
-    lv_obj_set_width(hint, config_.width / 2 - config_.pad_all);
+    lv_obj_set_width(hint, shortcut_width);
     lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_RIGHT, 0);
     auto* hint_font = assets_.load_font("inter-medium.ttf", 10);
     lv_obj_set_style_text_font(hint, hint_font ? hint_font : &lv_font_montserrat_12, 0);
@@ -265,28 +453,54 @@ void Dialog::add_title_row_() {
 }
 
 void Dialog::add_button_row_() {
-  if (!config_.show_ok_button && !config_.show_cancel_button) {
+  if (!config_.show_ok_button && !config_.show_skip_button && !config_.show_cancel_button) {
     return;
   }
 
   button_row_ = lv_obj_create(core_obj_);
   lv_obj_remove_style_all(button_row_);
-  lv_obj_set_size(button_row_, 190, 26);
+  const int32_t focus_padding = config_.focus_button_navigation ? 4 : 0;
+  lv_obj_set_size(button_row_, config_.button_row_width, config_.button_height + focus_padding);
+  lv_obj_set_style_pad_left(button_row_, config_.focus_button_navigation ? 3 : 0, 0);
+  lv_obj_set_style_pad_right(button_row_, config_.focus_button_navigation ? 3 : 0, 0);
+  lv_obj_set_style_pad_top(button_row_, config_.focus_button_navigation ? 2 : 0, 0);
+  lv_obj_set_style_pad_bottom(button_row_, config_.focus_button_navigation ? 2 : 0, 0);
   lv_obj_set_flex_flow(button_row_, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(button_row_,
-                        config_.show_ok_button && config_.show_cancel_button
+                        (config_.show_ok_button || config_.show_skip_button) &&
+                                config_.show_cancel_button
                             ? LV_FLEX_ALIGN_SPACE_BETWEEN
                             : LV_FLEX_ALIGN_CENTER,
                         LV_FLEX_ALIGN_CENTER,
                         LV_FLEX_ALIGN_CENTER);
   lv_obj_clear_flag(button_row_, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_align(button_row_,
+               LV_ALIGN_BOTTOM_MID,
+               0,
+               -(config_.pad_all + config_.button_bottom_pad));
 
   if (config_.show_cancel_button) {
     cancel_button_ =
-        add_button_(button_row_, config_.cancel_button_label.c_str(), cancel_button_cb);
+        add_button_(button_row_,
+                    config_.cancel_button_label.c_str(),
+                    config_.cancel_button_tone,
+                    cancel_button_cb);
+    button_entries_.back().role = ButtonRole::CANCEL;
+  }
+  if (config_.show_skip_button) {
+    skip_button_ = add_button_(button_row_,
+                               config_.skip_button_label.c_str(),
+                               config_.skip_button_tone,
+                               skip_button_cb);
+    button_entries_.back().role = ButtonRole::SKIP;
   }
   if (config_.show_ok_button) {
-    ok_button_ = add_button_(button_row_, config_.ok_button_label.c_str(), ok_button_cb);
+    ok_button_ = add_button_(button_row_,
+                             config_.ok_button_label.c_str(),
+                             config_.ok_button_tone,
+                             ok_button_cb);
+    button_entries_.back().role = ButtonRole::OK;
+    focused_button_index_       = button_entries_.size() - 1;
   }
 }
 
@@ -299,6 +513,16 @@ bool Dialog::is_cancel_key_(uint32_t key, const char* key_name) const {
   return key == LV_KEY_ESC || key == 27 ||
          key_name_is_one_of_(key_name, "Esc", "Escape", "KEY_1") ||
          (config_.use_nav_action_keys && key == '4');
+}
+
+bool Dialog::is_focus_previous_key_(uint32_t key, const char* key_name) const {
+  return key == LV_KEY_LEFT || key == 'z' || key == 'Z' ||
+         key_name_is_one_of_(key_name, "Left", "KEY_105", "Z");
+}
+
+bool Dialog::is_focus_next_key_(uint32_t key, const char* key_name) const {
+  return key == LV_KEY_RIGHT || key == 'c' || key == 'C' ||
+         key_name_is_one_of_(key_name, "Right", "KEY_106", "C");
 }
 
 bool Dialog::key_name_is_one_of_(const char* key_name,
@@ -316,6 +540,13 @@ void Dialog::ok_button_cb(lv_event_t* event) {
   auto* dialog = static_cast<Dialog*>(lv_event_get_user_data(event));
   if (dialog) {
     dialog->trigger_ok();
+  }
+}
+
+void Dialog::skip_button_cb(lv_event_t* event) {
+  auto* dialog = static_cast<Dialog*>(lv_event_get_user_data(event));
+  if (dialog) {
+    dialog->trigger_skip();
   }
 }
 

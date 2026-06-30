@@ -23,6 +23,7 @@ class LcdTestModel {
 
   void reset();
   void advance_color_index();
+  void start_brightness_test();
   void increase_brightness();
   void decrease_brightness();
 

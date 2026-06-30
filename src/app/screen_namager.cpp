@@ -10,14 +10,17 @@
 #include "device_info_page.h"
 #include "ftl_effect_page.h"
 #include "imu_test_page.h"
+#include "io_test_page.h"
 #include "ir_test_page.h"
 #include "keyboard_test_page.h"
 #include "lcd_test_page.h"
+#include "perf_single_test_page.h"
 #include "perf_test_page.h"
 #include "placeholder_test_page.h"
 #include "power_info_page.h"
 #include "screen_manager.h"
 #include "start_screen.h"
+#include "test_result_page.h"
 
 namespace app {
 namespace {
@@ -74,6 +77,34 @@ const char* placeholder_title(model::AppPage page) {
       return "Device Information";
     case model::AppPage::PERF_TEST:
       return "Performance Test";
+    case model::AppPage::WIFI_TEST:
+      return "Wi-Fi";
+    case model::AppPage::BT_TEST:
+      return "Bluetooth";
+    case model::AppPage::ETH_TEST:
+      return "Ethernet";
+    case model::AppPage::USB_TEST:
+      return "USB";
+    case model::AppPage::HDMI_TEST:
+      return "HDMI";
+    case model::AppPage::I2C_TEST:
+      return "I2C";
+    case model::AppPage::SPI_TEST:
+      return "SPI";
+    case model::AppPage::UART_TEST:
+      return "UART";
+    case model::AppPage::EXT_IO_TEST:
+      return "EXT.IO";
+    case model::AppPage::LINK_TEST:
+      return "Link Test";
+    case model::AppPage::CPU_BENCHMARK:
+      return "CPU Benchmark";
+    case model::AppPage::MEM_STRESS_TEST:
+      return "Mem Stress Test";
+    case model::AppPage::SD_CARD_TEST:
+      return "SD Card Test";
+    case model::AppPage::TEST_RESULT:
+      return "Test Result";
     case model::AppPage::START:
     case model::AppPage::KEYBOARD_TEST:
     case model::AppPage::LCD_TEST:
@@ -169,6 +200,9 @@ void ScreenManager::show_camera_test_page() {
 }
 
 void ScreenManager::show_connectivity_test_page() {
+  if (app_view_model_.is_test_sequence_active()) {
+    connectivity_view_model_.show_menu();
+  }
   load_screen_(std::make_unique<screen::ConnectivityTestPage>(app_view_model_,
                                                               connectivity_view_model_,
                                                               assets_));
@@ -206,8 +240,33 @@ void ScreenManager::show_device_info_page() {
 }
 
 void ScreenManager::show_perf_test_page() {
+  if (app_view_model_.is_test_sequence_active()) {
+    perf_view_model_.show_menu();
+  }
   load_screen_(std::make_unique<screen::PerfTestPage>(app_view_model_, perf_view_model_, assets_));
   loaded_page_     = model::AppPage::PERF_TEST;
+  has_loaded_page_ = true;
+  ftl_page_loaded_ = false;
+}
+
+void ScreenManager::show_io_test_page(model::AppPage page) {
+  load_screen_(
+      std::make_unique<screen::IoTestPage>(app_view_model_, connectivity_view_model_, assets_, page));
+  loaded_page_     = page;
+  has_loaded_page_ = true;
+  ftl_page_loaded_ = false;
+}
+
+void ScreenManager::show_perf_single_test_page(model::AppPage page) {
+  load_screen_(std::make_unique<screen::PerfSingleTestPage>(app_view_model_, assets_, page));
+  loaded_page_     = page;
+  has_loaded_page_ = true;
+  ftl_page_loaded_ = false;
+}
+
+void ScreenManager::show_test_result_page() {
+  load_screen_(std::make_unique<screen::TestResultPage>(app_view_model_, assets_));
+  loaded_page_     = model::AppPage::TEST_RESULT;
   has_loaded_page_ = true;
   ftl_page_loaded_ = false;
 }
@@ -253,7 +312,10 @@ void ScreenManager::flush_requested_page() {
 
   if (has_loaded_page_ && requested_page_ == loaded_page_) {
     if (!ftl_page_loaded_) {
-      return;
+      if (!app_view_model_.is_test_sequence_active()) {
+        return;
+      }
+      has_loaded_page_ = false;
     }
     ftl_page_loaded_ = false;
   }
@@ -291,6 +353,26 @@ void ScreenManager::flush_requested_page() {
       return;
     case model::AppPage::PERF_TEST:
       show_perf_test_page();
+      return;
+    case model::AppPage::WIFI_TEST:
+    case model::AppPage::BT_TEST:
+    case model::AppPage::ETH_TEST:
+    case model::AppPage::USB_TEST:
+    case model::AppPage::HDMI_TEST:
+    case model::AppPage::I2C_TEST:
+    case model::AppPage::SPI_TEST:
+    case model::AppPage::UART_TEST:
+    case model::AppPage::EXT_IO_TEST:
+    case model::AppPage::LINK_TEST:
+      show_io_test_page(requested_page_);
+      return;
+    case model::AppPage::CPU_BENCHMARK:
+    case model::AppPage::MEM_STRESS_TEST:
+    case model::AppPage::SD_CARD_TEST:
+      show_perf_single_test_page(requested_page_);
+      return;
+    case model::AppPage::TEST_RESULT:
+      show_test_result_page();
       return;
   }
 }

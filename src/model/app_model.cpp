@@ -32,6 +32,34 @@ const char* AppModel::app_title() const {
       return "Device Information";
     case AppPage::PERF_TEST:
       return "Performance Test";
+    case AppPage::WIFI_TEST:
+      return "Wi-Fi";
+    case AppPage::BT_TEST:
+      return "Bluetooth";
+    case AppPage::ETH_TEST:
+      return "Ethernet";
+    case AppPage::USB_TEST:
+      return "USB";
+    case AppPage::HDMI_TEST:
+      return "HDMI";
+    case AppPage::I2C_TEST:
+      return "I2C";
+    case AppPage::SPI_TEST:
+      return "SPI";
+    case AppPage::UART_TEST:
+      return "UART";
+    case AppPage::EXT_IO_TEST:
+      return "EXT.IO";
+    case AppPage::LINK_TEST:
+      return "Link Test";
+    case AppPage::CPU_BENCHMARK:
+      return "CPU Benchmark";
+    case AppPage::MEM_STRESS_TEST:
+      return "Mem Stress Test";
+    case AppPage::SD_CARD_TEST:
+      return "SD Card Test";
+    case AppPage::TEST_RESULT:
+      return "Test Result";
   }
 
   return "Factory Test";

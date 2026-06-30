@@ -161,10 +161,11 @@ void DeviceInfoPage::refresh_() {
 }
 
 void DeviceInfoPage::key_listener(uint32_t key, const char* key_name, void* user_data) {
-  LV_UNUSED(key_name);
-
   auto* page = static_cast<DeviceInfoPage*>(user_data);
   if (!page) {
+    return;
+  }
+  if (page->handle_test_result_dialog_key_(key, key_name)) {
     return;
   }
 
