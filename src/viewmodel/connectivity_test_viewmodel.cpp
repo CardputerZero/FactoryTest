@@ -11,7 +11,7 @@
 namespace viewmodel {
 namespace {
 
-int page_to_int(model::ConnectivitySubPage page) { return static_cast<int>(page); }
+int page_to_int(model::SubPage page) { return static_cast<int>(page); }
 
 }  // namespace
 
@@ -21,7 +21,7 @@ bool WifiConnectivityViewModel::refresh(bool force_refresh) {
   return model_.refresh(force_refresh);
 }
 
-const std::vector<model::ConnectivityScanInfo>& WifiConnectivityViewModel::scan_items() const {
+const std::vector<model::ScanItem>& WifiConnectivityViewModel::scan_items() const {
   return model_.scan_items();
 }
 
@@ -35,7 +35,7 @@ bool BluetoothConnectivityViewModel::refresh(bool force_refresh) {
   return model_.refresh(force_refresh);
 }
 
-const std::vector<model::ConnectivityScanInfo>& BluetoothConnectivityViewModel::scan_items() const {
+const std::vector<model::ScanItem>& BluetoothConnectivityViewModel::scan_items() const {
   return model_.scan_items();
 }
 
@@ -49,7 +49,7 @@ bool EthernetConnectivityViewModel::refresh(bool force_refresh) {
   return model_.refresh(force_refresh);
 }
 
-const std::vector<model::ConnectivityInfoField>& EthernetConnectivityViewModel::fields() const {
+const std::vector<model::InfoField>& EthernetConnectivityViewModel::fields() const {
   return model_.fields();
 }
 
@@ -61,7 +61,7 @@ const char* UsbConnectivityViewModel::title_text() const { return model_.title()
 
 bool UsbConnectivityViewModel::refresh(bool force_refresh) { return model_.refresh(force_refresh); }
 
-const std::vector<model::ConnectivityScanInfo>& UsbConnectivityViewModel::devices() const {
+const std::vector<model::ScanItem>& UsbConnectivityViewModel::devices() const {
   return model_.devices();
 }
 
@@ -75,7 +75,7 @@ bool I2cConnectivityViewModel::refresh(bool force_refresh) { return model_.refre
 
 bool I2cConnectivityViewModel::is_scanning() const { return model_.is_scanning(); }
 
-const std::vector<model::ConnectivityI2cAddressInfo>& I2cConnectivityViewModel::addresses() const {
+const std::vector<model::I2cAddress>& I2cConnectivityViewModel::addresses() const {
   return model_.addresses();
 }
 
@@ -87,7 +87,7 @@ const char* SpiConnectivityViewModel::title_text() const { return model_.title()
 
 bool SpiConnectivityViewModel::refresh(bool force_refresh) { return model_.refresh(force_refresh); }
 
-const std::vector<model::ConnectivityScanInfo>& SpiConnectivityViewModel::devices() const {
+const std::vector<model::ScanItem>& SpiConnectivityViewModel::devices() const {
   return model_.devices();
 }
 
@@ -101,7 +101,7 @@ bool HdmiConnectivityViewModel::refresh(bool force_refresh) {
   return model_.refresh(force_refresh);
 }
 
-const std::vector<model::ConnectivityInfoField>& HdmiConnectivityViewModel::fields() const {
+const std::vector<model::InfoField>& HdmiConnectivityViewModel::fields() const {
   return model_.fields();
 }
 
@@ -153,19 +153,17 @@ lv_subject_t* ConnectivityTestViewModel::uart_settings_request_subject() {
   return uart_settings_request_subject_.native();
 }
 
-const std::array<model::ConnectivityMenuItem, model::ConnectivityTestModel::K_ITEM_COUNT>&
+const std::array<model::MenuItem, model::ConnectivityTestModel::K_ITEM_COUNT>&
 ConnectivityTestViewModel::items() const {
   return model_.items();
 }
 
 std::size_t ConnectivityTestViewModel::selected_index() const { return model_.selected_index(); }
 
-model::ConnectivitySubPage ConnectivityTestViewModel::active_page() const {
-  return model_.active_page();
-}
+model::SubPage ConnectivityTestViewModel::active_page() const { return model_.active_page(); }
 
 bool ConnectivityTestViewModel::is_menu_active() const {
-  return model_.active_page() == model::ConnectivitySubPage::MENU;
+  return model_.active_page() == model::SubPage::MENU;
 }
 
 bool ConnectivityTestViewModel::is_direct_subpage_active() const { return direct_subpage_active_; }
@@ -203,8 +201,8 @@ void ConnectivityTestViewModel::activate_selected() {
   publish_all_();
 }
 
-void ConnectivityTestViewModel::show_subpage(model::ConnectivitySubPage page, bool direct) {
-  direct_subpage_active_ = direct && page != model::ConnectivitySubPage::MENU;
+void ConnectivityTestViewModel::show_subpage(model::SubPage page, bool direct) {
+  direct_subpage_active_ = direct && page != model::SubPage::MENU;
   model_.show_subpage(page);
   publish_all_();
 }
@@ -233,26 +231,26 @@ bool ConnectivityTestViewModel::request_back() {
 
 bool ConnectivityTestViewModel::refresh_active() {
   switch (model_.active_page()) {
-    case model::ConnectivitySubPage::WIFI:
+    case model::SubPage::WIFI:
       return wifi_view_model_.refresh(true);
-    case model::ConnectivitySubPage::BLUETOOTH:
+    case model::SubPage::BLUETOOTH:
       return bluetooth_view_model_.refresh(true);
-    case model::ConnectivitySubPage::ETHERNET:
+    case model::SubPage::ETHERNET:
       return ethernet_view_model_.refresh(true);
-    case model::ConnectivitySubPage::USB:
+    case model::SubPage::USB:
       return usb_view_model_.refresh(true);
-    case model::ConnectivitySubPage::I2C:
+    case model::SubPage::I2C:
       return i2c_view_model_.refresh(true);
-    case model::ConnectivitySubPage::SPI:
+    case model::SubPage::SPI:
       return spi_view_model_.refresh(true);
-    case model::ConnectivitySubPage::HDMI:
+    case model::SubPage::HDMI:
       return hdmi_view_model_.refresh(true);
-    case model::ConnectivitySubPage::UART:
-    case model::ConnectivitySubPage::EXT_IO:
+    case model::SubPage::UART:
+    case model::SubPage::EXT_IO:
       return false;
-    case model::ConnectivitySubPage::LINK_TEST:
+    case model::SubPage::LINK_TEST:
       return link_view_model_.refresh(true);
-    case model::ConnectivitySubPage::MENU:
+    case model::SubPage::MENU:
     default:
       return false;
   }

@@ -6,14 +6,13 @@
 
 #include "i2c_page.h"
 
-#include "io_page_common.h"
-
 #include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
 
 #include "bindings.h"
+#include "io_page_common.h"
 #include "theme.h"
 
 namespace screen {
@@ -43,12 +42,12 @@ lv_obj_t* build_i2c_panel(lv_obj_t* parent, viewmodel::AppViewModel& app_view_mo
   return panel;
 }
 
-const char* i2c_cell_text(model::ConnectivityI2cAddressState state, uint8_t address) {
+const char* i2c_cell_text(model::I2cAddressState state, uint8_t address) {
   static char present_cells[128][3]{};
-  if (state == model::ConnectivityI2cAddressState::KERNEL_DRIVER) {
+  if (state == model::I2cAddressState::KERNEL_DRIVER) {
     return "UU";
   }
-  if (state == model::ConnectivityI2cAddressState::ABSENT) {
+  if (state == model::I2cAddressState::ABSENT) {
     return "--";
   }
 
@@ -59,10 +58,10 @@ const char* i2c_cell_text(model::ConnectivityI2cAddressState state, uint8_t addr
   return present_cells[address];
 }
 
-std::array<model::ConnectivityI2cAddressState, 128> i2c_address_states(
-    const std::vector<model::ConnectivityI2cAddressInfo>& addresses) {
-  std::array<model::ConnectivityI2cAddressState, 128> states{};
-  states.fill(model::ConnectivityI2cAddressState::ABSENT);
+std::array<model::I2cAddressState, 128> i2c_address_states(
+    const std::vector<model::I2cAddress>& addresses) {
+  std::array<model::I2cAddressState, 128> states{};
+  states.fill(model::I2cAddressState::ABSENT);
   for (const auto& address : addresses) {
     if (address.address < states.size()) {
       states[address.address] = address.state;
@@ -86,7 +85,7 @@ lv_obj_t* add_i2c_text_label(lv_obj_t* parent,
 
 void set_i2c_cell_color(lv_obj_t* label,
                         viewmodel::AppViewModel& app_view_model,
-                        model::ConnectivityI2cAddressState state,
+                        model::I2cAddressState state,
                         uint8_t address) {
   if (!label) {
     return;
@@ -94,9 +93,9 @@ void set_i2c_cell_color(lv_obj_t* label,
 
   const bool reserved = address < 0x03 || address > 0x77;
   const auto colors   = view::palette(app_view_model.is_dark_mode());
-  if (state == model::ConnectivityI2cAddressState::PRESENT && !reserved) {
+  if (state == model::I2cAddressState::PRESENT && !reserved) {
     lv_obj_set_style_text_color(label, colors.success, 0);
-  } else if (state == model::ConnectivityI2cAddressState::KERNEL_DRIVER && !reserved) {
+  } else if (state == model::I2cAddressState::KERNEL_DRIVER && !reserved) {
     lv_obj_set_style_text_color(label, colors.warning, 0);
   } else {
     lv_obj_set_style_text_color(label, reserved ? colors.text_disabled : colors.text_muted, 0);
@@ -107,7 +106,7 @@ void set_i2c_cell_color(lv_obj_t* label,
 
 I2cConnectivityView::I2cConnectivityView(viewmodel::I2cConnectivityViewModel& view_model)
     : view_model_(view_model) {
-  cell_states_.fill(model::ConnectivityI2cAddressState::ABSENT);
+  cell_states_.fill(model::I2cAddressState::ABSENT);
 }
 
 I2cConnectivityView::~I2cConnectivityView() {
@@ -200,15 +199,12 @@ void I2cConnectivityView::build_static_content_() {
     for (uint8_t col = 0; col <= 0x0f; ++col) {
       const uint8_t address = static_cast<uint8_t>(row + col);
       const bool reserved   = address < 0x03 || address > 0x77;
-      auto* label = add_i2c_text_label(grid_,
-                                       *app_view_model_,
-                                       cell_font ? cell_font : &lv_font_montserrat_12,
-                                       reserved ? "" : "--");
+      auto* label           = add_i2c_text_label(grid_,
+                                                 *app_view_model_,
+                                                 cell_font ? cell_font : &lv_font_montserrat_12,
+                                                 reserved ? "" : "--");
       lv_obj_set_width(label, K_I2C_CELL_WIDTH);
-      set_i2c_cell_color(label,
-                         *app_view_model_,
-                         model::ConnectivityI2cAddressState::ABSENT,
-                         address);
+      set_i2c_cell_color(label, *app_view_model_, model::I2cAddressState::ABSENT, address);
       lv_obj_set_grid_cell(label,
                            LV_GRID_ALIGN_CENTER,
                            static_cast<int32_t>(col) + 1,

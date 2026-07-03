@@ -6,16 +6,15 @@
 
 #include "spi_page.h"
 
-#include "io_page_common.h"
-
 #include <string>
 #include <vector>
 
+#include "io_page_common.h"
 #include "ui_const.h"
 
 namespace screen {
 
-std::vector<CardSpec> spi_card_specs(const std::vector<model::ConnectivityScanInfo>& items,
+std::vector<CardSpec> spi_card_specs(const std::vector<model::ScanItem>& items,
                                      const std::string& error_message) {
   std::vector<CardSpec> specs;
   specs.reserve(items.size() + 1);

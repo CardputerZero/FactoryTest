@@ -27,50 +27,46 @@ using Clock = std::chrono::steady_clock;
 
 constexpr auto K_BACKEND_REFRESH_INTERVAL = std::chrono::milliseconds(5000);
 
-const std::array<ConnectivityMenuItem, ConnectivityTestModel::K_ITEM_COUNT>& connectivity_items() {
-  static constexpr std::array<ConnectivityMenuItem, ConnectivityTestModel::K_ITEM_COUNT> ITEMS = {{
-      {"Wi-Fi", ConnectivitySubPage::WIFI},
-      {"Bluetooth", ConnectivitySubPage::BLUETOOTH},
-      {"Ethernet", ConnectivitySubPage::ETHERNET},
-      {"USB", ConnectivitySubPage::USB},
-      {"HDMI", ConnectivitySubPage::HDMI},
-      {"I2C", ConnectivitySubPage::I2C},
-      {"SPI", ConnectivitySubPage::SPI},
-      {"UART", ConnectivitySubPage::UART},
-      {"EXT.IO", ConnectivitySubPage::EXT_IO},
-      {"Link Test", ConnectivitySubPage::LINK_TEST},
+const std::array<MenuItem, ConnectivityTestModel::K_ITEM_COUNT>& connectivity_items() {
+  static constexpr std::array<MenuItem, ConnectivityTestModel::K_ITEM_COUNT> ITEMS = {{
+      {"Wi-Fi", SubPage::WIFI},
+      {"Bluetooth", SubPage::BLUETOOTH},
+      {"Ethernet", SubPage::ETHERNET},
+      {"USB", SubPage::USB},
+      {"HDMI", SubPage::HDMI},
+      {"I2C", SubPage::I2C},
+      {"SPI", SubPage::SPI},
+      {"UART", SubPage::UART},
+      {"EXT.IO", SubPage::EXT_IO},
+      {"Link Test", SubPage::LINK_TEST},
   }};
   return ITEMS;
 }
 
-bool same_scan_info(const ConnectivityScanInfo& left, const ConnectivityScanInfo& right) {
+bool same_scan_info(const ScanItem& left, const ScanItem& right) {
   return left.name == right.name && left.detail == right.detail &&
          left.strength_percent == right.strength_percent;
 }
 
-bool same_scan_infos(const std::vector<ConnectivityScanInfo>& left,
-                     const std::vector<ConnectivityScanInfo>& right) {
+bool same_scan_infos(const std::vector<ScanItem>& left, const std::vector<ScanItem>& right) {
   return left.size() == right.size() &&
          std::equal(left.begin(), left.end(), right.begin(), same_scan_info);
 }
 
-bool same_info_field(const ConnectivityInfoField& left, const ConnectivityInfoField& right) {
+bool same_info_field(const InfoField& left, const InfoField& right) {
   return left.label == right.label && left.value == right.value;
 }
 
-bool same_info_fields(const std::vector<ConnectivityInfoField>& left,
-                      const std::vector<ConnectivityInfoField>& right) {
+bool same_info_fields(const std::vector<InfoField>& left, const std::vector<InfoField>& right) {
   return left.size() == right.size() &&
          std::equal(left.begin(), left.end(), right.begin(), same_info_field);
 }
 
-bool same_i2c_address(const ConnectivityI2cAddressInfo& left,
-                      const ConnectivityI2cAddressInfo& right) {
+bool same_i2c_address(const I2cAddress& left, const I2cAddress& right) {
   return left.address == right.address && left.state == right.state;
 }
 
-bool same_i2c_addresses(const std::vector<ConnectivityI2cAddressInfo>& left,
-                        const std::vector<ConnectivityI2cAddressInfo>& right) {
+bool same_i2c_addresses(const std::vector<I2cAddress>& left, const std::vector<I2cAddress>& right) {
   return left.size() == right.size() &&
          std::equal(left.begin(), left.end(), right.begin(), same_i2c_address);
 }
@@ -101,9 +97,8 @@ bool refresh_interval_elapsed(Clock::time_point last_refresh_start) {
          Clock::now() - last_refresh_start >= K_BACKEND_REFRESH_INTERVAL;
 }
 
-std::vector<ConnectivityScanInfo> to_scan_infos(
-    std::vector<platform::connectivity::WirelessScanItem> items) {
-  std::vector<ConnectivityScanInfo> result;
+std::vector<ScanItem> to_scan_infos(std::vector<platform::connectivity::WirelessScanItem> items) {
+  std::vector<ScanItem> result;
   result.reserve(items.size());
   for (auto& item : items) {
     result.push_back({std::move(item.name), std::move(item.detail), item.strength_percent});
@@ -111,21 +106,21 @@ std::vector<ConnectivityScanInfo> to_scan_infos(
   return result;
 }
 
-ConnectivityI2cAddressState to_i2c_address_state(platform::connectivity::I2cAddressState state) {
+I2cAddressState to_i2c_address_state(platform::connectivity::I2cAddressState state) {
   switch (state) {
     case platform::connectivity::I2cAddressState::PRESENT:
-      return ConnectivityI2cAddressState::PRESENT;
+      return I2cAddressState::PRESENT;
     case platform::connectivity::I2cAddressState::KERNEL_DRIVER:
-      return ConnectivityI2cAddressState::KERNEL_DRIVER;
+      return I2cAddressState::KERNEL_DRIVER;
     case platform::connectivity::I2cAddressState::ABSENT:
     default:
-      return ConnectivityI2cAddressState::ABSENT;
+      return I2cAddressState::ABSENT;
   }
 }
 
-std::vector<ConnectivityI2cAddressInfo> to_i2c_addresses(
-    std::vector<platform::connectivity::I2cAddressInfo> addresses) {
-  std::vector<ConnectivityI2cAddressInfo> result;
+std::vector<I2cAddress> to_i2c_addresses(
+    const std::vector<platform::connectivity::I2cAddressInfo>& addresses) {
+  std::vector<I2cAddress> result;
   result.reserve(addresses.size());
   for (const auto& address : addresses) {
     result.push_back({address.address, to_i2c_address_state(address.state)});
@@ -133,23 +128,23 @@ std::vector<ConnectivityI2cAddressInfo> to_i2c_addresses(
   return result;
 }
 
-ConnectivityScanRefreshResult read_wifi_scan_result() {
+ScanResult read_wifi_scan_result() {
   std::string error;
   auto items = platform::connectivity::scan_wifi(error);
   return {to_scan_infos(std::move(items)), std::move(error)};
 }
 
-ConnectivityScanRefreshResult read_bluetooth_scan_result() {
+ScanResult read_bluetooth_scan_result() {
   std::string error;
   auto items = platform::connectivity::scan_bluetooth(error);
   return {to_scan_infos(std::move(items)), std::move(error)};
 }
 
-ConnectivityInfoRefreshResult read_ethernet_refresh_result() {
+InfoResult read_ethernet_refresh_result() {
   std::string error;
   const auto info = platform::connectivity::read_ethernet_info(error);
 
-  std::vector<ConnectivityInfoField> fields;
+  std::vector<InfoField> fields;
   if (!info.interface_name.empty()) {
     fields.push_back({"Interface", info.interface_name});
   }
@@ -171,11 +166,11 @@ ConnectivityInfoRefreshResult read_ethernet_refresh_result() {
   return {std::move(fields), std::move(error)};
 }
 
-ConnectivityScanRefreshResult read_usb_refresh_result() {
+ScanResult read_usb_refresh_result() {
   std::string error;
   auto devices = platform::connectivity::list_usb_devices(error);
 
-  std::vector<ConnectivityScanInfo> items;
+  std::vector<ScanItem> items;
   items.reserve(devices.size());
   for (auto& device : devices) {
     items.push_back({std::move(device.name), std::move(device.detail), -1});
@@ -183,17 +178,17 @@ ConnectivityScanRefreshResult read_usb_refresh_result() {
   return {std::move(items), std::move(error)};
 }
 
-ConnectivityI2cRefreshResult read_i2c_refresh_result() {
+I2cResult read_i2c_refresh_result() {
   std::string error;
   auto addresses = platform::connectivity::scan_i2c_bus(1, error);
-  return {to_i2c_addresses(std::move(addresses)), std::move(error)};
+  return {to_i2c_addresses(addresses), std::move(error)};
 }
 
-ConnectivityScanRefreshResult read_spi_refresh_result() {
+ScanResult read_spi_refresh_result() {
   std::string error;
   auto devices = platform::connectivity::list_spi_devices(error);
 
-  std::vector<ConnectivityScanInfo> items;
+  std::vector<ScanItem> items;
   items.reserve(devices.size());
   for (auto& device : devices) {
     items.push_back({std::move(device.name), std::move(device.path), -1});
@@ -201,11 +196,11 @@ ConnectivityScanRefreshResult read_spi_refresh_result() {
   return {std::move(items), std::move(error)};
 }
 
-ConnectivityInfoRefreshResult read_hdmi_refresh_result() {
+InfoResult read_hdmi_refresh_result() {
   std::string error;
   const auto info = platform::connectivity::read_hdmi_info(error);
 
-  std::vector<ConnectivityInfoField> fields;
+  std::vector<InfoField> fields;
   if (!info.connector_name.empty()) {
     fields.push_back({"Connector", info.connector_name});
   }
@@ -257,18 +252,16 @@ LinkTestSnapshot read_link_test_result(LinkTestSettings settings) {
 
 }  // namespace
 
-const std::array<ConnectivityMenuItem, ConnectivityTestModel::K_ITEM_COUNT>&
-ConnectivityTestModel::items() const {
+const std::array<MenuItem, ConnectivityTestModel::K_ITEM_COUNT>& ConnectivityTestModel::items()
+    const {
   return connectivity_items();
 }
 
 std::size_t ConnectivityTestModel::selected_index() const { return selected_index_; }
 
-ConnectivitySubPage ConnectivityTestModel::active_page() const { return active_page_; }
+SubPage ConnectivityTestModel::active_page() const { return active_page_; }
 
-const ConnectivityMenuItem& ConnectivityTestModel::selected_item() const {
-  return items()[selected_index_];
-}
+const MenuItem& ConnectivityTestModel::selected_item() const { return items()[selected_index_]; }
 
 void ConnectivityTestModel::select_previous() {
   if (selected_index_ > 0) {
@@ -288,8 +281,8 @@ void ConnectivityTestModel::set_selected_index(std::size_t index) {
 
 void ConnectivityTestModel::activate_selected() { active_page_ = selected_item().target_page; }
 
-void ConnectivityTestModel::show_subpage(ConnectivitySubPage page) {
-  if (page == ConnectivitySubPage::MENU) {
+void ConnectivityTestModel::show_subpage(SubPage page) {
+  if (page == SubPage::MENU) {
     show_menu();
     return;
   }
@@ -303,7 +296,7 @@ void ConnectivityTestModel::show_subpage(ConnectivitySubPage page) {
   }
 }
 
-void ConnectivityTestModel::show_menu() { active_page_ = ConnectivitySubPage::MENU; }
+void ConnectivityTestModel::show_menu() { active_page_ = SubPage::MENU; }
 
 const char* WifiConnectivityModel::title() const { return "Wi-Fi Scan"; }
 
@@ -324,13 +317,11 @@ bool WifiConnectivityModel::refresh(bool force_refresh) {
   return changed;
 }
 
-const std::vector<ConnectivityScanInfo>& WifiConnectivityModel::scan_items() const {
-  return scan_items_;
-}
+const std::vector<ScanItem>& WifiConnectivityModel::scan_items() const { return scan_items_; }
 
 const std::string& WifiConnectivityModel::error_message() const { return error_message_; }
 
-bool WifiConnectivityModel::set_scan_result_(std::vector<ConnectivityScanInfo> items,
+bool WifiConnectivityModel::set_scan_result_(std::vector<ScanItem> items,
                                              std::string error_message) {
   if (error_message_ == error_message && same_scan_infos(scan_items_, items)) {
     return false;
@@ -360,13 +351,11 @@ bool BluetoothConnectivityModel::refresh(bool force_refresh) {
   return changed;
 }
 
-const std::vector<ConnectivityScanInfo>& BluetoothConnectivityModel::scan_items() const {
-  return scan_items_;
-}
+const std::vector<ScanItem>& BluetoothConnectivityModel::scan_items() const { return scan_items_; }
 
 const std::string& BluetoothConnectivityModel::error_message() const { return error_message_; }
 
-bool BluetoothConnectivityModel::set_scan_result_(std::vector<ConnectivityScanInfo> items,
+bool BluetoothConnectivityModel::set_scan_result_(std::vector<ScanItem> items,
                                                   std::string error_message) {
   if (error_message_ == error_message && same_scan_infos(scan_items_, items)) {
     return false;
@@ -396,13 +385,11 @@ bool EthernetConnectivityModel::refresh(bool force_refresh) {
   return changed;
 }
 
-const std::vector<ConnectivityInfoField>& EthernetConnectivityModel::fields() const {
-  return fields_;
-}
+const std::vector<InfoField>& EthernetConnectivityModel::fields() const { return fields_; }
 
 const std::string& EthernetConnectivityModel::error_message() const { return error_message_; }
 
-bool EthernetConnectivityModel::set_info_(std::vector<ConnectivityInfoField> fields,
+bool EthernetConnectivityModel::set_info_(std::vector<InfoField> fields,
                                           std::string error_message) {
   if (error_message_ == error_message && same_info_fields(fields_, fields)) {
     return false;
@@ -432,12 +419,11 @@ bool UsbConnectivityModel::refresh(bool force_refresh) {
   return changed;
 }
 
-const std::vector<ConnectivityScanInfo>& UsbConnectivityModel::devices() const { return devices_; }
+const std::vector<ScanItem>& UsbConnectivityModel::devices() const { return devices_; }
 
 const std::string& UsbConnectivityModel::error_message() const { return error_message_; }
 
-bool UsbConnectivityModel::set_devices_(std::vector<ConnectivityScanInfo> devices,
-                                        std::string error_message) {
+bool UsbConnectivityModel::set_devices_(std::vector<ScanItem> devices, std::string error_message) {
   if (error_message_ == error_message && same_scan_infos(devices_, devices)) {
     return false;
   }
@@ -468,13 +454,11 @@ bool I2cConnectivityModel::refresh(bool force_refresh) {
 
 bool I2cConnectivityModel::is_scanning() const { return refresh_task_.valid(); }
 
-const std::vector<ConnectivityI2cAddressInfo>& I2cConnectivityModel::addresses() const {
-  return addresses_;
-}
+const std::vector<I2cAddress>& I2cConnectivityModel::addresses() const { return addresses_; }
 
 const std::string& I2cConnectivityModel::error_message() const { return error_message_; }
 
-bool I2cConnectivityModel::set_addresses_(std::vector<ConnectivityI2cAddressInfo> addresses,
+bool I2cConnectivityModel::set_addresses_(std::vector<I2cAddress> addresses,
                                           std::string error_message) {
   if (error_message_ == error_message && same_i2c_addresses(addresses_, addresses)) {
     return false;
@@ -504,12 +488,11 @@ bool SpiConnectivityModel::refresh(bool force_refresh) {
   return changed;
 }
 
-const std::vector<ConnectivityScanInfo>& SpiConnectivityModel::devices() const { return devices_; }
+const std::vector<ScanItem>& SpiConnectivityModel::devices() const { return devices_; }
 
 const std::string& SpiConnectivityModel::error_message() const { return error_message_; }
 
-bool SpiConnectivityModel::set_devices_(std::vector<ConnectivityScanInfo> devices,
-                                        std::string error_message) {
+bool SpiConnectivityModel::set_devices_(std::vector<ScanItem> devices, std::string error_message) {
   if (error_message_ == error_message && same_scan_infos(devices_, devices)) {
     return false;
   }
@@ -538,12 +521,11 @@ bool HdmiConnectivityModel::refresh(bool force_refresh) {
   return changed;
 }
 
-const std::vector<ConnectivityInfoField>& HdmiConnectivityModel::fields() const { return fields_; }
+const std::vector<InfoField>& HdmiConnectivityModel::fields() const { return fields_; }
 
 const std::string& HdmiConnectivityModel::error_message() const { return error_message_; }
 
-bool HdmiConnectivityModel::set_info_(std::vector<ConnectivityInfoField> fields,
-                                      std::string error_message) {
+bool HdmiConnectivityModel::set_info_(std::vector<InfoField> fields, std::string error_message) {
   if (error_message_ == error_message && same_info_fields(fields_, fields)) {
     return false;
   }

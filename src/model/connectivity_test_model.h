@@ -16,7 +16,7 @@
 
 namespace model {
 
-enum class ConnectivitySubPage {
+enum class SubPage {
   MENU      = 0,
   WIFI      = 1,
   BLUETOOTH = 2,
@@ -30,45 +30,45 @@ enum class ConnectivitySubPage {
   LINK_TEST = 10,
 };
 
-struct ConnectivityMenuItem {
+struct MenuItem {
   const char* title;
-  ConnectivitySubPage target_page;
+  SubPage target_page;
 };
 
-struct ConnectivityScanInfo {
+struct ScanItem {
   std::string name;
   std::string detail;
   int32_t strength_percent{-1};
 };
 
-struct ConnectivityInfoField {
+struct InfoField {
   std::string label;
   std::string value;
 };
 
-struct ConnectivityScanRefreshResult {
-  std::vector<ConnectivityScanInfo> items;
+struct ScanResult {
+  std::vector<ScanItem> items;
   std::string error_message;
 };
 
-struct ConnectivityInfoRefreshResult {
-  std::vector<ConnectivityInfoField> fields;
+struct InfoResult {
+  std::vector<InfoField> fields;
   std::string error_message;
 };
 
-enum class ConnectivityI2cAddressState {
+enum class I2cAddressState {
   ABSENT,
   PRESENT,
   KERNEL_DRIVER,
 };
 
-struct ConnectivityI2cAddressInfo {
+struct I2cAddress {
   uint8_t address{0};
-  ConnectivityI2cAddressState state{ConnectivityI2cAddressState::ABSENT};
+  I2cAddressState state{I2cAddressState::ABSENT};
 };
 
-struct ConnectivityI2cRefreshResult {
-  std::vector<ConnectivityI2cAddressInfo> addresses;
+struct I2cResult {
+  std::vector<I2cAddress> addresses;
   std::string error_message;
 };
 
@@ -102,35 +102,35 @@ class ConnectivityTestModel {
  public:
   static constexpr std::size_t K_ITEM_COUNT = 10;
 
-  const std::array<ConnectivityMenuItem, K_ITEM_COUNT>& items() const;
+  const std::array<MenuItem, K_ITEM_COUNT>& items() const;
   std::size_t selected_index() const;
-  ConnectivitySubPage active_page() const;
-  const ConnectivityMenuItem& selected_item() const;
+  SubPage active_page() const;
+  const MenuItem& selected_item() const;
   void select_previous();
   void select_next();
   void set_selected_index(std::size_t index);
   void activate_selected();
-  void show_subpage(ConnectivitySubPage page);
+  void show_subpage(SubPage page);
   void show_menu();
 
  private:
   std::size_t selected_index_{0};
-  ConnectivitySubPage active_page_{ConnectivitySubPage::MENU};
+  SubPage active_page_{SubPage::MENU};
 };
 
 class WifiConnectivityModel {
  public:
   const char* title() const;
   bool refresh(bool force_refresh = false);
-  const std::vector<ConnectivityScanInfo>& scan_items() const;
+  const std::vector<ScanItem>& scan_items() const;
   const std::string& error_message() const;
 
  private:
-  bool set_scan_result_(std::vector<ConnectivityScanInfo> items, std::string error_message);
+  bool set_scan_result_(std::vector<ScanItem> items, std::string error_message);
 
-  std::vector<ConnectivityScanInfo> scan_items_{};
+  std::vector<ScanItem> scan_items_{};
   std::string error_message_{};
-  std::future<ConnectivityScanRefreshResult> refresh_task_{};
+  std::future<ScanResult> refresh_task_{};
   std::chrono::steady_clock::time_point last_refresh_start_{};
 };
 
@@ -138,15 +138,15 @@ class BluetoothConnectivityModel {
  public:
   const char* title() const;
   bool refresh(bool force_refresh = false);
-  const std::vector<ConnectivityScanInfo>& scan_items() const;
+  const std::vector<ScanItem>& scan_items() const;
   const std::string& error_message() const;
 
  private:
-  bool set_scan_result_(std::vector<ConnectivityScanInfo> items, std::string error_message);
+  bool set_scan_result_(std::vector<ScanItem> items, std::string error_message);
 
-  std::vector<ConnectivityScanInfo> scan_items_{};
+  std::vector<ScanItem> scan_items_{};
   std::string error_message_{};
-  std::future<ConnectivityScanRefreshResult> refresh_task_{};
+  std::future<ScanResult> refresh_task_{};
   std::chrono::steady_clock::time_point last_refresh_start_{};
 };
 
@@ -154,15 +154,15 @@ class EthernetConnectivityModel {
  public:
   const char* title() const;
   bool refresh(bool force_refresh = false);
-  const std::vector<ConnectivityInfoField>& fields() const;
+  const std::vector<InfoField>& fields() const;
   const std::string& error_message() const;
 
  private:
-  bool set_info_(std::vector<ConnectivityInfoField> fields, std::string error_message);
+  bool set_info_(std::vector<InfoField> fields, std::string error_message);
 
-  std::vector<ConnectivityInfoField> fields_{};
+  std::vector<InfoField> fields_{};
   std::string error_message_{};
-  std::future<ConnectivityInfoRefreshResult> refresh_task_{};
+  std::future<InfoResult> refresh_task_{};
   std::chrono::steady_clock::time_point last_refresh_start_{};
 };
 
@@ -170,15 +170,15 @@ class UsbConnectivityModel {
  public:
   const char* title() const;
   bool refresh(bool force_refresh = false);
-  const std::vector<ConnectivityScanInfo>& devices() const;
+  const std::vector<ScanItem>& devices() const;
   const std::string& error_message() const;
 
  private:
-  bool set_devices_(std::vector<ConnectivityScanInfo> devices, std::string error_message);
+  bool set_devices_(std::vector<ScanItem> devices, std::string error_message);
 
-  std::vector<ConnectivityScanInfo> devices_{};
+  std::vector<ScanItem> devices_{};
   std::string error_message_{};
-  std::future<ConnectivityScanRefreshResult> refresh_task_{};
+  std::future<ScanResult> refresh_task_{};
   std::chrono::steady_clock::time_point last_refresh_start_{};
 };
 
@@ -187,15 +187,15 @@ class I2cConnectivityModel {
   const char* title() const;
   bool refresh(bool force_refresh = false);
   bool is_scanning() const;
-  const std::vector<ConnectivityI2cAddressInfo>& addresses() const;
+  const std::vector<I2cAddress>& addresses() const;
   const std::string& error_message() const;
 
  private:
-  bool set_addresses_(std::vector<ConnectivityI2cAddressInfo> addresses, std::string error_message);
+  bool set_addresses_(std::vector<I2cAddress> addresses, std::string error_message);
 
-  std::vector<ConnectivityI2cAddressInfo> addresses_{};
+  std::vector<I2cAddress> addresses_{};
   std::string error_message_{};
-  std::future<ConnectivityI2cRefreshResult> refresh_task_{};
+  std::future<I2cResult> refresh_task_{};
   std::chrono::steady_clock::time_point last_refresh_start_{};
 };
 
@@ -203,15 +203,15 @@ class SpiConnectivityModel {
  public:
   const char* title() const;
   bool refresh(bool force_refresh = false);
-  const std::vector<ConnectivityScanInfo>& devices() const;
+  const std::vector<ScanItem>& devices() const;
   const std::string& error_message() const;
 
  private:
-  bool set_devices_(std::vector<ConnectivityScanInfo> devices, std::string error_message);
+  bool set_devices_(std::vector<ScanItem> devices, std::string error_message);
 
-  std::vector<ConnectivityScanInfo> devices_{};
+  std::vector<ScanItem> devices_{};
   std::string error_message_{};
-  std::future<ConnectivityScanRefreshResult> refresh_task_{};
+  std::future<ScanResult> refresh_task_{};
   std::chrono::steady_clock::time_point last_refresh_start_{};
 };
 
@@ -219,15 +219,15 @@ class HdmiConnectivityModel {
  public:
   const char* title() const;
   bool refresh(bool force_refresh = false);
-  const std::vector<ConnectivityInfoField>& fields() const;
+  const std::vector<InfoField>& fields() const;
   const std::string& error_message() const;
 
  private:
-  bool set_info_(std::vector<ConnectivityInfoField> fields, std::string error_message);
+  bool set_info_(std::vector<InfoField> fields, std::string error_message);
 
-  std::vector<ConnectivityInfoField> fields_{};
+  std::vector<InfoField> fields_{};
   std::string error_message_{};
-  std::future<ConnectivityInfoRefreshResult> refresh_task_{};
+  std::future<InfoResult> refresh_task_{};
   std::chrono::steady_clock::time_point last_refresh_start_{};
 };
 

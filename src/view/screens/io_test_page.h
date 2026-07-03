@@ -44,7 +44,7 @@ class IoTestPage : public BaseScreen {
   bool is_ext_io_page_() const;
   bool is_link_page_() const;
 
-  viewmodel::ConnectivityTestViewModel& connectivity_view_model_;
+  viewmodel::ConnectivityTestViewModel& conn_vm_;
   model::AppPage page_;
   lv_obj_t* viewport_{nullptr};
   std::unique_ptr<WifiConnectivityView> wifi_view_{};

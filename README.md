@@ -7,13 +7,13 @@ This repository holds the factory test application of CardputerZero.
 + Download the debian release
 
 ```
-wget https://github.com/CardputerZero/FactoryTest/releases/download/0.1.0/FactoryTest_0.1.0_m5stack1_arm64.deb
+wget https://github.com/CardputerZero/FactoryTest/releases/download/0.1.1/FactoryTest_0.1.1_m5stack1_arm64.deb
 ```
 
 + Install the package
 
 ```
-sudo dpkg -i FactoryTest_0.1.0_m5stack1_arm64.deb
+sudo dpkg -i FactoryTest_0.1.1_m5stack1_arm64.deb
 ```
 
 + Fix dependency issue
@@ -28,6 +28,14 @@ sudo apt -f install
 TODO
 
 ## Changelog
+
+### 0.1.1 - 2026-07-03
+
+- Fix input test final tile navigation so the Hold 8 check action remains available after all key layers pass.
+- Add focused test-result dialog button navigation and update hold-confirm flows for long-press actions.
+- Expand LCD and connectivity test state handling, including structured result serialization and refreshed per-page views.
+- Update Debian packaging dependencies for enabled runtime services, including LIRC, ALSA t64 compatibility, and pkexec ping fallback.
+- Fix cross-build definitions and serialization linkage used by the factory test model.
 
 ### 0.1.0 - 2026-06-29
 

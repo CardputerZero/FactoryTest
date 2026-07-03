@@ -6,16 +6,15 @@
 
 #include "eth_page.h"
 
-#include "io_page_common.h"
-
 #include <string>
 #include <vector>
 
+#include "io_page_common.h"
 #include "ui_const.h"
 
 namespace screen {
 
-std::vector<CardSpec> ethernet_card_specs(const std::vector<model::ConnectivityInfoField>& fields,
+std::vector<CardSpec> ethernet_card_specs(const std::vector<model::InfoField>& fields,
                                           const std::string& error_message) {
   std::vector<CardSpec> specs;
   specs.reserve(fields.size() + 1);

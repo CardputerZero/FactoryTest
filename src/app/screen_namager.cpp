@@ -6,7 +6,7 @@
 
 #include "audio_test_page.h"
 #include "camera_test_page.h"
-#include "connectivity_test_page.h"
+#include "conn_test_page.h"
 #include "device_info_page.h"
 #include "ftl_effect_page.h"
 #include "imu_test_page.h"
@@ -203,7 +203,7 @@ void ScreenManager::show_connectivity_test_page() {
   if (app_view_model_.is_test_sequence_active()) {
     connectivity_view_model_.show_menu();
   }
-  load_screen_(std::make_unique<screen::ConnectivityTestPage>(app_view_model_,
+  load_screen_(std::make_unique<screen::ConnTestPage>(app_view_model_,
                                                               connectivity_view_model_,
                                                               assets_));
   loaded_page_     = model::AppPage::CONNECTIVITY_TEST;

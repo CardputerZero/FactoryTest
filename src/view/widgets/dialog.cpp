@@ -33,8 +33,7 @@ void Dialog::build() {
     return;
   }
 
-  const auto colors = view::palette(app_view_model_.is_dark_mode());
-  core_obj_         = lv_obj_create(parent_);
+  core_obj_ = lv_obj_create(parent_);
   lv_obj_remove_style_all(core_obj_);
   lv_obj_set_size(core_obj_, config_.width, config_.height);
   lv_obj_align(core_obj_, config_.align, config_.offset_x, config_.offset_y);
@@ -58,16 +57,11 @@ void Dialog::build() {
   content_ = lv_obj_create(core_obj_);
   lv_obj_remove_style_all(content_);
   const int32_t title_height = (config_.show_title || config_.show_shortcuts) ? 18 : 0;
-  const int32_t button_height =
-      (config_.show_ok_button || config_.show_skip_button || config_.show_cancel_button)
-          ? config_.button_height
-          : 0;
   const int32_t content_y = config_.pad_all + title_height +
                             ((config_.show_title || config_.show_shortcuts) ? config_.pad_row : 0);
-  const int32_t button_y = config_.height - config_.pad_all - config_.button_bottom_pad -
-                           config_.button_height;
-  const int32_t content_height =
-      std::max<int32_t>(24, button_y - content_y - config_.pad_row);
+  const int32_t button_y =
+      config_.height - config_.pad_all - config_.button_bottom_pad - config_.button_height;
+  const int32_t content_height = std::max<int32_t>(24, button_y - content_y - config_.pad_row);
   lv_obj_set_size(content_, config_.width - config_.pad_all * 2, content_height);
   lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -358,10 +352,10 @@ void Dialog::update_button_focus_() {
     view::animate_style_color(entry.button, LV_STYLE_BG_COLOR, idle_bg, 140);
     lv_obj_set_style_bg_opa(entry.button, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(entry.button, 1, 0);
-    lv_obj_set_style_border_color(entry.button,
-                                  entry.tone == DialogButtonTone::DEFAULT ? colors.border
-                                                                          : tone_color,
-	                                  0);
+    lv_obj_set_style_border_color(
+        entry.button,
+        entry.tone == DialogButtonTone::DEFAULT ? colors.border : tone_color,
+        0);
     lv_obj_set_style_outline_width(entry.button, 0, 0);
     view::animate_style_color(entry.label, LV_STYLE_TEXT_COLOR, tone_color, 140);
   }
@@ -388,7 +382,7 @@ void Dialog::move_button_focus_(int32_t direction) {
   }
 
   const auto count = static_cast<int32_t>(button_entries_.size());
-  auto next = static_cast<int32_t>(focused_button_index_) + (direction > 0 ? 1 : -1);
+  auto next        = static_cast<int32_t>(focused_button_index_) + (direction > 0 ? 1 : -1);
   if (next < 0) {
     next = count - 1;
   } else if (next >= count) {
@@ -466,69 +460,61 @@ void Dialog::add_button_row_() {
   lv_obj_set_style_pad_top(button_row_, config_.focus_button_navigation ? 2 : 0, 0);
   lv_obj_set_style_pad_bottom(button_row_, config_.focus_button_navigation ? 2 : 0, 0);
   lv_obj_set_flex_flow(button_row_, LV_FLEX_FLOW_ROW);
-  lv_obj_set_flex_align(button_row_,
-                        (config_.show_ok_button || config_.show_skip_button) &&
-                                config_.show_cancel_button
-                            ? LV_FLEX_ALIGN_SPACE_BETWEEN
-                            : LV_FLEX_ALIGN_CENTER,
-                        LV_FLEX_ALIGN_CENTER,
-                        LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_flex_align(
+      button_row_,
+      (config_.show_ok_button || config_.show_skip_button) && config_.show_cancel_button
+          ? LV_FLEX_ALIGN_SPACE_BETWEEN
+          : LV_FLEX_ALIGN_CENTER,
+      LV_FLEX_ALIGN_CENTER,
+      LV_FLEX_ALIGN_CENTER);
   lv_obj_clear_flag(button_row_, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_align(button_row_,
-               LV_ALIGN_BOTTOM_MID,
-               0,
-               -(config_.pad_all + config_.button_bottom_pad));
+  lv_obj_align(button_row_, LV_ALIGN_BOTTOM_MID, 0, -(config_.pad_all + config_.button_bottom_pad));
 
   if (config_.show_cancel_button) {
-    cancel_button_ =
-        add_button_(button_row_,
-                    config_.cancel_button_label.c_str(),
-                    config_.cancel_button_tone,
-                    cancel_button_cb);
+    cancel_button_              = add_button_(button_row_,
+                                              config_.cancel_button_label.c_str(),
+                                              config_.cancel_button_tone,
+                                              cancel_button_cb);
     button_entries_.back().role = ButtonRole::CANCEL;
   }
   if (config_.show_skip_button) {
-    skip_button_ = add_button_(button_row_,
-                               config_.skip_button_label.c_str(),
-                               config_.skip_button_tone,
-                               skip_button_cb);
+    skip_button_                = add_button_(button_row_,
+                                              config_.skip_button_label.c_str(),
+                                              config_.skip_button_tone,
+                                              skip_button_cb);
     button_entries_.back().role = ButtonRole::SKIP;
   }
   if (config_.show_ok_button) {
-    ok_button_ = add_button_(button_row_,
-                             config_.ok_button_label.c_str(),
-                             config_.ok_button_tone,
-                             ok_button_cb);
+    ok_button_                  = add_button_(button_row_,
+                                              config_.ok_button_label.c_str(),
+                                              config_.ok_button_tone,
+                                              ok_button_cb);
     button_entries_.back().role = ButtonRole::OK;
     focused_button_index_       = button_entries_.size() - 1;
   }
 }
 
 bool Dialog::is_ok_key_(uint32_t key, const char* key_name) const {
-  return key == LV_KEY_ENTER || key == '\n' || key == '\r' ||
-         key_name_is_one_of_(key_name, "Enter", "Return", "KEY_96");
+  return key == LV_KEY_ENTER || key == '\r' ||
+         key_name_is_one_of(key_name, "Enter", "Return", "KEY_96");
 }
 
 bool Dialog::is_cancel_key_(uint32_t key, const char* key_name) const {
-  return key == LV_KEY_ESC || key == 27 ||
-         key_name_is_one_of_(key_name, "Esc", "Escape", "KEY_1") ||
+  return key == LV_KEY_ESC || key_name_is_one_of(key_name, "Esc", "Escape", "KEY_1") ||
          (config_.use_nav_action_keys && key == '4');
 }
 
 bool Dialog::is_focus_previous_key_(uint32_t key, const char* key_name) const {
   return key == LV_KEY_LEFT || key == 'z' || key == 'Z' ||
-         key_name_is_one_of_(key_name, "Left", "KEY_105", "Z");
+         key_name_is_one_of(key_name, "Left", "KEY_105", "Z");
 }
 
 bool Dialog::is_focus_next_key_(uint32_t key, const char* key_name) const {
   return key == LV_KEY_RIGHT || key == 'c' || key == 'C' ||
-         key_name_is_one_of_(key_name, "Right", "KEY_106", "C");
+         key_name_is_one_of(key_name, "Right", "KEY_106", "C");
 }
 
-bool Dialog::key_name_is_one_of_(const char* key_name,
-                                 const char* a,
-                                 const char* b,
-                                 const char* c) {
+bool Dialog::key_name_is_one_of(const char* key_name, const char* a, const char* b, const char* c) {
   if (!key_name) {
     return false;
   }

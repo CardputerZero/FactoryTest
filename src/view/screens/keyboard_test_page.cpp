@@ -768,7 +768,8 @@ void KeyboardTestPage::mark_key_pressed_(uint32_t key, const char* key_name) {
     }
 
     const auto index = layer_index(K_KEYS[i].layer);
-    if (counted && layer_pressed_counts_[index] >= layer_total_counts_[index]) {
+    if (counted && K_KEYS[i].layer == active_layer_ &&
+        layer_pressed_counts_[index] >= layer_total_counts_[index]) {
       transition_to_(next_layer(K_KEYS[i].layer));
     } else {
       update_progress_();

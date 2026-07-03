@@ -24,6 +24,8 @@ class LcdTestPage : public BaseScreen {
  protected:
   void build_content(lv_obj_t* content) override;
   void apply_color_index_(int32_t index);
+  void apply_cross_hatch_(bool dark_background);
+  void set_cross_hatch_visible_(bool visible);
   void apply_brightness_active_(bool active);
   void apply_brightness_percent_(int32_t percent);
   void apply_brightness_theme_(bool dark_mode);
@@ -54,6 +56,11 @@ class LcdTestPage : public BaseScreen {
   std::array<lv_obj_t*, K_TILE_COUNT> tiles_{};
   lv_obj_t* prompt_{nullptr};
   lv_obj_t* color_layer_{nullptr};
+  lv_obj_t* color_label_{nullptr};
+  lv_obj_t* cross_hatch_rect_{nullptr};
+  lv_obj_t* cross_hatch_diag_a_{nullptr};
+  lv_obj_t* cross_hatch_diag_b_{nullptr};
+  std::array<lv_obj_t*, 4> cross_hatch_corners_{};
   lv_obj_t* brightness_group_{nullptr};
   lv_obj_t* brightness_label_{nullptr};
   lv_obj_t* brightness_slider_{nullptr};

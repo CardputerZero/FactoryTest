@@ -12,54 +12,21 @@
 #include <ctime>
 #include <filesystem>
 #include <fstream>
-#include <sstream>
+#include <iterator>
 #include <string>
-#include <vector>
 
 #include "logger.h"
 
+#if APP_USE_LIBCJSON
+#if __has_include(<cjson/cJSON.h>)
+#include <cjson/cJSON.h>
+#else
+#include <cJSON.h>
+#endif
+#endif
+
 namespace model {
 namespace {
-
-std::string json_escape(const std::string& text) {
-  std::string escaped;
-  escaped.reserve(text.size() + 8);
-  for (unsigned char ch : text) {
-    switch (ch) {
-      case '"':
-        escaped += "\\\"";
-        break;
-      case '\\':
-        escaped += "\\\\";
-        break;
-      case '\b':
-        escaped += "\\b";
-        break;
-      case '\f':
-        escaped += "\\f";
-        break;
-      case '\n':
-        escaped += "\\n";
-        break;
-      case '\r':
-        escaped += "\\r";
-        break;
-      case '\t':
-        escaped += "\\t";
-        break;
-      default:
-        if (ch < 0x20) {
-          char buffer[7]{};
-          std::snprintf(buffer, sizeof(buffer), "\\u%04x", static_cast<unsigned>(ch));
-          escaped += buffer;
-        } else {
-          escaped.push_back(static_cast<char>(ch));
-        }
-        break;
-    }
-  }
-  return escaped;
-}
 
 std::tm local_time(std::time_t value) {
   std::tm result{};
@@ -115,6 +82,116 @@ std::filesystem::path default_output_path() {
   return std::filesystem::path("/tmp") / "cardputer_factory_test.json";
 }
 
+#if APP_USE_LIBCJSON
+struct JsonOwner {
+  cJSON* value{nullptr};
+
+  explicit JsonOwner(cJSON* item = nullptr)
+      : value(item) {}
+  JsonOwner(const JsonOwner&)            = delete;
+  JsonOwner& operator=(const JsonOwner&) = delete;
+  JsonOwner(JsonOwner&& other) noexcept
+      : value(other.value) {
+    other.value = nullptr;
+  }
+  JsonOwner& operator=(JsonOwner&& other) noexcept {
+    if (this != &other) {
+      cJSON_Delete(value);
+      value       = other.value;
+      other.value = nullptr;
+    }
+    return *this;
+  }
+  ~JsonOwner() { cJSON_Delete(value); }
+
+  cJSON* get() const { return value; }
+};
+
+struct JsonStringOwner {
+  char* value{nullptr};
+
+  explicit JsonStringOwner(char* text = nullptr)
+      : value(text) {}
+  JsonStringOwner(const JsonStringOwner&)            = delete;
+  JsonStringOwner& operator=(const JsonStringOwner&) = delete;
+  ~JsonStringOwner() { cJSON_free(value); }
+
+  char* get() const { return value; }
+};
+
+JsonOwner make_session_document(const std::string& session_id, const std::string& test_time) {
+  JsonOwner root(cJSON_CreateObject());
+  if (!root.get()) {
+    return JsonOwner();
+  }
+
+  if (!cJSON_AddStringToObject(root.get(), "test_session", session_id.c_str()) ||
+      !cJSON_AddStringToObject(root.get(), "test_time", test_time.c_str()) ||
+      !cJSON_AddArrayToObject(root.get(), "results")) {
+    return JsonOwner();
+  }
+  return root;
+}
+
+JsonOwner read_json_file(const std::string& path) {
+  std::ifstream input(path, std::ios::binary);
+  if (!input) {
+    return JsonOwner();
+  }
+
+  const std::string text((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+  if (text.empty()) {
+    return JsonOwner();
+  }
+  return JsonOwner(cJSON_ParseWithLength(text.data(), text.size()));
+}
+
+cJSON* ensure_results_array(cJSON* root) {
+  cJSON* results = cJSON_GetObjectItemCaseSensitive(root, "results");
+  if (cJSON_IsArray(results)) {
+    return results;
+  }
+  if (results) {
+    cJSON_DeleteItemFromObjectCaseSensitive(root, "results");
+  }
+  return cJSON_AddArrayToObject(root, "results");
+}
+
+bool replace_string(cJSON* root, const char* name, const std::string& value) {
+  cJSON* item = cJSON_CreateString(value.c_str());
+  if (!item) {
+    return false;
+  }
+  if (cJSON_GetObjectItemCaseSensitive(root, name)) {
+    const bool replaced = cJSON_ReplaceItemInObjectCaseSensitive(root, name, item) != 0;
+    if (!replaced) {
+      cJSON_Delete(item);
+    }
+    return replaced;
+  }
+  const bool added = cJSON_AddItemToObject(root, name, item) != 0;
+  if (!added) {
+    cJSON_Delete(item);
+  }
+  return added;
+}
+
+bool write_json_file(const std::string& path, const cJSON* root) {
+  JsonStringOwner text(cJSON_Print(root));
+  if (!text.get()) {
+    return false;
+  }
+
+  std::ofstream output(path, std::ios::trunc | std::ios::binary);
+  if (!output) {
+    return false;
+  }
+
+  output << text.get() << '\n';
+  return static_cast<bool>(output);
+}
+#endif
+
 const char* result_text(TestResult result) {
   switch (result) {
     case TestResult::PASS:
@@ -123,7 +200,7 @@ const char* result_text(TestResult result) {
       return "skipped";
     case TestResult::FAILED:
     default:
-      return "Failed";
+      return "failed";
   }
 }
 
@@ -136,17 +213,20 @@ void TestSession::start() {
   output_path_   = default_output_path().string();
   active_        = true;
 
+#if APP_USE_LIBCJSON
+  auto root = make_session_document(session_id_, test_time_);
+  if (!root.get() || !write_json_file(output_path_, root.get())) {
+    LOG_WARN("failed to create test result file: {}", output_path_);
+    return;
+  }
+#else
   std::ofstream stream(output_path_, std::ios::trunc);
   if (!stream) {
     LOG_WARN("failed to create test result file: {}", output_path_);
     return;
   }
-
-  stream << "{\n"
-         << "  \"test_session\": \"" << json_escape(session_id_) << "\",\n"
-         << "  \"test_time\": \"" << json_escape(test_time_) << "\",\n"
-         << "  \"results\": []\n"
-         << "}\n";
+  LOG_WARN("test result JSON output requires cJSON");
+#endif
   LOG_INFO("test session started: {} path={}", session_id_, output_path_);
 }
 
@@ -163,65 +243,47 @@ void TestSession::append_result(const char* test_name, TestResult result) {
     start();
   }
 
-  struct ResultEntry {
-    std::string name;
-    std::string result;
-  };
-
-  std::vector<ResultEntry> entries;
-  std::ifstream input(output_path_);
-  if (input) {
-    std::stringstream buffer;
-    buffer << input.rdbuf();
-    const auto text = buffer.str();
-    std::size_t pos = 0;
-    while (true) {
-      const auto name_key = text.find("\"test_name\"", pos);
-      if (name_key == std::string::npos) {
-        break;
-      }
-      const auto name_colon = text.find(':', name_key);
-      const auto name_begin = text.find('"', name_colon + 1);
-      const auto name_end   = name_begin == std::string::npos ? std::string::npos
-                                                               : text.find('"', name_begin + 1);
-      const auto result_key = text.find("\"test_result\"", name_end);
-      const auto result_colon = text.find(':', result_key);
-      const auto result_begin = text.find('"', result_colon + 1);
-      const auto result_end   = result_begin == std::string::npos
-                                    ? std::string::npos
-                                    : text.find('"', result_begin + 1);
-      if (name_begin == std::string::npos || name_end == std::string::npos ||
-          result_key == std::string::npos || result_begin == std::string::npos ||
-          result_end == std::string::npos) {
-        break;
-      }
-      entries.push_back({text.substr(name_begin + 1, name_end - name_begin - 1),
-                         text.substr(result_begin + 1, result_end - result_begin - 1)});
-      pos = result_end + 1;
-    }
-  }
-
-  entries.push_back({test_name ? test_name : "Unknown Test", result_text(result)});
-
-  std::ofstream output(output_path_, std::ios::trunc);
-  if (!output) {
+#if APP_USE_LIBCJSON
+  auto root = read_json_file(output_path_);
+  if (!cJSON_IsObject(root.get())) {
+    LOG_WARN("test result document is incomplete or corrupted; rebuilding: {}", output_path_);
+    root = make_session_document(session_id_, test_time_);
+  } else if (!replace_string(root.get(), "test_session", session_id_) ||
+             !replace_string(root.get(), "test_time", test_time_)) {
     LOG_WARN("failed to write test result file: {}", output_path_);
     return;
   }
 
-  output << "{\n"
-         << "  \"test_session\": \"" << json_escape(session_id_) << "\",\n"
-         << "  \"test_time\": \"" << json_escape(test_time_) << "\",\n"
-         << "  \"results\": [\n";
-  for (std::size_t i = 0; i < entries.size(); ++i) {
-    output << "    {\n"
-           << "      \"test_name\": \"" << json_escape(entries[i].name) << "\",\n"
-           << "      \"test_result\": \"" << json_escape(entries[i].result) << "\"\n"
-           << "    }" << (i + 1 < entries.size() ? "," : "") << "\n";
+  if (!root.get()) {
+    LOG_WARN("failed to write test result file: {}", output_path_);
+    return;
   }
-  output << "  ]\n"
-         << "}\n";
-  LOG_INFO("test result recorded: {} {}", test_name ? test_name : "Unknown Test", result_text(result));
+
+  cJSON* results = ensure_results_array(root.get());
+  cJSON* entry   = cJSON_CreateObject();
+  if (!results || !entry ||
+      !cJSON_AddStringToObject(entry, "test_name", test_name ? test_name : "Unknown Test") ||
+      !cJSON_AddStringToObject(entry, "test_result", result_text(result))) {
+    cJSON_Delete(entry);
+    LOG_WARN("failed to build test result JSON");
+    return;
+  }
+  if (!cJSON_AddItemToArray(results, entry)) {
+    cJSON_Delete(entry);
+    LOG_WARN("failed to append test result JSON");
+    return;
+  }
+
+  if (!write_json_file(output_path_, root.get())) {
+    LOG_WARN("failed to write test result file: {}", output_path_);
+    return;
+  }
+#else
+  LOG_WARN("failed to record test result: cJSON library is not available");
+#endif
+  LOG_INFO("test result recorded: {} {}",
+           test_name ? test_name : "Unknown Test",
+           result_text(result));
 }
 
 }  // namespace model

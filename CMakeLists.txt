@@ -6,7 +6,7 @@
 
 cmake_minimum_required(VERSION 3.23)
 
-project(factory_test VERSION 0.1.0 LANGUAGES C CXX)
+project(factory_test VERSION 0.1.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -647,7 +647,7 @@ target_compile_definitions(${PROJECT_NAME}_platform PUBLIC
     APP_USE_LIBSERIALPORT=${APP_USE_LIBSERIALPORT}
     APP_FRAMEBUFFER_DEVICE="${APP_FRAMEBUFFER_DEVICE}"
     APP_DRM_DEVICE="${APP_DRM_DEVICE}"
-    APP_DRM_CONNECTOR_ID=${APP_DRM_CONNECTOR_ID}
+    APP_DRM_CONNECTOR_ID=\(${APP_DRM_CONNECTOR_ID}\)
 )
 target_link_libraries(${PROJECT_NAME}_platform PUBLIC lvgl fmt::fmt Threads::Threads serialization ${PLATFORM_LIBS})
 
@@ -655,7 +655,7 @@ target_link_libraries(${PROJECT_NAME}_platform PUBLIC lvgl fmt::fmt Threads::Thr
 file(GLOB_RECURSE MODEL_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/model/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/model/*.cpp")
 add_library(${PROJECT_NAME}_model STATIC ${MODEL_SOURCES})
 target_include_directories(${PROJECT_NAME}_model PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src/model")
-target_link_libraries(${PROJECT_NAME}_model PRIVATE ${PROJECT_NAME}_platform)
+target_link_libraries(${PROJECT_NAME}_model PRIVATE ${PROJECT_NAME}_platform serialization)
 
 # lvgl reactive src
 file(GLOB_RECURSE REACTIVE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/reactive/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/reactive/*.cpp")
@@ -710,7 +710,7 @@ target_compile_definitions(${PROJECT_NAME}_core PUBLIC
     APP_SOURCE_ASSETS_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/assets"
     APP_FRAMEBUFFER_DEVICE="${APP_FRAMEBUFFER_DEVICE}"
     APP_DRM_DEVICE="${APP_DRM_DEVICE}"
-    APP_DRM_CONNECTOR_ID=${APP_DRM_CONNECTOR_ID}
+    APP_DRM_CONNECTOR_ID=\(${APP_DRM_CONNECTOR_ID}\)
 )
 target_link_libraries(${PROJECT_NAME}_core PUBLIC lvgl logger ${PROJECT_NAME}_view ${PROJECT_NAME}_viewmodel ${PROJECT_NAME}_platform)
 

@@ -110,9 +110,9 @@ constexpr std::array<NavKeyMapEntry, 12> K_NAV_KEY_MAP = {{
     {'6', 2, 2},
     {'7', 3, 3},
     {'8', 4, 4},
-    {'c', 3, 4},
-    {'C', 3, 4},
-    {LV_KEY_RIGHT, 3, 4},
+    {'c', 3, 3},
+    {'C', 3, 3},
+    {LV_KEY_RIGHT, 3, 3},
 }};
 
 constexpr std::array<KeyNameEntry, 12> K_LV_KEY_NAMES = {{

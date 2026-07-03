@@ -6,18 +6,16 @@
 
 #include "bt_page.h"
 
-#include "io_page_common.h"
-
 #include <string>
 #include <vector>
 
+#include "io_page_common.h"
 #include "ui_const.h"
 
 namespace screen {
 
-std::vector<ScanPanelRow> bluetooth_panel_rows(
-    const std::vector<model::ConnectivityScanInfo>& items,
-    const std::string& error_message) {
+std::vector<ScanPanelRow> bluetooth_panel_rows(const std::vector<model::ScanItem>& items,
+                                               const std::string& error_message) {
   std::vector<ScanPanelRow> rows;
   rows.reserve(items.size() + 1);
   if (!error_message.empty()) {

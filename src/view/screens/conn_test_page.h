@@ -11,18 +11,18 @@
 #include <memory>
 
 #include "base_screen.h"
-#include "io_page_views.h"
 #include "connectivity_test_viewmodel.h"
 #include "icon_list.h"
+#include "io_page_views.h"
 
 namespace screen {
 
-class ConnectivityTestPage : public BaseScreen {
+class ConnTestPage : public BaseScreen {
  public:
-  ConnectivityTestPage(viewmodel::AppViewModel& app_view_model,
+  ConnTestPage(viewmodel::AppViewModel& app_view_model,
                        viewmodel::ConnectivityTestViewModel& connectivity_view_model,
                        app::AssetManager& assets);
-  ~ConnectivityTestPage() override;
+  ~ConnTestPage() override;
 
  protected:
   void build_content(lv_obj_t* content) override;
@@ -39,19 +39,19 @@ class ConnectivityTestPage : public BaseScreen {
   static void link_settings_request_observer(lv_observer_t* observer, lv_subject_t* subject);
   static void uart_settings_request_observer(lv_observer_t* observer, lv_subject_t* subject);
   static void loading_modal_timer_cb(lv_timer_t* timer);
-  std::size_t viewport_index_(model::ConnectivitySubPage page) const;
-  void show_page_(model::ConnectivitySubPage page, bool animate = true);
+  std::size_t viewport_index_(model::SubPage page) const;
+  void show_page_(model::SubPage page, bool animate = true);
   void update_selection_(std::size_t index);
   void scroll_active_page_(int32_t direction);
-  lv_obj_t* viewport_for_page_(model::ConnectivitySubPage page) const;
-  void reset_subpage_views_(model::ConnectivitySubPage keep_page);
-  void ensure_subpage_view_(model::ConnectivitySubPage page);
-  void build_subpage_view_(lv_obj_t* viewport, model::ConnectivitySubPage page);
-  void switch_external_bus_(model::ConnectivitySubPage page);
+  lv_obj_t* viewport_for_page_(model::SubPage page) const;
+  void reset_subpage_views_(model::SubPage keep_page);
+  void ensure_subpage_view_(model::SubPage page);
+  void build_subpage_view_(lv_obj_t* viewport, model::SubPage page);
+  void switch_external_bus_(model::SubPage page);
   bool should_suppress_uart_settings_();
-  void update_title_(model::ConnectivitySubPage page);
+  void update_title_(model::SubPage page);
   void update_nav_actions_();
-  void show_loading_modal_(model::ConnectivitySubPage page);
+  void show_loading_modal_(model::SubPage page);
   void hide_loading_modal_();
 
   viewmodel::ConnectivityTestViewModel& connectivity_view_model_;

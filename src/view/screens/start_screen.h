@@ -38,6 +38,8 @@ class StartScreen : public BaseScreen {
   void show_exit_popup_();
   void hide_exit_popup_();
   static void key_listener(uint32_t key, const char* key_name, void* user_data);
+  static void key_release_listener(uint32_t key, const char* key_name, void* user_data);
+  static void long_key_listener(uint32_t key, const char* key_name, void* user_data);
   static void item_clicked_cb(std::size_t index, void* user_data);
   static void tab_clicked_cb(lv_event_t* event);
   static void selected_observer(lv_observer_t* observer, lv_subject_t* subject);
@@ -78,7 +80,7 @@ class StartScreen : public BaseScreen {
   void animate_obj_x_(lv_obj_t* obj, int32_t from, int32_t to);
   void animate_list_width_(int32_t from, int32_t to);
   void animate_tab_fill_width_(lv_obj_t* fill, int32_t from, int32_t to);
-  static void animate_tab_pulse_(lv_obj_t* button);
+  static void animate_tab_pulse(lv_obj_t* button);
 
   viewmodel::StartMenuViewModel& menu_view_model_;
   viewmodel::PerfTestViewModel& perf_view_model_;

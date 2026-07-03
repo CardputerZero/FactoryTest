@@ -39,7 +39,7 @@ class I2cConnectivityView {
   lv_obj_t* grid_{nullptr};
   std::unique_ptr<view::widgets::Popup> scanning_popup_{};
   std::array<lv_obj_t*, 128> cell_labels_{};
-  std::array<model::ConnectivityI2cAddressState, 128> cell_states_{};
+  std::array<model::I2cAddressState, 128> cell_states_{};
   bool panel_initialized_{false};
   lv_timer_t* refresh_timer_{nullptr};
 };

@@ -6,11 +6,10 @@
 
 #include "wifi_page.h"
 
-#include "io_page_common.h"
-
 #include <string>
 #include <vector>
 
+#include "io_page_common.h"
 #include "ui_const.h"
 
 namespace screen {
@@ -28,7 +27,7 @@ const char* wifi_icon_for_strength(int32_t strength_percent) {
   return view::ICON_WIFI_HIGH;
 }
 
-std::vector<ScanPanelRow> wifi_panel_rows(const std::vector<model::ConnectivityScanInfo>& items,
+std::vector<ScanPanelRow> wifi_panel_rows(const std::vector<model::ScanItem>& items,
                                           const std::string& error_message) {
   std::vector<ScanPanelRow> rows;
   rows.reserve(items.size() + 1);

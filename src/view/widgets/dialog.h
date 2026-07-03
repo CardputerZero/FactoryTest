@@ -126,11 +126,11 @@ class Dialog : public BaseWidgets {
                         DialogButtonTone tone,
                         lv_event_cb_t callback);
   void apply_button_tone_(lv_obj_t* button, lv_obj_t* label, DialogButtonTone tone);
-	  lv_color_t tone_color_(DialogButtonTone tone) const;
-	  void update_button_focus_();
-	  void apply_dialog_theme_(bool dark_mode);
-	  void apply_theme(bool dark_mode) override;
-	  void move_button_focus_(int32_t direction);
+  lv_color_t tone_color_(DialogButtonTone tone) const;
+  void update_button_focus_();
+  void apply_dialog_theme_(bool dark_mode);
+  void apply_theme(bool dark_mode) override;
+  void move_button_focus_(int32_t direction);
   void trigger_focused_button_();
   bool is_focus_previous_key_(uint32_t key, const char* key_name) const;
   bool is_focus_next_key_(uint32_t key, const char* key_name) const;
@@ -138,10 +138,7 @@ class Dialog : public BaseWidgets {
   void add_button_row_();
   bool is_ok_key_(uint32_t key, const char* key_name) const;
   bool is_cancel_key_(uint32_t key, const char* key_name) const;
-  static bool key_name_is_one_of_(const char* key_name,
-                                  const char* a,
-                                  const char* b,
-                                  const char* c);
+  static bool key_name_is_one_of(const char* key_name, const char* a, const char* b, const char* c);
   static void ok_button_cb(lv_event_t* event);
   static void skip_button_cb(lv_event_t* event);
   static void cancel_button_cb(lv_event_t* event);

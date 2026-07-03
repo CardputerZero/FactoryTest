@@ -22,7 +22,7 @@ class WifiConnectivityViewModel {
  public:
   const char* title_text() const;
   bool refresh(bool force_refresh = false);
-  const std::vector<model::ConnectivityScanInfo>& scan_items() const;
+  const std::vector<model::ScanItem>& scan_items() const;
   const std::string& error_message() const;
 
  private:
@@ -33,7 +33,7 @@ class BluetoothConnectivityViewModel {
  public:
   const char* title_text() const;
   bool refresh(bool force_refresh = false);
-  const std::vector<model::ConnectivityScanInfo>& scan_items() const;
+  const std::vector<model::ScanItem>& scan_items() const;
   const std::string& error_message() const;
 
  private:
@@ -44,7 +44,7 @@ class EthernetConnectivityViewModel {
  public:
   const char* title_text() const;
   bool refresh(bool force_refresh = false);
-  const std::vector<model::ConnectivityInfoField>& fields() const;
+  const std::vector<model::InfoField>& fields() const;
   const std::string& error_message() const;
 
  private:
@@ -55,7 +55,7 @@ class UsbConnectivityViewModel {
  public:
   const char* title_text() const;
   bool refresh(bool force_refresh = false);
-  const std::vector<model::ConnectivityScanInfo>& devices() const;
+  const std::vector<model::ScanItem>& devices() const;
   const std::string& error_message() const;
 
  private:
@@ -67,7 +67,7 @@ class I2cConnectivityViewModel {
   const char* title_text() const;
   bool refresh(bool force_refresh = false);
   bool is_scanning() const;
-  const std::vector<model::ConnectivityI2cAddressInfo>& addresses() const;
+  const std::vector<model::I2cAddress>& addresses() const;
   const std::string& error_message() const;
 
  private:
@@ -78,7 +78,7 @@ class SpiConnectivityViewModel {
  public:
   const char* title_text() const;
   bool refresh(bool force_refresh = false);
-  const std::vector<model::ConnectivityScanInfo>& devices() const;
+  const std::vector<model::ScanItem>& devices() const;
   const std::string& error_message() const;
 
  private:
@@ -89,7 +89,7 @@ class HdmiConnectivityViewModel {
  public:
   const char* title_text() const;
   bool refresh(bool force_refresh = false);
-  const std::vector<model::ConnectivityInfoField>& fields() const;
+  const std::vector<model::InfoField>& fields() const;
   const std::string& error_message() const;
 
  private:
@@ -121,17 +121,16 @@ class ConnectivityTestViewModel {
   lv_subject_t* link_restart_request_subject();
   lv_subject_t* link_settings_request_subject();
   lv_subject_t* uart_settings_request_subject();
-  const std::array<model::ConnectivityMenuItem, model::ConnectivityTestModel::K_ITEM_COUNT>& items()
-      const;
+  const std::array<model::MenuItem, model::ConnectivityTestModel::K_ITEM_COUNT>& items() const;
   std::size_t selected_index() const;
-  model::ConnectivitySubPage active_page() const;
+  model::SubPage active_page() const;
   bool is_menu_active() const;
   bool is_direct_subpage_active() const;
   void select_previous();
   void select_next();
   void set_selected_index(std::size_t index);
   void activate_selected();
-  void show_subpage(model::ConnectivitySubPage page, bool direct = false);
+  void show_subpage(model::SubPage page, bool direct = false);
   void show_menu();
   void clear_direct_subpage();
   bool request_back();

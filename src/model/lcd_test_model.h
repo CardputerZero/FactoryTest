@@ -12,10 +12,13 @@ namespace model {
 
 class LcdTestModel {
  public:
-  static constexpr int32_t K_COLOR_STEP_COUNT = 9;
-  static constexpr int32_t K_MIN_BRIGHTNESS_PERCENT = 1;
+  static constexpr int32_t K_COLOR_STEP_COUNT       = 9;
+  static constexpr int32_t K_CROSS_HATCH_STEP_COUNT = 2;
+  static constexpr int32_t K_TOTAL_VISUAL_STEP_COUNT =
+      K_CROSS_HATCH_STEP_COUNT + K_COLOR_STEP_COUNT;
+  static constexpr int32_t K_MIN_BRIGHTNESS_PERCENT     = 1;
   static constexpr int32_t K_INITIAL_BRIGHTNESS_PERCENT = 80;
-  static constexpr int32_t K_BRIGHTNESS_STEP_PERCENT = 5;
+  static constexpr int32_t K_BRIGHTNESS_STEP_PERCENT    = 5;
 
   int32_t color_index() const;
   int32_t brightness_percent() const;

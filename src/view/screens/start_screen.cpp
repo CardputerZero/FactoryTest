@@ -57,16 +57,16 @@ lv_color_t category_color(model::StartMenuCategory category, const view::ThemePa
 }
 
 bool is_tab_key(uint32_t key) {
-  if (key == '\t') {
-    return true;
-  }
+  bool is_tab = key == '\t';
 #ifdef LV_KEY_NEXT
-  if (key == LV_KEY_NEXT) {
-    return true;
-  }
+  is_tab = is_tab || key == LV_KEY_NEXT;
 #endif
-  return false;
+  return is_tab;
 }
+
+bool is_drawer_toggle_key(uint32_t key) { return key == '6' || is_tab_key(key); }
+
+bool is_exit_key(uint32_t key) { return key == LV_KEY_ESC || key == '4'; }
 
 enum class FtlSequenceKey {
   UP,
@@ -136,13 +136,27 @@ StartScreen::StartScreen(viewmodel::AppViewModel& app_view_model,
   exit_action.press_action         = [this]() { show_exit_popup_(); };
   exit_action.release_action       = [this]() { hide_exit_popup_(); };
   app_view_model_ref_().set_keypad_nav_action('4', std::move(exit_action));
-  set_nav_action_('6', view::ICON_SIDEBAR, [this]() { toggle_drawer_(true); });
-  set_nav_action_('8', view::ICON_CHECK_SQUARE, [this]() { activate_selected_item_(); });
+  set_nav_action_('6',
+                  view::ICON_SIDEBAR,
+                  nullptr,
+                  LV_EVENT_CLICKED,
+                  viewmodel::NavHoldTarget::NONE,
+                  true);
+  set_nav_action_('8',
+                  view::ICON_CHECK_SQUARE,
+                  nullptr,
+                  LV_EVENT_CLICKED,
+                  viewmodel::NavHoldTarget::NONE,
+                  true);
   init();
   platform::set_key_listener(key_listener, this);
+  platform::set_key_release_listener(key_release_listener, this);
+  platform::set_long_key_listener(long_key_listener, this);
 }
 
 StartScreen::~StartScreen() {
+  platform::clear_long_key_listener(long_key_listener, this);
+  platform::clear_key_release_listener(key_release_listener, this);
   platform::clear_key_listener(key_listener, this);
   lv_anim_delete(this, list_width_anim_cb);
   for (auto& tab : tabs_) {
@@ -494,7 +508,7 @@ void StartScreen::animate_tab_fill_width_(lv_obj_t* fill, int32_t from, int32_t 
   lv_anim_start(&anim);
 }
 
-void StartScreen::animate_tab_pulse_(lv_obj_t* button) {
+void StartScreen::animate_tab_pulse(lv_obj_t* button) {
   if (!button || !lv_obj_is_valid(button)) {
     return;
   }
@@ -574,7 +588,12 @@ void StartScreen::key_listener(uint32_t key, const char* key_name, void* user_da
     return;
   }
 
-  if (is_tab_key(key)) {
+  if (is_exit_key(key)) {
+    page->show_exit_popup_();
+    return;
+  }
+
+  if (is_drawer_toggle_key(key)) {
     page->toggle_drawer_(true);
     return;
   }
@@ -611,6 +630,7 @@ void StartScreen::key_listener(uint32_t key, const char* key_name, void* user_da
       }
       break;
     case LV_KEY_ENTER:
+    case '8':
       if (page->focus_area_ == FocusArea::DRAWER) {
         page->set_focus_area_(FocusArea::LIST);
       } else {
@@ -619,6 +639,25 @@ void StartScreen::key_listener(uint32_t key, const char* key_name, void* user_da
       break;
     default:
       break;
+  }
+}
+
+void StartScreen::key_release_listener(uint32_t key, const char* key_name, void* user_data) {
+  LV_UNUSED(key_name);
+
+  auto* page = static_cast<StartScreen*>(user_data);
+  if (page && is_exit_key(key)) {
+    page->hide_exit_popup_();
+  }
+}
+
+void StartScreen::long_key_listener(uint32_t key, const char* key_name, void* user_data) {
+  LV_UNUSED(key_name);
+
+  auto* page = static_cast<StartScreen*>(user_data);
+  if (page && is_exit_key(key)) {
+    page->hide_exit_popup_();
+    page->app_view_model_ref_().request_quit();
   }
 }
 
@@ -707,7 +746,7 @@ void StartScreen::tab_fill_completed_cb(lv_anim_t* anim) {
 
   auto* button = lv_obj_get_parent(fill);
   if (button && lv_obj_get_style_outline_width(button, LV_PART_MAIN) > 0) {
-    animate_tab_pulse_(button);
+    animate_tab_pulse(button);
   }
 }
 

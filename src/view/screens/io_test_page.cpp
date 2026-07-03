@@ -23,30 +23,30 @@ namespace {
 constexpr int32_t K_SCROLL_STEP       = 34;
 constexpr uint32_t K_LOADING_MODAL_MS = 900;
 
-model::ConnectivitySubPage connectivity_page_for_app_page(model::AppPage page) {
+model::SubPage subpage_for_app_page(model::AppPage page) {
   switch (page) {
     case model::AppPage::WIFI_TEST:
-      return model::ConnectivitySubPage::WIFI;
+      return model::SubPage::WIFI;
     case model::AppPage::BT_TEST:
-      return model::ConnectivitySubPage::BLUETOOTH;
+      return model::SubPage::BLUETOOTH;
     case model::AppPage::ETH_TEST:
-      return model::ConnectivitySubPage::ETHERNET;
+      return model::SubPage::ETHERNET;
     case model::AppPage::USB_TEST:
-      return model::ConnectivitySubPage::USB;
+      return model::SubPage::USB;
     case model::AppPage::HDMI_TEST:
-      return model::ConnectivitySubPage::HDMI;
+      return model::SubPage::HDMI;
     case model::AppPage::I2C_TEST:
-      return model::ConnectivitySubPage::I2C;
+      return model::SubPage::I2C;
     case model::AppPage::SPI_TEST:
-      return model::ConnectivitySubPage::SPI;
+      return model::SubPage::SPI;
     case model::AppPage::UART_TEST:
-      return model::ConnectivitySubPage::UART;
+      return model::SubPage::UART;
     case model::AppPage::EXT_IO_TEST:
-      return model::ConnectivitySubPage::EXT_IO;
+      return model::SubPage::EXT_IO;
     case model::AppPage::LINK_TEST:
-      return model::ConnectivitySubPage::LINK_TEST;
+      return model::SubPage::LINK_TEST;
     default:
-      return model::ConnectivitySubPage::MENU;
+      return model::SubPage::MENU;
   }
 }
 
@@ -78,10 +78,10 @@ IoTestPage::IoTestPage(viewmodel::AppViewModel& app_view_model,
                        app::AssetManager& assets,
                        model::AppPage page)
     : BaseScreen(app_view_model, assets),
-      connectivity_view_model_(connectivity_view_model),
+      conn_vm_(connectivity_view_model),
       page_(page) {
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
-  connectivity_view_model_.show_subpage(connectivity_page_for_app_page(page_), true);
+  conn_vm_.show_subpage(subpage_for_app_page(page_), true);
   update_nav_actions_();
   init();
   platform::set_key_listener(key_listener, this);
@@ -109,7 +109,7 @@ IoTestPage::~IoTestPage() {
   ethernet_view_.reset();
   bluetooth_view_.reset();
   wifi_view_.reset();
-  connectivity_view_model_.clear_direct_subpage();
+  conn_vm_.clear_direct_subpage();
 }
 
 void IoTestPage::build_content(lv_obj_t* content) {
@@ -127,44 +127,41 @@ void IoTestPage::build_content(lv_obj_t* content) {
 
   switch (page_) {
     case model::AppPage::WIFI_TEST:
-      wifi_view_ = std::make_unique<WifiConnectivityView>(connectivity_view_model_.wifi_view_model());
+      wifi_view_ = std::make_unique<WifiConnectivityView>(conn_vm_.wifi_view_model());
       wifi_view_->build(viewport_, app_view_model_ref_(), assets_ref_());
       break;
     case model::AppPage::BT_TEST:
       bluetooth_view_ =
-          std::make_unique<BluetoothConnectivityView>(connectivity_view_model_.bluetooth_view_model());
+          std::make_unique<BluetoothConnectivityView>(conn_vm_.bluetooth_view_model());
       bluetooth_view_->build(viewport_, app_view_model_ref_(), assets_ref_());
       break;
     case model::AppPage::ETH_TEST:
-      ethernet_view_ =
-          std::make_unique<EthernetConnectivityView>(connectivity_view_model_.ethernet_view_model());
+      ethernet_view_ = std::make_unique<EthernetConnectivityView>(conn_vm_.ethernet_view_model());
       ethernet_view_->build(viewport_, app_view_model_ref_(), assets_ref_());
       break;
     case model::AppPage::USB_TEST:
-      usb_view_ = std::make_unique<UsbConnectivityView>(connectivity_view_model_.usb_view_model());
+      usb_view_ = std::make_unique<UsbConnectivityView>(conn_vm_.usb_view_model());
       usb_view_->build(viewport_, app_view_model_ref_(), assets_ref_());
       break;
     case model::AppPage::HDMI_TEST:
-      hdmi_view_ = std::make_unique<HdmiConnectivityView>(connectivity_view_model_.hdmi_view_model());
+      hdmi_view_ = std::make_unique<HdmiConnectivityView>(conn_vm_.hdmi_view_model());
       hdmi_view_->build(viewport_, app_view_model_ref_(), assets_ref_());
       break;
-    case model::AppPage::I2C_TEST:
-      {
-        std::string error;
-        platform::gpio::set_external_bus_i2c_mode(true, error);
-      }
-      i2c_view_ = std::make_unique<I2cConnectivityView>(connectivity_view_model_.i2c_view_model());
+    case model::AppPage::I2C_TEST: {
+      std::string error;
+      platform::gpio::set_external_bus_i2c_mode(true, error);
+    }
+      i2c_view_ = std::make_unique<I2cConnectivityView>(conn_vm_.i2c_view_model());
       i2c_view_->build(viewport_, app_view_model_ref_(), assets_ref_());
       break;
     case model::AppPage::SPI_TEST:
-      spi_view_ = std::make_unique<SpiConnectivityView>(connectivity_view_model_.spi_view_model());
+      spi_view_ = std::make_unique<SpiConnectivityView>(conn_vm_.spi_view_model());
       spi_view_->build(viewport_, app_view_model_ref_(), assets_ref_());
       break;
-    case model::AppPage::UART_TEST:
-      {
-        std::string error;
-        platform::gpio::set_external_bus_uart_mode(error);
-      }
+    case model::AppPage::UART_TEST: {
+      std::string error;
+      platform::gpio::set_external_bus_uart_mode(error);
+    }
       uart_view_ = std::make_unique<UartConnectivityView>();
       uart_view_->build(viewport_, root(), app_view_model_ref_(), assets_ref_());
       break;
@@ -173,8 +170,7 @@ void IoTestPage::build_content(lv_obj_t* content) {
       ext_io_view_->build(viewport_, root(), app_view_model_ref_(), assets_ref_());
       break;
     case model::AppPage::LINK_TEST:
-      link_view_ =
-          std::make_unique<LinkConnectivityView>(connectivity_view_model_.link_view_model());
+      link_view_ = std::make_unique<LinkConnectivityView>(conn_vm_.link_view_model());
       link_view_->build(viewport_, root(), app_view_model_ref_(), assets_ref_());
       break;
     default:
@@ -334,8 +330,7 @@ void IoTestPage::key_listener(uint32_t key, const char* key_name, void* user_dat
     return;
   }
 
-  if (page->is_uart_page_() && page->uart_view_ &&
-      page->uart_view_->handle_key(key, key_name)) {
+  if (page->is_uart_page_() && page->uart_view_ && page->uart_view_->handle_key(key, key_name)) {
     return;
   }
 
@@ -361,30 +356,26 @@ void IoTestPage::key_listener(uint32_t key, const char* key_name, void* user_dat
   switch (key) {
     case LV_KEY_UP:
     case LV_KEY_LEFT:
-    case '5':
     case 'f':
     case 'F':
       page->scroll_viewport_(-1);
       break;
     case LV_KEY_DOWN:
     case LV_KEY_RIGHT:
-    case '7':
     case 'x':
     case 'X':
       page->scroll_viewport_(1);
       break;
     case 'r':
     case 'R':
-      page->connectivity_view_model_.refresh_active();
+      page->conn_vm_.refresh_active();
       break;
     default:
       break;
   }
 }
 
-void IoTestPage::key_release_listener(uint32_t key,
-                                      const char* key_name,
-                                      void* user_data) {
+void IoTestPage::key_release_listener(uint32_t key, const char* key_name, void* user_data) {
   auto* page = static_cast<IoTestPage*>(user_data);
   if (page && page->is_uart_page_() && page->uart_view_) {
     page->uart_view_->handle_key_release(key, key_name);
@@ -399,7 +390,7 @@ void IoTestPage::long_key_listener(uint32_t key, const char* key_name, void* use
   if (page->uart_view_->handle_long_key(key, key_name)) {
     return;
   }
-  if (key == LV_KEY_ESC || key == 27) {
+  if (key == LV_KEY_ESC) {
     page->app_view_model_ref_().request_back_or_quit();
   }
 }

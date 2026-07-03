@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "connectivity_test_page.h"
+#include "conn_test_page.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -29,57 +29,57 @@ constexpr int32_t K_SCROLL_STEP                = 34;
 constexpr uint32_t K_LOADING_MODAL_MS          = 900;
 constexpr uint32_t K_UART_SETTINGS_SUPPRESS_MS = 300;
 
-const char* icon_for_page(model::ConnectivitySubPage page) {
+const char* icon_for_page(model::SubPage page) {
   switch (page) {
-    case model::ConnectivitySubPage::WIFI:
+    case model::SubPage::WIFI:
       return view::ICON_WIFI;
-    case model::ConnectivitySubPage::BLUETOOTH:
+    case model::SubPage::BLUETOOTH:
       return view::ICON_BLUETOOTH;
-    case model::ConnectivitySubPage::ETHERNET:
+    case model::SubPage::ETHERNET:
       return view::ICON_ETHERNET;
-    case model::ConnectivitySubPage::USB:
+    case model::SubPage::USB:
       return view::ICON_USB;
-    case model::ConnectivitySubPage::HDMI:
+    case model::SubPage::HDMI:
       return view::ICON_MONITOR;
-    case model::ConnectivitySubPage::I2C:
+    case model::SubPage::I2C:
       return view::ICON_SCAN;
-    case model::ConnectivitySubPage::SPI:
+    case model::SubPage::SPI:
       return view::ICON_LINK_SIMPLE_HOR;
-    case model::ConnectivitySubPage::UART:
+    case model::SubPage::UART:
       return view::ICON_BROADCAST;
-    case model::ConnectivitySubPage::EXT_IO:
+    case model::SubPage::EXT_IO:
       return view::ICON_PLUGS_CONNECTED;
-    case model::ConnectivitySubPage::LINK_TEST:
+    case model::SubPage::LINK_TEST:
       return view::ICON_GLOBE;
-    case model::ConnectivitySubPage::MENU:
+    case model::SubPage::MENU:
     default:
       return "";
   }
 }
 
-const char* title_for_page(model::ConnectivitySubPage page) {
+const char* title_for_page(model::SubPage page) {
   switch (page) {
-    case model::ConnectivitySubPage::WIFI:
+    case model::SubPage::WIFI:
       return "Wi-Fi Scan";
-    case model::ConnectivitySubPage::BLUETOOTH:
+    case model::SubPage::BLUETOOTH:
       return "Bluetooth Scan";
-    case model::ConnectivitySubPage::ETHERNET:
+    case model::SubPage::ETHERNET:
       return "Ethernet Info";
-    case model::ConnectivitySubPage::USB:
+    case model::SubPage::USB:
       return "USB Devices";
-    case model::ConnectivitySubPage::HDMI:
+    case model::SubPage::HDMI:
       return "HDMI Info";
-    case model::ConnectivitySubPage::I2C:
+    case model::SubPage::I2C:
       return "I2C Scan";
-    case model::ConnectivitySubPage::SPI:
+    case model::SubPage::SPI:
       return "SPI Scan";
-    case model::ConnectivitySubPage::UART:
+    case model::SubPage::UART:
       return "UART Console";
-    case model::ConnectivitySubPage::EXT_IO:
+    case model::SubPage::EXT_IO:
       return "EXT.IO";
-    case model::ConnectivitySubPage::LINK_TEST:
+    case model::SubPage::LINK_TEST:
       return "Network Link Test";
-    case model::ConnectivitySubPage::MENU:
+    case model::SubPage::MENU:
     default:
       return "Connectivity Test";
   }
@@ -87,7 +87,7 @@ const char* title_for_page(model::ConnectivitySubPage page) {
 
 }  // namespace
 
-ConnectivityTestPage::ConnectivityTestPage(
+ConnTestPage::ConnTestPage(
     viewmodel::AppViewModel& app_view_model,
     viewmodel::ConnectivityTestViewModel& connectivity_view_model,
     app::AssetManager& assets)
@@ -105,7 +105,7 @@ ConnectivityTestPage::ConnectivityTestPage(
   platform::set_long_key_listener(long_key_listener, this);
 }
 
-ConnectivityTestPage::~ConnectivityTestPage() {
+ConnTestPage::~ConnTestPage() {
   app_view_model_ref_().clear_back_request_handler(back_request_handler, this);
   platform::clear_long_key_listener(long_key_listener, this);
   platform::clear_key_release_listener(key_release_listener, this);
@@ -149,7 +149,7 @@ ConnectivityTestPage::~ConnectivityTestPage() {
   connectivity_view_model_.clear_direct_subpage();
 }
 
-void ConnectivityTestPage::build_content(lv_obj_t* content) {
+void ConnTestPage::build_content(lv_obj_t* content) {
   const auto& items = connectivity_view_model_.items();
 
   plane_ = lv_obj_create(content);
@@ -236,8 +236,8 @@ void ConnectivityTestPage::build_content(lv_obj_t* content) {
   show_page_(connectivity_view_model_.active_page(), false);
 }
 
-bool ConnectivityTestPage::back_request_handler(void* user_data) {
-  auto* page = static_cast<ConnectivityTestPage*>(user_data);
+bool ConnTestPage::back_request_handler(void* user_data) {
+  auto* page = static_cast<ConnTestPage*>(user_data);
   if (!page || page->app_view_model_ref_().current_page() != model::AppPage::CONNECTIVITY_TEST) {
     return false;
   }
@@ -245,35 +245,35 @@ bool ConnectivityTestPage::back_request_handler(void* user_data) {
   return page->connectivity_view_model_.request_back();
 }
 
-std::size_t ConnectivityTestPage::viewport_index_(model::ConnectivitySubPage page) const {
+std::size_t ConnTestPage::viewport_index_(model::SubPage page) const {
   switch (page) {
-    case model::ConnectivitySubPage::WIFI:
+    case model::SubPage::WIFI:
       return 1;
-    case model::ConnectivitySubPage::BLUETOOTH:
+    case model::SubPage::BLUETOOTH:
       return 2;
-    case model::ConnectivitySubPage::ETHERNET:
+    case model::SubPage::ETHERNET:
       return 3;
-    case model::ConnectivitySubPage::USB:
+    case model::SubPage::USB:
       return 4;
-    case model::ConnectivitySubPage::HDMI:
+    case model::SubPage::HDMI:
       return 5;
-    case model::ConnectivitySubPage::I2C:
+    case model::SubPage::I2C:
       return 6;
-    case model::ConnectivitySubPage::SPI:
+    case model::SubPage::SPI:
       return 7;
-    case model::ConnectivitySubPage::UART:
+    case model::SubPage::UART:
       return 8;
-    case model::ConnectivitySubPage::EXT_IO:
+    case model::SubPage::EXT_IO:
       return 9;
-    case model::ConnectivitySubPage::LINK_TEST:
+    case model::SubPage::LINK_TEST:
       return 10;
-    case model::ConnectivitySubPage::MENU:
+    case model::SubPage::MENU:
     default:
       return 0;
   }
 }
 
-void ConnectivityTestPage::show_page_(model::ConnectivitySubPage page, bool animate) {
+void ConnTestPage::show_page_(model::SubPage page, bool animate) {
   if (!plane_) {
     return;
   }
@@ -285,10 +285,10 @@ void ConnectivityTestPage::show_page_(model::ConnectivitySubPage page, bool anim
   update_nav_actions_();
   const auto index = viewport_index_(page);
   if (menu_list_) {
-    menu_list_->set_focused(page == model::ConnectivitySubPage::MENU);
+    menu_list_->set_focused(page == model::SubPage::MENU);
   }
   lv_obj_set_x(plane_, -static_cast<int32_t>(index) * K_VIEWPORT_WIDTH);
-  if (page == model::ConnectivitySubPage::MENU) {
+  if (page == model::SubPage::MENU) {
     hide_loading_modal_();
   } else {
     show_loading_modal_(page);
@@ -296,17 +296,17 @@ void ConnectivityTestPage::show_page_(model::ConnectivitySubPage page, bool anim
   LV_UNUSED(animate);
 }
 
-void ConnectivityTestPage::switch_external_bus_(model::ConnectivitySubPage page) {
-  if (page == model::ConnectivitySubPage::I2C || page == model::ConnectivitySubPage::UART) {
+void ConnTestPage::switch_external_bus_(model::SubPage page) {
+  if (page == model::SubPage::I2C || page == model::SubPage::UART) {
     std::string error;
-    if (page == model::ConnectivitySubPage::I2C) {
+    if (page == model::SubPage::I2C) {
       platform::gpio::set_external_bus_i2c_mode(true, error);
     } else {
       platform::gpio::set_external_bus_uart_mode(error);
     }
   }
 
-  if (page == model::ConnectivitySubPage::UART) {
+  if (page == model::SubPage::UART) {
     uart_page_entered_at_        = lv_tick_get();
     suppress_uart_settings_once_ = true;
   } else {
@@ -314,7 +314,7 @@ void ConnectivityTestPage::switch_external_bus_(model::ConnectivitySubPage page)
   }
 }
 
-bool ConnectivityTestPage::should_suppress_uart_settings_() {
+bool ConnTestPage::should_suppress_uart_settings_() {
   if (!suppress_uart_settings_once_) {
     return false;
   }
@@ -322,17 +322,17 @@ bool ConnectivityTestPage::should_suppress_uart_settings_() {
   return lv_tick_elaps(uart_page_entered_at_) < K_UART_SETTINGS_SUPPRESS_MS;
 }
 
-void ConnectivityTestPage::update_title_(model::ConnectivitySubPage page) {
+void ConnTestPage::update_title_(model::SubPage page) {
   app_view_model_ref_().set_title_text(title_for_page(page));
 }
 
-void ConnectivityTestPage::update_selection_(std::size_t index) {
+void ConnTestPage::update_selection_(std::size_t index) {
   if (menu_list_) {
     menu_list_->set_selected_index(index);
   }
 }
 
-void ConnectivityTestPage::scroll_active_page_(int32_t direction) {
+void ConnTestPage::scroll_active_page_(int32_t direction) {
   if (!plane_ || direction == 0 || connectivity_view_model_.is_menu_active()) {
     return;
   }
@@ -352,15 +352,15 @@ void ConnectivityTestPage::scroll_active_page_(int32_t direction) {
   }
 }
 
-lv_obj_t* ConnectivityTestPage::viewport_for_page_(model::ConnectivitySubPage page) const {
+lv_obj_t* ConnTestPage::viewport_for_page_(model::SubPage page) const {
   if (!plane_) {
     return nullptr;
   }
   return lv_obj_get_child(plane_, static_cast<int32_t>(viewport_index_(page)));
 }
 
-void ConnectivityTestPage::reset_subpage_views_(model::ConnectivitySubPage keep_page) {
-  const auto reset_page = [this, keep_page](model::ConnectivitySubPage page, auto& view) {
+void ConnTestPage::reset_subpage_views_(model::SubPage keep_page) {
+  const auto reset_page = [this, keep_page](model::SubPage page, auto& view) {
     if (keep_page == page) {
       return;
     }
@@ -373,75 +373,75 @@ void ConnectivityTestPage::reset_subpage_views_(model::ConnectivitySubPage keep_
     }
   };
 
-  reset_page(model::ConnectivitySubPage::WIFI, wifi_view_);
-  reset_page(model::ConnectivitySubPage::BLUETOOTH, bluetooth_view_);
-  reset_page(model::ConnectivitySubPage::ETHERNET, ethernet_view_);
-  reset_page(model::ConnectivitySubPage::USB, usb_view_);
-  reset_page(model::ConnectivitySubPage::HDMI, hdmi_view_);
-  reset_page(model::ConnectivitySubPage::I2C, i2c_view_);
-  reset_page(model::ConnectivitySubPage::SPI, spi_view_);
-  reset_page(model::ConnectivitySubPage::UART, uart_view_);
-  reset_page(model::ConnectivitySubPage::EXT_IO, ext_io_view_);
-  reset_page(model::ConnectivitySubPage::LINK_TEST, link_view_);
+  reset_page(model::SubPage::WIFI, wifi_view_);
+  reset_page(model::SubPage::BLUETOOTH, bluetooth_view_);
+  reset_page(model::SubPage::ETHERNET, ethernet_view_);
+  reset_page(model::SubPage::USB, usb_view_);
+  reset_page(model::SubPage::HDMI, hdmi_view_);
+  reset_page(model::SubPage::I2C, i2c_view_);
+  reset_page(model::SubPage::SPI, spi_view_);
+  reset_page(model::SubPage::UART, uart_view_);
+  reset_page(model::SubPage::EXT_IO, ext_io_view_);
+  reset_page(model::SubPage::LINK_TEST, link_view_);
 }
 
-void ConnectivityTestPage::ensure_subpage_view_(model::ConnectivitySubPage page) {
-  if (page == model::ConnectivitySubPage::MENU) {
+void ConnTestPage::ensure_subpage_view_(model::SubPage page) {
+  if (page == model::SubPage::MENU) {
     return;
   }
 
   switch (page) {
-    case model::ConnectivitySubPage::WIFI:
+    case model::SubPage::WIFI:
       if (wifi_view_) {
         return;
       }
       break;
-    case model::ConnectivitySubPage::BLUETOOTH:
+    case model::SubPage::BLUETOOTH:
       if (bluetooth_view_) {
         return;
       }
       break;
-    case model::ConnectivitySubPage::ETHERNET:
+    case model::SubPage::ETHERNET:
       if (ethernet_view_) {
         return;
       }
       break;
-    case model::ConnectivitySubPage::USB:
+    case model::SubPage::USB:
       if (usb_view_) {
         return;
       }
       break;
-    case model::ConnectivitySubPage::HDMI:
+    case model::SubPage::HDMI:
       if (hdmi_view_) {
         return;
       }
       break;
-    case model::ConnectivitySubPage::I2C:
+    case model::SubPage::I2C:
       if (i2c_view_) {
         return;
       }
       break;
-    case model::ConnectivitySubPage::SPI:
+    case model::SubPage::SPI:
       if (spi_view_) {
         return;
       }
       break;
-    case model::ConnectivitySubPage::UART:
+    case model::SubPage::UART:
       if (uart_view_) {
         return;
       }
       break;
-    case model::ConnectivitySubPage::EXT_IO:
+    case model::SubPage::EXT_IO:
       if (ext_io_view_) {
         return;
       }
       break;
-    case model::ConnectivitySubPage::LINK_TEST:
+    case model::SubPage::LINK_TEST:
       if (link_view_) {
         return;
       }
       break;
-    case model::ConnectivitySubPage::MENU:
+    case model::SubPage::MENU:
     default:
       return;
   }
@@ -449,87 +449,86 @@ void ConnectivityTestPage::ensure_subpage_view_(model::ConnectivitySubPage page)
   build_subpage_view_(viewport_for_page_(page), page);
 }
 
-void ConnectivityTestPage::build_subpage_view_(lv_obj_t* viewport,
-                                               model::ConnectivitySubPage page) {
+void ConnTestPage::build_subpage_view_(lv_obj_t* viewport, model::SubPage page) {
   if (!viewport) {
     return;
   }
 
   switch (page) {
-    case model::ConnectivitySubPage::WIFI:
+    case model::SubPage::WIFI:
       wifi_view_ =
           std::make_unique<WifiConnectivityView>(connectivity_view_model_.wifi_view_model());
       wifi_view_->build(viewport, app_view_model_ref_(), assets_ref_());
       break;
-    case model::ConnectivitySubPage::BLUETOOTH:
+    case model::SubPage::BLUETOOTH:
       bluetooth_view_ = std::make_unique<BluetoothConnectivityView>(
           connectivity_view_model_.bluetooth_view_model());
       bluetooth_view_->build(viewport, app_view_model_ref_(), assets_ref_());
       break;
-    case model::ConnectivitySubPage::ETHERNET:
+    case model::SubPage::ETHERNET:
       ethernet_view_ = std::make_unique<EthernetConnectivityView>(
           connectivity_view_model_.ethernet_view_model());
       ethernet_view_->build(viewport, app_view_model_ref_(), assets_ref_());
       break;
-    case model::ConnectivitySubPage::USB:
+    case model::SubPage::USB:
       usb_view_ = std::make_unique<UsbConnectivityView>(connectivity_view_model_.usb_view_model());
       usb_view_->build(viewport, app_view_model_ref_(), assets_ref_());
       break;
-    case model::ConnectivitySubPage::HDMI:
+    case model::SubPage::HDMI:
       hdmi_view_ =
           std::make_unique<HdmiConnectivityView>(connectivity_view_model_.hdmi_view_model());
       hdmi_view_->build(viewport, app_view_model_ref_(), assets_ref_());
       break;
-    case model::ConnectivitySubPage::I2C:
+    case model::SubPage::I2C:
       i2c_view_ = std::make_unique<I2cConnectivityView>(connectivity_view_model_.i2c_view_model());
       i2c_view_->build(viewport, app_view_model_ref_(), assets_ref_());
       break;
-    case model::ConnectivitySubPage::SPI:
+    case model::SubPage::SPI:
       spi_view_ = std::make_unique<SpiConnectivityView>(connectivity_view_model_.spi_view_model());
       spi_view_->build(viewport, app_view_model_ref_(), assets_ref_());
       break;
-    case model::ConnectivitySubPage::UART:
+    case model::SubPage::UART:
       uart_view_ = std::make_unique<UartConnectivityView>();
       uart_view_->build(viewport, root(), app_view_model_ref_(), assets_ref_());
       break;
-    case model::ConnectivitySubPage::EXT_IO:
+    case model::SubPage::EXT_IO:
       ext_io_view_ = std::make_unique<ExtIoConnectivityView>();
       ext_io_view_->build(viewport, root(), app_view_model_ref_(), assets_ref_());
       break;
-    case model::ConnectivitySubPage::LINK_TEST:
+    case model::SubPage::LINK_TEST:
       link_view_ =
           std::make_unique<LinkConnectivityView>(connectivity_view_model_.link_view_model());
       link_view_->build(viewport, root(), app_view_model_ref_(), assets_ref_());
       break;
-    case model::ConnectivitySubPage::MENU:
+    case model::SubPage::MENU:
     default:
       break;
   }
 }
 
-void ConnectivityTestPage::update_nav_actions_() {
+void ConnTestPage::update_nav_actions_() {
   app_view_model_ref_().clear_nav_actions();
   const auto page = connectivity_view_model_.active_page();
   set_nav_action_(
       '4',
       view::ICON_ARROW_U_UP_LEFT,
       [this]() { app_view_model_ref_().request_back_or_quit(); },
-      page == model::ConnectivitySubPage::UART ? LV_EVENT_LONG_PRESSED : LV_EVENT_CLICKED);
+      page == model::SubPage::UART ? LV_EVENT_LONG_PRESSED : LV_EVENT_CLICKED);
 
-  if (page == model::ConnectivitySubPage::LINK_TEST) {
+  if (page == model::SubPage::LINK_TEST) {
     set_nav_action_('5', view::ICON_ARROWS_CLOCKWISE, [this]() {
       connectivity_view_model_.request_link_restart();
     });
     set_nav_action_('7', view::ICON_GEAR_FINE, [this]() {
       connectivity_view_model_.request_link_settings();
     });
-  } else if (page == model::ConnectivitySubPage::UART) {
+  } else if (page == model::SubPage::UART) {
     set_nav_action_(
         '6',
         view::ICON_GEAR_FINE,
         [this]() { connectivity_view_model_.request_uart_settings(); },
         LV_EVENT_LONG_PRESSED);
-  } else if (page == model::ConnectivitySubPage::EXT_IO) {
+  } else if (page == model::SubPage::EXT_IO) {
     set_nav_action_('6', view::ICON_GEAR_FINE, [this]() {
       if (ext_io_view_) {
         ext_io_view_->show_config_dialog();
@@ -537,21 +536,19 @@ void ConnectivityTestPage::update_nav_actions_() {
     });
   }
 
-  set_nav_action_('8', view::ICON_CHECK_SQUARE, [this]() {
-    show_test_result_dialog_();
-  });
+  set_nav_action_('8', view::ICON_CHECK_SQUARE, [this]() { show_test_result_dialog_(); });
 }
 
-void ConnectivityTestPage::show_loading_modal_(model::ConnectivitySubPage page) {
+void ConnTestPage::show_loading_modal_(model::SubPage page) {
   if (!root()) {
     return;
   }
 
-  if (page == model::ConnectivitySubPage::I2C) {
+  if (page == model::SubPage::I2C) {
     hide_loading_modal_();
     return;
   }
-  if (page == model::ConnectivitySubPage::EXT_IO) {
+  if (page == model::SubPage::EXT_IO) {
     hide_loading_modal_();
     return;
   }
@@ -568,13 +565,13 @@ void ConnectivityTestPage::show_loading_modal_(model::ConnectivitySubPage page) 
                        reactive::ThemeRole::BUTTON);
 
   auto* label       = lv_label_create(loading_modal_);
-  const char* title = page == model::ConnectivitySubPage::I2C         ? "Scanning I2C..."
-                      : page == model::ConnectivitySubPage::SPI       ? "Scanning SPI..."
-                      : page == model::ConnectivitySubPage::LINK_TEST ? "Testing Link..."
-                      : page == model::ConnectivitySubPage::UART      ? "Opening UART..."
-                      : page == model::ConnectivitySubPage::ETHERNET  ? "Reading Ethernet..."
-                      : page == model::ConnectivitySubPage::HDMI      ? "Reading HDMI..."
-                                                                      : "Scanning...";
+  const char* title = page == model::SubPage::I2C         ? "Scanning I2C..."
+                      : page == model::SubPage::SPI       ? "Scanning SPI..."
+                      : page == model::SubPage::LINK_TEST ? "Testing Link..."
+                      : page == model::SubPage::UART      ? "Opening UART..."
+                      : page == model::SubPage::ETHERNET  ? "Reading Ethernet..."
+                      : page == model::SubPage::HDMI      ? "Reading HDMI..."
+                                                          : "Scanning...";
   lv_label_set_text(label, title);
   auto* font = assets_ref_().load_font("inter-semibold.ttf", 12);
   lv_obj_set_style_text_font(label, font ? font : &lv_font_montserrat_12, 0);
@@ -591,15 +588,15 @@ void ConnectivityTestPage::show_loading_modal_(model::ConnectivitySubPage page) 
   lv_timer_reset(loading_modal_timer_);
 }
 
-void ConnectivityTestPage::hide_loading_modal_() {
+void ConnTestPage::hide_loading_modal_() {
   if (loading_modal_ && lv_obj_is_valid(loading_modal_)) {
     lv_obj_delete(loading_modal_);
   }
   loading_modal_ = nullptr;
 }
 
-void ConnectivityTestPage::key_listener(uint32_t key, const char* key_name, void* user_data) {
-  auto* page = static_cast<ConnectivityTestPage*>(user_data);
+void ConnTestPage::key_listener(uint32_t key, const char* key_name, void* user_data) {
+  auto* page = static_cast<ConnTestPage*>(user_data);
   if (!page) {
     return;
   }
@@ -608,13 +605,13 @@ void ConnectivityTestPage::key_listener(uint32_t key, const char* key_name, void
   }
 
   const bool uart_page_active =
-      page->connectivity_view_model_.active_page() == model::ConnectivitySubPage::UART;
+      page->connectivity_view_model_.active_page() == model::SubPage::UART;
   if (uart_page_active && page->uart_view_ && page->uart_view_->handle_key(key, key_name)) {
     return;
   }
 
   const bool link_page_active =
-      page->connectivity_view_model_.active_page() == model::ConnectivitySubPage::LINK_TEST;
+      page->connectivity_view_model_.active_page() == model::SubPage::LINK_TEST;
   if (link_page_active && page->link_view_) {
     if (page->link_view_->handle_key(key, key_name)) {
       return;
@@ -630,7 +627,7 @@ void ConnectivityTestPage::key_listener(uint32_t key, const char* key_name, void
   }
 
   const bool ext_io_page_active =
-      page->connectivity_view_model_.active_page() == model::ConnectivitySubPage::EXT_IO;
+      page->connectivity_view_model_.active_page() == model::SubPage::EXT_IO;
   if (ext_io_page_active && page->ext_io_view_ && page->ext_io_view_->handle_key(key, key_name)) {
     return;
   }
@@ -676,29 +673,29 @@ void ConnectivityTestPage::key_listener(uint32_t key, const char* key_name, void
   }
 }
 
-void ConnectivityTestPage::key_release_listener(uint32_t key,
+void ConnTestPage::key_release_listener(uint32_t key,
                                                 const char* key_name,
                                                 void* user_data) {
-  auto* page = static_cast<ConnectivityTestPage*>(user_data);
+  auto* page = static_cast<ConnTestPage*>(user_data);
   if (!page) {
     return;
   }
 
   const bool uart_page_active =
-      page->connectivity_view_model_.active_page() == model::ConnectivitySubPage::UART;
+      page->connectivity_view_model_.active_page() == model::SubPage::UART;
   if (uart_page_active && page->uart_view_) {
     page->uart_view_->handle_key_release(key, key_name);
   }
 }
 
-void ConnectivityTestPage::long_key_listener(uint32_t key, const char* key_name, void* user_data) {
-  auto* page = static_cast<ConnectivityTestPage*>(user_data);
+void ConnTestPage::long_key_listener(uint32_t key, const char* key_name, void* user_data) {
+  auto* page = static_cast<ConnTestPage*>(user_data);
   if (!page) {
     return;
   }
 
   const bool uart_page_active =
-      page->connectivity_view_model_.active_page() == model::ConnectivitySubPage::UART;
+      page->connectivity_view_model_.active_page() == model::SubPage::UART;
   if (uart_page_active && page->uart_view_) {
     if (page->uart_view_->handle_long_key(key, key_name)) {
       return;
@@ -710,8 +707,8 @@ void ConnectivityTestPage::long_key_listener(uint32_t key, const char* key_name,
   }
 }
 
-void ConnectivityTestPage::menu_item_clicked(std::size_t index, void* user_data) {
-  auto* page = static_cast<ConnectivityTestPage*>(user_data);
+void ConnTestPage::menu_item_clicked(std::size_t index, void* user_data) {
+  auto* page = static_cast<ConnTestPage*>(user_data);
   if (!page) {
     return;
   }
@@ -720,49 +717,49 @@ void ConnectivityTestPage::menu_item_clicked(std::size_t index, void* user_data)
   page->connectivity_view_model_.activate_selected();
 }
 
-void ConnectivityTestPage::selected_observer(lv_observer_t* observer, lv_subject_t* subject) {
-  auto* page = static_cast<ConnectivityTestPage*>(lv_observer_get_user_data(observer));
+void ConnTestPage::selected_observer(lv_observer_t* observer, lv_subject_t* subject) {
+  auto* page = static_cast<ConnTestPage*>(lv_observer_get_user_data(observer));
   if (page) {
     page->update_selection_(static_cast<std::size_t>(lv_subject_get_int(subject)));
   }
 }
 
-void ConnectivityTestPage::active_page_observer(lv_observer_t* observer, lv_subject_t* subject) {
-  auto* page = static_cast<ConnectivityTestPage*>(lv_observer_get_user_data(observer));
+void ConnTestPage::active_page_observer(lv_observer_t* observer, lv_subject_t* subject) {
+  auto* page = static_cast<ConnTestPage*>(lv_observer_get_user_data(observer));
   if (page) {
-    page->show_page_(static_cast<model::ConnectivitySubPage>(lv_subject_get_int(subject)));
+    page->show_page_(static_cast<model::SubPage>(lv_subject_get_int(subject)));
   }
 }
 
-void ConnectivityTestPage::link_restart_request_observer(lv_observer_t* observer,
+void ConnTestPage::link_restart_request_observer(lv_observer_t* observer,
                                                          lv_subject_t* subject) {
   LV_UNUSED(subject);
 
-  auto* page = static_cast<ConnectivityTestPage*>(lv_observer_get_user_data(observer));
+  auto* page = static_cast<ConnTestPage*>(lv_observer_get_user_data(observer));
   if (page && page->link_view_ && !page->link_view_->dialog_visible() &&
-      page->connectivity_view_model_.active_page() == model::ConnectivitySubPage::LINK_TEST) {
+      page->connectivity_view_model_.active_page() == model::SubPage::LINK_TEST) {
     page->link_view_->restart();
   }
 }
 
-void ConnectivityTestPage::link_settings_request_observer(lv_observer_t* observer,
+void ConnTestPage::link_settings_request_observer(lv_observer_t* observer,
                                                           lv_subject_t* subject) {
   LV_UNUSED(subject);
 
-  auto* page = static_cast<ConnectivityTestPage*>(lv_observer_get_user_data(observer));
+  auto* page = static_cast<ConnTestPage*>(lv_observer_get_user_data(observer));
   if (page && page->link_view_ &&
-      page->connectivity_view_model_.active_page() == model::ConnectivitySubPage::LINK_TEST) {
+      page->connectivity_view_model_.active_page() == model::SubPage::LINK_TEST) {
     page->link_view_->show_config_dialog();
   }
 }
 
-void ConnectivityTestPage::uart_settings_request_observer(lv_observer_t* observer,
+void ConnTestPage::uart_settings_request_observer(lv_observer_t* observer,
                                                           lv_subject_t* subject) {
   LV_UNUSED(subject);
 
-  auto* page = static_cast<ConnectivityTestPage*>(lv_observer_get_user_data(observer));
+  auto* page = static_cast<ConnTestPage*>(lv_observer_get_user_data(observer));
   if (page && page->uart_view_ &&
-      page->connectivity_view_model_.active_page() == model::ConnectivitySubPage::UART) {
+      page->connectivity_view_model_.active_page() == model::SubPage::UART) {
     if (page->should_suppress_uart_settings_()) {
       return;
     }
@@ -770,8 +767,8 @@ void ConnectivityTestPage::uart_settings_request_observer(lv_observer_t* observe
   }
 }
 
-void ConnectivityTestPage::loading_modal_timer_cb(lv_timer_t* timer) {
-  auto* page = static_cast<ConnectivityTestPage*>(lv_timer_get_user_data(timer));
+void ConnTestPage::loading_modal_timer_cb(lv_timer_t* timer) {
+  auto* page = static_cast<ConnTestPage*>(lv_timer_get_user_data(timer));
   if (page) {
     page->hide_loading_modal_();
   }

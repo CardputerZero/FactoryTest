@@ -33,6 +33,13 @@ namespace {
 
 constexpr uint32_t K_OVERLAY_HIDE_MS = 2600;
 
+constexpr std::filesystem::perms K_SCREENSHOT_DIR_PERMS =
+    std::filesystem::perms::owner_all |
+    std::filesystem::perms::group_read |
+    std::filesystem::perms::group_exec |
+    std::filesystem::perms::others_read |
+    std::filesystem::perms::others_exec;
+
 std::filesystem::path pictures_directory() {
   if (const char* home = std::getenv("HOME"); home && home[0] != '\0') {
     return std::filesystem::path(home) / "Pictures" / "factory_test";
@@ -71,6 +78,25 @@ std::string timestamp_name() {
                 local_time.tm_sec,
                 static_cast<int>(ms.count()));
   return buffer;
+}
+
+bool ensure_screenshot_directory(const std::filesystem::path& dir, std::string& error_message) {
+  std::error_code ec;
+  std::filesystem::create_directories(dir, ec);
+  if (ec) {
+    error_message = "failed to create screenshot directory: " + ec.message();
+    return false;
+  }
+
+#if !defined(_WIN32)
+  std::filesystem::permissions(dir, K_SCREENSHOT_DIR_PERMS, std::filesystem::perm_options::replace, ec);
+  if (ec) {
+    error_message = "failed to set screenshot directory permissions: " + ec.message();
+    return false;
+  }
+#endif
+
+  return true;
 }
 
 bool write_png_rgba(const std::filesystem::path& path,
@@ -152,11 +178,8 @@ bool capture_active_screen(std::string& output_path, std::string& error_message)
     return false;
   }
 
-  std::error_code ec;
   const auto dir = pictures_directory();
-  std::filesystem::create_directories(dir, ec);
-  if (ec) {
-    error_message = "failed to create screenshot directory: " + ec.message();
+  if (!ensure_screenshot_directory(dir, error_message)) {
     return false;
   }
 
