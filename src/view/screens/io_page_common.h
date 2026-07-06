@@ -88,7 +88,7 @@ struct ScanPanelRow {
 };
 
 lv_obj_t* build_card_list(lv_obj_t* parent, viewmodel::AppViewModel& app_view_model);
-CardFonts load_card_fonts(app::AssetManager& assets);
+CardFonts load_card_fonts(app::AssetManager& assets, viewmodel::AppViewModel& app_view_model);
 void rebuild_cards(lv_obj_t* list,
                    std::vector<std::unique_ptr<view::widgets::IconCard>>& cards,
                    viewmodel::AppViewModel& app_view_model,

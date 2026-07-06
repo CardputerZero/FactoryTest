@@ -52,8 +52,10 @@ const TestSequenceItem* sequence_item(std::size_t index) {
 
 }  // namespace
 
-AppViewModel::AppViewModel()
-    : title_subject_(model_.app_title()),
+AppViewModel::AppViewModel(model::TranslationService& translations)
+    : translations_(translations),
+      title_msgid_(model_.app_title()),
+      title_subject_(translations_.translate(title_msgid_).c_str()),
       title_alignment_subject_(static_cast<int32_t>(LV_ALIGN_LEFT_MID)),
       title_x_offset_subject_(8),
       title_y_offset_subject_(0),
@@ -75,6 +77,8 @@ lv_subject_t* AppViewModel::nav_actions_subject() { return nav_actions_subject_.
 
 lv_subject_t* AppViewModel::dark_mode_subject() { return dark_mode_subject_.native(); }
 
+lv_subject_t* AppViewModel::language_subject() { return language_subject_.native(); }
+
 lv_subject_t* AppViewModel::current_page_subject() { return current_page_subject_.native(); }
 
 lv_subject_t* AppViewModel::ftl_page_requested_subject() {
@@ -84,6 +88,8 @@ lv_subject_t* AppViewModel::ftl_page_requested_subject() {
 lv_subject_t* AppViewModel::quit_requested_subject() { return quit_requested_subject_.native(); }
 
 bool AppViewModel::is_dark_mode() const { return model_.dark_mode(); }
+
+const std::string& AppViewModel::language() const { return translations_.language(); }
 
 const std::array<NavAction, 5>& AppViewModel::nav_actions() const { return nav_actions_; }
 
@@ -97,11 +103,32 @@ void AppViewModel::toggle_dark_mode() {
   dark_mode_subject_.set(model_.dark_mode());
 }
 
+bool AppViewModel::set_language(const std::string& locale) {
+  if (!translations_.set_language(locale)) {
+    return false;
+  }
+
+  title_subject_.set(translations_.translate(title_msgid_).c_str());
+  language_subject_.set(language_subject_.value() + 1);
+  return true;
+}
+
+std::string AppViewModel::tr(const char* msgid) const {
+  return translations_.translate(msgid ? msgid : "");
+}
+
+const char* AppViewModel::ui_font_name(const char* latin_font_name) const {
+  return translations_.uses_cjk_font() ? "alibaba-puhui-regular.ttf" : latin_font_name;
+}
+
 model::AppPage AppViewModel::current_page() const { return model_.current_page(); }
 
 bool AppViewModel::is_test_sequence_active() const { return model_.test_sequence_active(); }
 
-void AppViewModel::set_title_text(const char* title) { title_subject_.set(title ? title : ""); }
+void AppViewModel::set_title_text(const char* title) {
+  title_msgid_ = title ? title : "";
+  title_subject_.set(translations_.translate(title_msgid_).c_str());
+}
 
 void AppViewModel::set_title_alignment(lv_align_t align, int32_t x_offset, int32_t y_offset) {
   title_alignment_subject_.set(static_cast<int32_t>(align));
@@ -331,7 +358,8 @@ void AppViewModel::request_back_or_quit() {
 void AppViewModel::request_quit() { quit_requested_subject_.set(true); }
 
 void AppViewModel::publish_all_() {
-  title_subject_.set(model_.app_title());
+  title_msgid_ = model_.app_title();
+  title_subject_.set(translations_.translate(title_msgid_).c_str());
   dark_mode_subject_.set(model_.dark_mode());
   current_page_subject_.set(page_to_int(model_.current_page()));
 }

@@ -69,13 +69,13 @@ ImuTestPage::ImuTestPage(viewmodel::AppViewModel& app_view_model, app::AssetMana
     if (device_.has_bmi270) {
       status << sensor_label(device_.display_name, device_.iio_path);
     } else {
-      status << "BMI270 not found";
+      status << app_view_model_ref_().tr("BMI270 not found");
     }
     status << " + ";
     if (device_.has_bmm150) {
       status << sensor_label(device_.mag_display_name, device_.mag_iio_path);
     } else {
-      status << "BMM150 not found";
+      status << app_view_model_ref_().tr("BMM150 not found");
     }
     status_message_ = status.str();
   }
@@ -126,7 +126,8 @@ void ImuTestPage::build_content(lv_obj_t* content) {
   lv_obj_set_width(status_label_, 290);
   lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
   lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL);
-  auto* status_font = assets_ref_().load_font("inter-medium.ttf", 11);
+  auto* status_font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 11);
   lv_obj_set_style_text_font(status_label_, status_font ? status_font : &lv_font_montserrat_12, 0);
   reactive::bind_theme(status_label_,
                        app_view_model_ref_().dark_mode_subject(),
@@ -134,15 +135,18 @@ void ImuTestPage::build_content(lv_obj_t* content) {
   lv_label_set_text(status_label_, status_message_.c_str());
 
   auto* icon_font  = assets_ref_().load_font("Phosphor-Fill.ttf", 14);
-  auto* label_font = assets_ref_().load_font("inter-semibold.ttf", 11);
-  auto* value_font = assets_ref_().load_font("inter-medium.ttf", 11);
+  auto* label_font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 11);
+  auto* value_font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 11);
 
   for (std::size_t i = 0; i < K_AXIS_ROWS.size(); ++i) {
+    const auto label = app_view_model_ref_().tr(K_AXIS_ROWS[i].label);
     cards_[i] =
         std::make_unique<view::widgets::IconCard>(grid_,
                                                   app_view_model_ref_(),
                                                   K_AXIS_ROWS[i].icon,
-                                                  K_AXIS_ROWS[i].label,
+                                                  label.c_str(),
                                                   "--",
                                                   icon_font ? icon_font : &lv_font_montserrat_14,
                                                   label_font ? label_font : &lv_font_montserrat_12,
@@ -185,7 +189,7 @@ void ImuTestPage::update_readings_() {
     set_value_(5, reading.gyro_z, K_AXIS_ROWS[5].unit);
   } else {
     for (std::size_t i = 0; i < 6; ++i) {
-      set_missing_(i, "BMI270 not found");
+      set_missing_(i, app_view_model_ref_().tr("BMI270 not found").c_str());
     }
   }
 
@@ -195,7 +199,7 @@ void ImuTestPage::update_readings_() {
     set_value_(8, reading.magn_z, K_AXIS_ROWS[8].unit);
   } else {
     for (std::size_t i = 6; i < 9; ++i) {
-      set_missing_(i, "BMM150 not found");
+      set_missing_(i, app_view_model_ref_().tr("BMM150 not found").c_str());
     }
   }
 }
@@ -214,7 +218,8 @@ void ImuTestPage::set_missing_(std::size_t index, const char* message) {
   if (index >= cards_.size() || !cards_[index]) {
     return;
   }
-  cards_[index]->set_value(message ? message : "Not found");
+  const auto text = app_view_model_ref_().tr(message ? message : "Not found");
+  cards_[index]->set_value(text.c_str());
 }
 
 void ImuTestPage::scroll_(int32_t direction) {

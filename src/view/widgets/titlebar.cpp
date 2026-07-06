@@ -11,9 +11,12 @@
 
 namespace view::widgets {
 
-TitleBar::TitleBar(lv_obj_t* parent, viewmodel::AppViewModel& app_view_model)
+TitleBar::TitleBar(lv_obj_t* parent,
+                   viewmodel::AppViewModel& app_view_model,
+                   app::AssetManager& assets)
     : BaseWidgets(parent),
-      app_view_model_(app_view_model) {}
+      app_view_model_(app_view_model),
+      assets_(assets) {}
 
 TitleBar::~TitleBar() {
   if (title_align_observer_) {
@@ -28,6 +31,14 @@ TitleBar::~TitleBar() {
     lv_observer_remove(title_y_observer_);
     title_y_observer_ = nullptr;
   }
+  if (title_text_observer_) {
+    lv_observer_remove(title_text_observer_);
+    title_text_observer_ = nullptr;
+  }
+  if (language_observer_) {
+    lv_observer_remove(language_observer_);
+    language_observer_ = nullptr;
+  }
 }
 
 void TitleBar::build() {
@@ -36,6 +47,7 @@ void TitleBar::build() {
   }
 
   core_obj_ = lv_obj_create(parent_);
+  register_core_obj_();
   lv_obj_remove_style_all(core_obj_);
   lv_obj_set_size(core_obj_, LV_PCT(100), K_TITLE_BAR_HEIGHT);
   lv_obj_align(core_obj_, LV_ALIGN_TOP_MID, 0, 0);
@@ -43,10 +55,10 @@ void TitleBar::build() {
   reactive::bind_theme(core_obj_, app_view_model_.dark_mode_subject(), reactive::ThemeRole::BAR);
 
   title_label_ = lv_label_create(core_obj_);
-  lv_label_bind_text(title_label_, app_view_model_.title_subject(), nullptr);
+  title_text_observer_ =
+      reactive::bind_label_text(title_label_, app_view_model_.title_subject(), nullptr);
   lv_label_set_long_mode(title_label_, LV_LABEL_LONG_DOT);
   lv_obj_set_width(title_label_, 190);
-  lv_obj_set_style_text_font(title_label_, &lv_font_montserrat_14, 0);
   reactive::bind_theme(title_label_,
                        app_view_model_.dark_mode_subject(),
                        reactive::ThemeRole::TEXT);
@@ -56,7 +68,6 @@ void TitleBar::build() {
   lv_label_set_long_mode(center_label_, LV_LABEL_LONG_DOT);
   lv_obj_set_width(center_label_, 120);
   lv_obj_set_style_text_align(center_label_, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_style_text_font(center_label_, &lv_font_montserrat_14, 0);
   lv_obj_align(center_label_, LV_ALIGN_CENTER, 0, 0);
   lv_obj_add_flag(center_label_, LV_OBJ_FLAG_HIDDEN);
   reactive::bind_theme(center_label_,
@@ -75,6 +86,11 @@ void TitleBar::build() {
                                                 app_view_model_.title_y_offset_subject(),
                                                 title_layout_observer,
                                                 this);
+  language_observer_    = reactive::observe_obj(core_obj_,
+                                                app_view_model_.language_subject(),
+                                                language_observer,
+                                                this);
+  apply_title_font_();
   apply_title_alignment_();
 }
 
@@ -108,12 +124,34 @@ void TitleBar::apply_title_alignment_() {
   }
 }
 
+void TitleBar::apply_title_font_() {
+  const lv_font_t* font = assets_.load_font(app_view_model_.ui_font_name("inter-medium.ttf"), 14);
+  if (!font) {
+    font = &lv_font_montserrat_14;
+  }
+  if (title_label_) {
+    lv_obj_set_style_text_font(title_label_, font, 0);
+  }
+  if (center_label_) {
+    lv_obj_set_style_text_font(center_label_, font, 0);
+  }
+}
+
 void TitleBar::title_layout_observer(lv_observer_t* observer, lv_subject_t* subject) {
   LV_UNUSED(subject);
 
   auto* title_bar = static_cast<TitleBar*>(lv_observer_get_user_data(observer));
   if (title_bar) {
     title_bar->apply_title_alignment_();
+  }
+}
+
+void TitleBar::language_observer(lv_observer_t* observer, lv_subject_t* subject) {
+  LV_UNUSED(subject);
+
+  auto* title_bar = static_cast<TitleBar*>(lv_observer_get_user_data(observer));
+  if (title_bar) {
+    title_bar->apply_title_font_();
   }
 }
 

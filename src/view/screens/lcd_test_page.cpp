@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 #include <utility>
 
 #include "asset_manager.h"
@@ -148,10 +149,12 @@ void LcdTestPage::build_content(lv_obj_t* content) {
   }
 
   prompt_ = lv_label_create(tiles_[K_COLOR_TILE_INDEX]);
-  lv_label_set_text(prompt_, "Press Enter to step through LCD colors.");
+  const auto initial_prompt = app_view_model_ref_().tr("Press Enter to step through LCD colors.");
+  lv_label_set_text(prompt_, initial_prompt.c_str());
   lv_obj_set_width(prompt_, 280);
   lv_obj_set_style_text_align(prompt_, LV_TEXT_ALIGN_CENTER, 0);
-  auto* prompt_font = assets_ref_().load_font("inter-medium.ttf", 16);
+  auto* prompt_font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 16);
   lv_obj_set_style_text_font(prompt_, prompt_font ? prompt_font : &lv_font_montserrat_16, 0);
   lv_obj_center(prompt_);
   reactive::bind_theme(prompt_,
@@ -172,7 +175,8 @@ void LcdTestPage::build_content(lv_obj_t* content) {
 
   brightness_label_ = lv_label_create(brightness_group_);
   lv_obj_set_width(brightness_label_, 290);
-  auto* label_font = assets_ref_().load_font("inter-medium.ttf", 16);
+  auto* label_font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 16);
   lv_obj_set_style_text_font(brightness_label_,
                              label_font ? label_font : &lv_font_montserrat_16,
                              0);
@@ -197,41 +201,48 @@ void LcdTestPage::build_content(lv_obj_t* content) {
 
   color_label_ = lv_label_create(color_layer_);
   lv_label_set_text(color_label_, "");
-  auto* color_label_font = assets_ref_().load_font("inter-semibold.ttf", 24);
+  auto* color_label_font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 24);
   lv_obj_set_style_text_font(color_label_,
                              color_label_font ? color_label_font : &lv_font_montserrat_24,
                              0);
   lv_obj_center(color_label_);
 
   cross_hatch_rect_ = lv_line_create(color_layer_);
-  lv_obj_remove_style_all(cross_hatch_rect_);
-  lv_obj_set_size(cross_hatch_rect_, view::K_SCREEN_WIDTH, view::K_SCREEN_HEIGHT);
-  lv_obj_align(cross_hatch_rect_, LV_ALIGN_TOP_LEFT, 0, 0);
-  lv_obj_set_style_line_width(cross_hatch_rect_, K_CROSS_HATCH_LINE_WIDTH, 0);
-  lv_obj_set_style_line_rounded(cross_hatch_rect_, false, 0);
-  lv_line_set_points(cross_hatch_rect_,
-                     K_CROSS_HATCH_RECT_POINTS.data(),
-                     K_CROSS_HATCH_RECT_POINTS.size());
+  if (cross_hatch_rect_) {
+    lv_obj_remove_style_all(cross_hatch_rect_);
+    lv_obj_set_size(cross_hatch_rect_, view::K_SCREEN_WIDTH, view::K_SCREEN_HEIGHT);
+    lv_obj_align(cross_hatch_rect_, LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_obj_set_style_line_width(cross_hatch_rect_, K_CROSS_HATCH_LINE_WIDTH, 0);
+    lv_obj_set_style_line_rounded(cross_hatch_rect_, false, 0);
+    lv_line_set_points(cross_hatch_rect_,
+                       K_CROSS_HATCH_RECT_POINTS.data(),
+                       K_CROSS_HATCH_RECT_POINTS.size());
+  }
 
   cross_hatch_diag_a_ = lv_line_create(color_layer_);
-  lv_obj_remove_style_all(cross_hatch_diag_a_);
-  lv_obj_set_size(cross_hatch_diag_a_, view::K_SCREEN_WIDTH, view::K_SCREEN_HEIGHT);
-  lv_obj_align(cross_hatch_diag_a_, LV_ALIGN_TOP_LEFT, 0, 0);
-  lv_obj_set_style_line_width(cross_hatch_diag_a_, K_CROSS_HATCH_LINE_WIDTH, 0);
-  lv_obj_set_style_line_rounded(cross_hatch_diag_a_, false, 0);
-  lv_line_set_points(cross_hatch_diag_a_,
-                     K_CROSS_HATCH_DIAG_A_POINTS.data(),
-                     K_CROSS_HATCH_DIAG_A_POINTS.size());
+  if (cross_hatch_diag_a_) {
+    lv_obj_remove_style_all(cross_hatch_diag_a_);
+    lv_obj_set_size(cross_hatch_diag_a_, view::K_SCREEN_WIDTH, view::K_SCREEN_HEIGHT);
+    lv_obj_align(cross_hatch_diag_a_, LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_obj_set_style_line_width(cross_hatch_diag_a_, K_CROSS_HATCH_LINE_WIDTH, 0);
+    lv_obj_set_style_line_rounded(cross_hatch_diag_a_, false, 0);
+    lv_line_set_points(cross_hatch_diag_a_,
+                       K_CROSS_HATCH_DIAG_A_POINTS.data(),
+                       K_CROSS_HATCH_DIAG_A_POINTS.size());
+  }
 
   cross_hatch_diag_b_ = lv_line_create(color_layer_);
-  lv_obj_remove_style_all(cross_hatch_diag_b_);
-  lv_obj_set_size(cross_hatch_diag_b_, view::K_SCREEN_WIDTH, view::K_SCREEN_HEIGHT);
-  lv_obj_align(cross_hatch_diag_b_, LV_ALIGN_TOP_LEFT, 0, 0);
-  lv_obj_set_style_line_width(cross_hatch_diag_b_, K_CROSS_HATCH_LINE_WIDTH, 0);
-  lv_obj_set_style_line_rounded(cross_hatch_diag_b_, false, 0);
-  lv_line_set_points(cross_hatch_diag_b_,
-                     K_CROSS_HATCH_DIAG_B_POINTS.data(),
-                     K_CROSS_HATCH_DIAG_B_POINTS.size());
+  if (cross_hatch_diag_b_) {
+    lv_obj_remove_style_all(cross_hatch_diag_b_);
+    lv_obj_set_size(cross_hatch_diag_b_, view::K_SCREEN_WIDTH, view::K_SCREEN_HEIGHT);
+    lv_obj_align(cross_hatch_diag_b_, LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_obj_set_style_line_width(cross_hatch_diag_b_, K_CROSS_HATCH_LINE_WIDTH, 0);
+    lv_obj_set_style_line_rounded(cross_hatch_diag_b_, false, 0);
+    lv_line_set_points(cross_hatch_diag_b_,
+                       K_CROSS_HATCH_DIAG_B_POINTS.data(),
+                       K_CROSS_HATCH_DIAG_B_POINTS.size());
+  }
 
   const std::array<lv_point_t, 4> corner_positions = {{
       {0, 0},
@@ -242,6 +253,9 @@ void LcdTestPage::build_content(lv_obj_t* content) {
   }};
   for (std::size_t i = 0; i < cross_hatch_corners_.size(); ++i) {
     auto* corner = lv_obj_create(color_layer_);
+    if (!corner) {
+      continue;
+    }
     lv_obj_remove_style_all(corner);
     lv_obj_set_size(corner, K_CROSS_HATCH_CORNER_SIZE, K_CROSS_HATCH_CORNER_SIZE);
     lv_obj_set_pos(corner, corner_positions[i].x, corner_positions[i].y);
@@ -290,7 +304,8 @@ void LcdTestPage::apply_color_index_(int32_t index) {
   }
 
   if (index <= 0) {
-    lv_label_set_text(prompt_, "Press Enter to step through LCD display tests.");
+    const auto text = app_view_model_ref_().tr("Press Enter to step through LCD display tests.");
+    lv_label_set_text(prompt_, text.c_str());
     lv_obj_remove_flag(prompt_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(color_layer_, LV_OBJ_FLAG_HIDDEN);
     return;
@@ -302,7 +317,8 @@ void LcdTestPage::apply_color_index_(int32_t index) {
   }
 
   if (index > model::LcdTestModel::K_TOTAL_VISUAL_STEP_COUNT) {
-    lv_label_set_text(prompt_, "LCD color test complete.");
+    const auto text = app_view_model_ref_().tr("LCD color test complete.");
+    lv_label_set_text(prompt_, text.c_str());
     lv_obj_remove_flag(prompt_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(color_layer_, LV_OBJ_FLAG_HIDDEN);
     return;
@@ -327,7 +343,8 @@ void LcdTestPage::apply_color_index_(int32_t index) {
   }
 
   if (color_label_) {
-    lv_label_set_text(color_label_, step.label);
+    const auto label = app_view_model_ref_().tr(step.label);
+    lv_label_set_text(color_label_, label.c_str());
     if (was_color_layer_visible) {
       view::animate_style_color(color_label_, LV_STYLE_TEXT_COLOR, step.text_color, 180);
     } else {
@@ -427,11 +444,9 @@ void LcdTestPage::apply_brightness_percent_(int32_t percent) {
   }
   if (brightness_label_) {
     static char buffer[48];
-    lv_snprintf(buffer,
-                sizeof(buffer),
-                "Display Brightness: %d%%",
-                static_cast<int>(requested_brightness_percent_));
-    lv_label_set_text(brightness_label_, buffer);
+    lv_snprintf(buffer, sizeof(buffer), "%d%%", static_cast<int>(requested_brightness_percent_));
+    const auto text = app_view_model_ref_().tr("Display Brightness") + ": " + buffer;
+    lv_label_set_text(brightness_label_, text.c_str());
   }
 
   if (lcd_view_model_.is_brightness_test_active()) {

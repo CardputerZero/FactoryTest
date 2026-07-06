@@ -565,7 +565,7 @@ void KeyboardTestPage::update_progress_() {
   std::snprintf(buffer,
                 sizeof(buffer),
                 "%s %zu/%zu",
-                layer_title(active_layer_),
+                app_view_model_ref_().tr(layer_title(active_layer_)).c_str(),
                 layer_pressed_counts_[index],
                 layer_total_counts_[index]);
   if (auto* title_bar = title_bar_ref_()) {
@@ -734,13 +734,15 @@ void KeyboardTestPage::show_hold_popup_(const char* message, view::widgets::Popu
     view::widgets::PopupConfig config;
     config.width       = 250;
     config.label_width = 234;
-    config.message     = message ? message : "";
+    config.message     = app_view_model_ref_().tr(message ? message : "");
     config.tone        = tone;
+    config.font        = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 12);
     hold_popup_tone_   = tone;
     hold_popup_ = std::make_unique<view::widgets::Popup>(root(), app_view_model_ref_(), config);
     hold_popup_->build();
   } else {
-    hold_popup_->set_text(message ? message : "");
+    const auto text = app_view_model_ref_().tr(message ? message : "");
+    hold_popup_->set_text(text.c_str());
   }
   hold_popup_->show();
 }

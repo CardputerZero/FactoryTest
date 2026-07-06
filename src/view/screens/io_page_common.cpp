@@ -35,10 +35,10 @@ lv_obj_t* build_card_list(lv_obj_t* parent, viewmodel::AppViewModel& app_view_mo
   return list;
 }
 
-CardFonts load_card_fonts(app::AssetManager& assets) {
+CardFonts load_card_fonts(app::AssetManager& assets, viewmodel::AppViewModel& app_view_model) {
   auto* icon_font  = assets.load_font("Phosphor-Fill.ttf", 14);
-  auto* title_font = assets.load_font("inter-semibold.ttf", 11);
-  auto* value_font = assets.load_font("inter-medium.ttf", 11);
+  auto* title_font = assets.load_font(app_view_model.ui_font_name("inter-semibold.ttf"), 11);
+  auto* value_font = assets.load_font(app_view_model.ui_font_name("inter-medium.ttf"), 11);
   return {icon_font ? icon_font : &lv_font_montserrat_14,
           title_font ? title_font : &lv_font_montserrat_12,
           value_font ? value_font : &lv_font_montserrat_12};
@@ -55,13 +55,15 @@ void rebuild_cards(lv_obj_t* list,
 
   cards.clear();
   cards.reserve(specs.size());
-  const auto fonts = load_card_fonts(assets);
+  const auto fonts = load_card_fonts(assets, app_view_model);
   for (const auto& spec : specs) {
+    const auto title = app_view_model.tr(spec.title.c_str());
+    const auto value = app_view_model.tr(spec.value.c_str());
     auto card = std::make_unique<view::widgets::IconCard>(list,
                                                           app_view_model,
                                                           spec.icon,
-                                                          spec.title.c_str(),
-                                                          spec.value.c_str(),
+                                                          title.c_str(),
+                                                          value.c_str(),
                                                           fonts.icon,
                                                           fonts.title,
                                                           fonts.value,
@@ -138,7 +140,8 @@ void add_scan_panel_row(lv_obj_t* panel,
   reactive::bind_theme(icon_label, app_view_model.dark_mode_subject(), reactive::ThemeRole::TEXT);
 
   auto* text_label = lv_label_create(row_obj);
-  lv_label_set_text(text_label, row.text.empty() ? "<unknown>" : row.text.c_str());
+  const auto text = app_view_model.tr(row.text.empty() ? "<unknown>" : row.text.c_str());
+  lv_label_set_text(text_label, text.c_str());
   lv_label_set_long_mode(text_label, LV_LABEL_LONG_SCROLL);
   lv_obj_set_width(text_label, K_PANEL_ROW_WIDTH - K_PANEL_ICON_WIDTH - 8);
   lv_obj_set_style_text_font(text_label, fonts.value, 0);
@@ -154,7 +157,7 @@ void rebuild_scan_panel(lv_obj_t* panel,
   }
 
   lv_obj_clean(panel);
-  const auto fonts = load_card_fonts(assets);
+  const auto fonts = load_card_fonts(assets, app_view_model);
   if (rows.empty()) {
     add_scan_panel_row(panel, app_view_model, fonts, {view::ICON_INFO, "No devices found"});
   } else {

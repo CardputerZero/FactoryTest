@@ -7,7 +7,9 @@
 #include "start_screen.h"
 
 #include <algorithm>
+#include <cstring>
 #include <cstdint>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -179,6 +181,11 @@ StartScreen::~StartScreen() {
     lv_observer_remove(theme_observer_handle_);
     theme_observer_handle_ = nullptr;
   }
+  if (language_observer_handle_) {
+    lv_observer_remove(language_observer_handle_);
+    language_observer_handle_ = nullptr;
+  }
+  language_dialog_.reset();
   exit_popup_.reset();
   list_.reset();
 }
@@ -211,10 +218,14 @@ void StartScreen::build_content(lv_obj_t* content) {
                                                     app_view_model_ref_().dark_mode_subject(),
                                                     theme_observer,
                                                     this);
+  language_observer_handle_ = reactive::observe_obj(content,
+                                                    app_view_model_ref_().language_subject(),
+                                                    language_observer,
+                                                    this);
   set_focus_area_(FocusArea::LIST);
 }
 
-std::vector<view::widgets::IconList::Item> StartScreen::current_list_items_() const {
+std::vector<view::widgets::IconList::Item> StartScreen::current_list_items_() {
   std::vector<view::widgets::IconList::Item> items;
   const auto category = menu_view_model_.selected_category();
   const auto count    = menu_view_model_.item_count_for_category(category);
@@ -222,7 +233,7 @@ std::vector<view::widgets::IconList::Item> StartScreen::current_list_items_() co
   for (std::size_t i = 0; i < count; ++i) {
     const auto* item = menu_view_model_.item_for_category(category, i);
     if (item) {
-      items.push_back({item->icon, item->title});
+      items.push_back({item->icon, app_view_model_ref_().tr(item->title)});
     }
   }
   return items;
@@ -235,7 +246,8 @@ void StartScreen::rebuild_list_() {
 
   list_.reset();
 
-  auto* text_font = assets_ref_().load_font("inter-medium.ttf", 14);
+  auto* text_font = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"),
+                                            14);
   auto* icon_font = assets_ref_().load_font("Phosphor-Fill.ttf", 14);
   auto items      = current_list_items_();
   list_ = std::make_unique<view::widgets::IconList>(list_viewport_,
@@ -269,7 +281,8 @@ void StartScreen::build_drawer_(lv_obj_t* content) {
       model::StartMenuCategory::COMMS,
   };
 
-  auto* tab_font = assets_ref_().load_font("inter-bold.ttf", 12);
+  auto* tab_font = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-bold.ttf"),
+                                           12);
   for (std::size_t i = 0; i < tabs_.size(); ++i) {
     tabs_[i].category = categories[i];
     tabs_[i].button   = lv_button_create(drawer_);
@@ -292,7 +305,8 @@ void StartScreen::build_drawer_(lv_obj_t* content) {
     lv_obj_center(tabs_[i].fill);
 
     tabs_[i].label = lv_label_create(tabs_[i].button);
-    lv_label_set_text(tabs_[i].label, category_text(categories[i]));
+    const auto translated = app_view_model_ref_().tr(category_text(categories[i]));
+    lv_label_set_text(tabs_[i].label, translated.c_str());
     lv_obj_center(tabs_[i].label);
     if (tab_font) {
       lv_obj_set_style_text_font(tabs_[i].label, tab_font, 0);
@@ -544,6 +558,11 @@ void StartScreen::update_category_(int32_t selected_category_index) {
 
 void StartScreen::activate_selected_item_() {
   const auto& item = menu_view_model_.selected_item();
+  if (std::strcmp(item.title, "Language") == 0) {
+    show_language_dialog_();
+    return;
+  }
+
   if (item.starts_sequence) {
     perf_view_model_.clear_direct_subpage();
     connectivity_view_model_.clear_direct_subpage();
@@ -556,13 +575,115 @@ void StartScreen::activate_selected_item_() {
   app_view_model_ref_().show_single_test_page(item.target_page);
 }
 
+void StartScreen::show_language_dialog_() {
+  if (!root()) {
+    return;
+  }
+  if (language_dialog_ && language_dialog_->visible()) {
+    return;
+  }
+
+  platform::set_modal_key_capture(true);
+  view::widgets::DialogConfig config;
+  config.width                 = 250;
+  config.height                = 136;
+  config.title                 = "Language";
+  config.shortcut_text         = "ESC: Cancel  OK: Confirm";
+  config.ok_button_label       = "OK";
+  config.cancel_button_label   = "Cancel";
+  config.button_width          = 76;
+  config.button_row_width      = 174;
+  config.button_bottom_pad     = 4;
+  config.body_font_size        = 12;
+  config.use_nav_action_keys   = false;
+
+  view::widgets::DialogCallbacks callbacks;
+  callbacks.ok_action = [this]() {
+    const auto selected = language_dropdown_ ? lv_dropdown_get_selected(language_dropdown_) : 0;
+    const char* locale  = selected == 1 ? "zh_CN" : "en";
+    close_language_dialog_();
+    app_view_model_ref_().set_language(locale);
+  };
+  callbacks.cancel_action = [this]() { close_language_dialog_(); };
+
+  language_dialog_ = std::make_unique<view::widgets::Dialog>(root(),
+                                                             app_view_model_ref_(),
+                                                             assets_ref_(),
+                                                             config,
+                                                             callbacks);
+  language_dialog_->build();
+
+  const auto options = app_view_model_ref_().tr("English") + "\n" +
+                       app_view_model_ref_().tr("Chinese");
+  const uint32_t selected = app_view_model_ref_().language() == "zh_CN" ? 1 : 0;
+  language_dropdown_ = language_dialog_->add_dropdown(options.c_str(), selected, 176);
+}
+
+void StartScreen::close_language_dialog_() {
+  if (language_dialog_) {
+    language_dialog_->close();
+  }
+  language_dropdown_ = nullptr;
+  platform::set_modal_key_capture(false);
+}
+
+bool StartScreen::handle_language_dialog_key_(uint32_t key, const char* key_name) {
+  if (!language_dialog_ || !language_dialog_->visible()) {
+    return false;
+  }
+
+  if (language_dropdown_ &&
+      (key == LV_KEY_UP || key == 'f' || key == 'F' || key == LV_KEY_DOWN || key == 'x' ||
+       key == 'X')) {
+    const auto count = lv_dropdown_get_option_count(language_dropdown_);
+    if (count > 0) {
+      auto selected = lv_dropdown_get_selected(language_dropdown_);
+      if (key == LV_KEY_UP || key == 'f' || key == 'F') {
+        selected = selected == 0 ? count - 1 : selected - 1;
+      } else {
+        selected = selected + 1 >= count ? 0 : selected + 1;
+      }
+      lv_dropdown_set_selected(language_dropdown_, selected);
+    }
+    return true;
+  }
+
+  language_dialog_->handle_key(key, key_name);
+  return true;
+}
+
+void StartScreen::refresh_language_() {
+  exit_popup_.reset();
+
+  if (list_) {
+    rebuild_list_();
+  }
+
+  for (auto& tab : tabs_) {
+    if (!tab.label) {
+      continue;
+    }
+    const auto translated = app_view_model_ref_().tr(category_text(tab.category));
+    lv_label_set_text(tab.label, translated.c_str());
+    auto* tab_font = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-bold.ttf"),
+                                             12);
+    if (tab_font) {
+      lv_obj_set_style_text_font(tab.label, tab_font, 0);
+    }
+    lv_obj_center(tab.label);
+  }
+  apply_drawer_theme_(app_view_model_ref_().is_dark_mode());
+}
+
 void StartScreen::show_exit_popup_() {
   if (!root()) {
     return;
   }
   if (!exit_popup_) {
     view::widgets::PopupConfig config;
-    config.message = "Hold ESC/4 to Exit";
+    config.message = app_view_model_ref_().tr("Hold ESC/4 to Exit");
+    config.font    = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"),
+                                             14);
     config.tone    = view::widgets::PopupTone::ERROR;
     exit_popup_    = std::make_unique<view::widgets::Popup>(root(), app_view_model_ref_(), config);
     exit_popup_->build();
@@ -577,10 +698,12 @@ void StartScreen::hide_exit_popup_() {
 }
 
 void StartScreen::key_listener(uint32_t key, const char* key_name, void* user_data) {
-  LV_UNUSED(key_name);
-
   auto* page = static_cast<StartScreen*>(user_data);
   if (!page) {
+    return;
+  }
+
+  if (page->handle_language_dialog_key_(key, key_name)) {
     return;
   }
 
@@ -706,6 +829,15 @@ void StartScreen::theme_observer(lv_observer_t* observer, lv_subject_t* subject)
   auto* page = static_cast<StartScreen*>(lv_observer_get_user_data(observer));
   if (page) {
     page->apply_screen_theme_(lv_subject_get_int(subject) != 0);
+  }
+}
+
+void StartScreen::language_observer(lv_observer_t* observer, lv_subject_t* subject) {
+  LV_UNUSED(subject);
+
+  auto* page = static_cast<StartScreen*>(lv_observer_get_user_data(observer));
+  if (page) {
+    page->refresh_language_();
   }
 }
 

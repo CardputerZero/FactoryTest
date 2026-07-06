@@ -7,15 +7,26 @@
 #include "base_screen.h"
 
 #include <array>
-#include <cstdio>
+#include <cstring>
 #include <utility>
 
 #include "asset_manager.h"
 #include "bindings.h"
+#include "linux_input.h"
 #include "theme.h"
 #include "ui_const.h"
 
 namespace screen {
+namespace {
+
+bool is_dialog_cancel_key(uint32_t key, const char* key_name) {
+  return key == LV_KEY_ESC || key == 27 || key == '4' ||
+         (key_name &&
+          (std::strcmp(key_name, "Esc") == 0 || std::strcmp(key_name, "Escape") == 0 ||
+           std::strcmp(key_name, "KEY_1") == 0));
+}
+
+}  // namespace
 
 BaseScreen::BaseScreen(viewmodel::AppViewModel& app_view_model,
                        app::AssetManager& assets)
@@ -24,6 +35,7 @@ BaseScreen::BaseScreen(viewmodel::AppViewModel& app_view_model,
 
 BaseScreen::~BaseScreen() {
   test_result_dialog_.reset();
+  platform::set_modal_key_capture(false);
   title_bar_.reset();
   nav_bar_.reset();
 
@@ -43,7 +55,7 @@ void BaseScreen::init() {
   lv_obj_clear_flag(root_, LV_OBJ_FLAG_SCROLLABLE);
   reactive::bind_theme(root_, app_view_model_.dark_mode_subject(), reactive::ThemeRole::SCREEN);
 
-  title_bar_ = std::make_unique<view::widgets::TitleBar>(root_, app_view_model_);
+  title_bar_ = std::make_unique<view::widgets::TitleBar>(root_, app_view_model_, assets_);
   title_bar_->build();
 
   nav_bar_ = std::make_unique<view::widgets::NavBar>(root_, app_view_model_, assets_);
@@ -111,54 +123,45 @@ void BaseScreen::show_test_result_dialog_() {
     return;
   }
 
-  view::widgets::DialogConfig config;
-  config.width               = 286;
-  config.height              = 146;
-  config.title               = app_view_model_.current_test_name();
-  config.shortcut_text       = "Z/C: Select  Enter: Apply";
-  config.ok_button_label     = "Pass";
-  config.skip_button_label   = "Skip";
-  config.cancel_button_label = "Fail";
-  config.body_font_size      = 14;
-  config.body_offset_y       = -10;
-  config.shortcut_width      = 190;
-  config.button_width        = 62;
-  config.button_row_width    = 232;
-  config.button_bottom_pad   = 2;
-  config.ok_button_tone      = view::widgets::DialogButtonTone::SUCCESS;
-  config.skip_button_tone    = view::widgets::DialogButtonTone::WARNING;
-  config.cancel_button_tone  = view::widgets::DialogButtonTone::ERROR;
-  config.show_skip_button    = true;
-  config.use_nav_action_keys = false;
-  config.focus_button_navigation = true;
+  view::widgets::TestConfirmDialogConfig config;
+  config.title   = app_view_model_.current_test_name();
+  config.current = app_view_model_.current_test_number();
+  config.total   = app_view_model_.test_count();
 
-  view::widgets::DialogCallbacks callbacks;
-  callbacks.ok_action = [this]() {
+  view::widgets::TestConfirmDialogCallbacks callbacks;
+  callbacks.pass_action = [this]() {
+    platform::set_modal_key_capture(false);
     app_view_model_.complete_current_test(model::TestResult::PASS);
   };
   callbacks.skip_action = [this]() {
+    platform::set_modal_key_capture(false);
     app_view_model_.complete_current_test(model::TestResult::SKIPPED);
   };
-  callbacks.cancel_action = [this]() {
+  callbacks.fail_action = [this]() {
+    platform::set_modal_key_capture(false);
     app_view_model_.complete_current_test(model::TestResult::FAILED);
   };
 
-  test_result_dialog_ =
-      std::make_unique<view::widgets::Dialog>(root_, app_view_model_, assets_, config, callbacks);
+  test_result_dialog_ = std::make_unique<view::widgets::TestConfirmDialog>(root_,
+                                                                           app_view_model_,
+                                                                           assets_,
+                                                                           std::move(config),
+                                                                           std::move(callbacks));
+  platform::set_modal_key_capture(true);
   test_result_dialog_->build();
-  char body[48]{};
-  const auto current = app_view_model_.current_test_number();
-  const auto total   = app_view_model_.test_count();
-  if (current > 0 && total > 0) {
-    std::snprintf(body, sizeof(body), "%zu/%zu - Test Result", current, total);
-  } else {
-    std::snprintf(body, sizeof(body), "Test Result");
-  }
-  test_result_dialog_->add_label(body, 246, LV_TEXT_ALIGN_CENTER);
 }
 
 bool BaseScreen::handle_test_result_dialog_key_(uint32_t key, const char* key_name) {
-  return test_result_dialog_ && test_result_dialog_->handle_key(key, key_name);
+  if (!test_result_dialog_) {
+    return false;
+  }
+  const bool cancel_key = is_dialog_cancel_key(key, key_name);
+  const bool handled    = test_result_dialog_->handle_key(key, key_name);
+  if (handled && cancel_key && test_result_dialog_ && !test_result_dialog_->visible()) {
+    test_result_dialog_.reset();
+    platform::set_modal_key_capture(false);
+  }
+  return handled;
 }
 
 view::widgets::TitleBar* BaseScreen::title_bar_ref_() { return title_bar_.get(); }

@@ -7,7 +7,9 @@
 #include "audio_test_page.h"
 
 #include <chrono>
+#include <cstring>
 #include <cstdint>
+#include <string>
 #include <thread>
 
 #include "asset_manager.h"
@@ -21,6 +23,13 @@ namespace {
 constexpr int K_RECORD_SECONDS         = 5;
 constexpr const char* K_RECORDING_PATH = "/tmp/factory_audio_test.wav";
 constexpr uint32_t K_LEVEL_POINT_COUNT = 42;
+
+bool is_enter_key(uint32_t key, const char* key_name) {
+  if (key == LV_KEY_ENTER || key == '\n' || key == '\r') {
+    return true;
+  }
+  return key_name && (std::strcmp(key_name, "Enter") == 0 || std::strcmp(key_name, "Return") == 0);
+}
 
 }  // namespace
 
@@ -60,7 +69,8 @@ void AudioTestPage::build_content(lv_obj_t* content) {
   status_label_ = lv_label_create(group);
   lv_obj_set_width(status_label_, 280);
   lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
-  auto* status_font = assets_ref_().load_font("inter-semibold.ttf", 18);
+  auto* status_font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 18);
   lv_obj_set_style_text_font(status_label_, status_font ? status_font : &lv_font_montserrat_18, 0);
   reactive::bind_theme(status_label_,
                        app_view_model_ref_().dark_mode_subject(),
@@ -89,18 +99,21 @@ void AudioTestPage::build_content(lv_obj_t* content) {
   error_label_ = lv_label_create(group);
   lv_obj_set_width(error_label_, 280);
   lv_obj_set_style_text_align(error_label_, LV_TEXT_ALIGN_CENTER, 0);
-  auto* device_font = assets_ref_().load_font("inter-medium.ttf", 12);
+  auto* device_font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 12);
   lv_obj_set_style_text_font(error_label_, device_font ? device_font : &lv_font_montserrat_12, 0);
   reactive::bind_theme(error_label_,
                        app_view_model_ref_().dark_mode_subject(),
                        reactive::ThemeRole::TEXT);
 
   if (has_audio_device_) {
-    lv_label_set_text(status_label_, "Press 6 or Enter to start recording");
+    const auto text = app_view_model_ref_().tr("Press 6 or Enter to start recording");
+    lv_label_set_text(status_label_, text.c_str());
     lv_label_set_text(error_label_, "");
     lv_obj_add_flag(error_label_, LV_OBJ_FLAG_HIDDEN);
   } else {
-    lv_label_set_text(status_label_, "Audio device error");
+    const auto text = app_view_model_ref_().tr("Audio device error");
+    lv_label_set_text(status_label_, text.c_str());
     lv_label_set_text(error_label_, device_error_.c_str());
     lv_obj_add_flag(level_chart_, LV_OBJ_FLAG_HIDDEN);
   }
@@ -150,7 +163,8 @@ void AudioTestPage::update_status_() {
   }
 
   if (!has_audio_device_) {
-    lv_label_set_text(status_label_, "Audio device error");
+    const auto text = app_view_model_ref_().tr("Audio device error");
+    lv_label_set_text(status_label_, text.c_str());
     return;
   }
 
@@ -160,9 +174,10 @@ void AudioTestPage::update_status_() {
   } else if (level_chart_ && level_series_) {
     lv_chart_set_next_value(level_chart_, level_series_, 0);
   }
+  std::string text;
   switch (stage) {
     case JobStage::IDLE:
-      lv_label_set_text(status_label_, "Press 6 or Enter to start recording");
+      text = app_view_model_ref_().tr("Press 6 or Enter to start recording");
       break;
     case JobStage::RECORDING: {
       const uint32_t elapsed_ms = lv_tick_elaps(recording_started_at_);
@@ -171,26 +186,35 @@ void AudioTestPage::update_status_() {
         remaining = 0;
       }
       char buffer[32];
-      lv_snprintf(buffer, sizeof(buffer), "Recording (%d)", remaining);
+      lv_snprintf(buffer,
+                  sizeof(buffer),
+                  "%s (%d)",
+                  app_view_model_ref_().tr("Recording").c_str(),
+                  remaining);
       lv_label_set_text(status_label_, buffer);
       break;
     }
     case JobStage::WAITING_TO_PLAY:
-      lv_label_set_text(status_label_, "Recording (0)");
+      text = app_view_model_ref_().tr("Recording") + " (0)";
       break;
     case JobStage::PLAYING:
-      lv_label_set_text(status_label_, "Playing");
+      text = app_view_model_ref_().tr("Playing");
       break;
     case JobStage::COMPLETE:
-      lv_label_set_text(status_label_, "Does record and play normal?");
+      text = app_view_model_ref_().tr("Does record and play normal?");
       break;
     case JobStage::ERROR:
-      lv_label_set_text(status_label_, "Audio test failed. Press 6 or Enter to retry.");
+      text = app_view_model_ref_().tr("Audio test failed. Press 6 or Enter to retry.");
       if (error_label_) {
-        lv_label_set_text(error_label_, "See logs for PipeWire capture/playback details.");
+        const auto detail =
+            app_view_model_ref_().tr("See logs for PipeWire capture/playback details.");
+        lv_label_set_text(error_label_, detail.c_str());
         lv_obj_remove_flag(error_label_, LV_OBJ_FLAG_HIDDEN);
       }
       break;
+  }
+  if (!text.empty()) {
+    lv_label_set_text(status_label_, text.c_str());
   }
 }
 
@@ -221,7 +245,7 @@ void AudioTestPage::key_listener(uint32_t key, const char* key_name, void* user_
     return;
   }
 
-  if (key == '6') {
+  if (key == '6' || is_enter_key(key, key_name)) {
     page->start_recording_();
   }
 }

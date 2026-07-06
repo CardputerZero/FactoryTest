@@ -35,6 +35,7 @@ void Popup::build() {
   }
 
   core_obj_ = lv_obj_create(parent_);
+  register_core_obj_();
   lv_obj_remove_style_all(core_obj_);
   lv_obj_set_size(core_obj_, config_.width, config_.height);
   lv_obj_align(core_obj_, config_.align, config_.offset_x, config_.offset_y);
@@ -111,9 +112,7 @@ void Popup::close() {
     lv_timer_delete(auto_close_timer_);
     auto_close_timer_ = nullptr;
   }
-  if (core_obj_ && lv_obj_is_valid(core_obj_)) {
-    lv_obj_delete(core_obj_);
-  }
+  destroy_core_obj_();
   core_obj_ = nullptr;
   label_    = nullptr;
 }

@@ -137,8 +137,8 @@ void I2cConnectivityView::build_static_content_() {
     return;
   }
 
-  auto* header_font = assets_->load_font("inter-semibold.ttf", 10);
-  auto* cell_font   = assets_->load_font("inter-medium.ttf", 10);
+  auto* header_font = assets_->load_font(app_view_model_->ui_font_name("inter-semibold.ttf"), 10);
+  auto* cell_font   = assets_->load_font(app_view_model_->ui_font_name("inter-medium.ttf"), 10);
   const auto colors = view::palette(app_view_model_->is_dark_mode());
 
   card_ = lv_obj_create(panel_);
@@ -252,8 +252,9 @@ void I2cConnectivityView::update_scanning_popup_() {
     config.radius      = 10;
     config.pad_all     = 6;
     config.label_width = 152;
-    config.message     = "Scanning I2C...";
-    config.font = assets_ ? assets_->load_font("inter-semibold.ttf", 12) : &lv_font_montserrat_12;
+    config.message     = app_view_model_->tr("Scanning I2C...");
+    config.font = assets_ ? assets_->load_font(app_view_model_->ui_font_name("inter-semibold.ttf"), 12)
+                           : &lv_font_montserrat_12;
     scanning_popup_ =
         std::make_unique<view::widgets::Popup>(lv_layer_top(), *app_view_model_, config);
     scanning_popup_->build();

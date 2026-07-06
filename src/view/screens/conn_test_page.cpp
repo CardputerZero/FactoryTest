@@ -163,7 +163,8 @@ void ConnTestPage::build_content(lv_obj_t* content) {
                        app_view_model_ref_().dark_mode_subject(),
                        reactive::ThemeRole::SURFACE);
 
-  auto* text_font = assets_ref_().load_font("inter-medium.ttf", 14);
+  auto* text_font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 14);
   auto* icon_font = assets_ref_().load_font("Phosphor-Fill.ttf", 14);
   std::vector<view::widgets::IconList::Item> list_items;
   list_items.reserve(items.size());
@@ -572,8 +573,10 @@ void ConnTestPage::show_loading_modal_(model::SubPage page) {
                       : page == model::SubPage::ETHERNET  ? "Reading Ethernet..."
                       : page == model::SubPage::HDMI      ? "Reading HDMI..."
                                                           : "Scanning...";
-  lv_label_set_text(label, title);
-  auto* font = assets_ref_().load_font("inter-semibold.ttf", 12);
+  const auto text = app_view_model_ref_().tr(title);
+  lv_label_set_text(label, text.c_str());
+  auto* font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 12);
   lv_obj_set_style_text_font(label, font ? font : &lv_font_montserrat_12, 0);
   reactive::bind_theme(label, app_view_model_ref_().dark_mode_subject(), reactive::ThemeRole::TEXT);
   lv_obj_center(label);

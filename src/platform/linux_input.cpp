@@ -67,6 +67,7 @@ struct KeyRouterState {
   void* long_key_listener_user_data{nullptr};
   GlobalKeyListener global_key_listener{nullptr};
   void* global_key_listener_user_data{nullptr};
+  bool modal_key_capture{false};
 };
 
 struct KeyMapEntry {
@@ -282,20 +283,29 @@ void long_press_timer_cb(lv_timer_t* timer) {
   LOG_VERBOSE("key router: long press key={} elapsed={}ms",
               key_name(state.pressed_key),
               lv_tick_elaps(state.press_started_at));
+  if (state.modal_key_capture) {
+    LOG_VERBOSE("key router: modal captured long key={}", key_name(state.pressed_key));
+    return;
+  }
   emit_long_key(state.pressed_key);
   dispatch_nav_key(state.pressed_key, LV_EVENT_LONG_PRESSED);
 }
 
-void ensure_long_press_timer() {
+void ensure_long_press_timer(bool reset) {
   auto& state = key_router_state();
   if (!state.long_press_timer) {
     state.long_press_timer = lv_timer_create(long_press_timer_cb, 50, nullptr);
+  }
+  lv_timer_resume(state.long_press_timer);
+  if (reset) {
+    lv_timer_reset(state.long_press_timer);
   }
 }
 
 void route_key_state(uint32_t key, bool pressed, const char* source) {
   auto& state            = key_router_state();
   const bool is_new_hold = !state.last_key_pressed || key != state.pressed_key;
+  const bool modal_capture = state.modal_key_capture;
   LOG_VERBOSE("key router: input source={} key={} state={} last_key={} last_pressed={} mode={}",
               source ? source : "unknown",
               key_name(key),
@@ -310,18 +320,25 @@ void route_key_state(uint32_t key, bool pressed, const char* source) {
       state.long_press_sent  = false;
       audio::play_key_click_sound();
       emit_key(key);
-      dispatch_nav_key(key, LV_EVENT_PRESSED);
+      if (!modal_capture) {
+        dispatch_nav_key(key, LV_EVENT_PRESSED);
+      }
     }
     state.last_key_activity_at = lv_tick_get();
-    ensure_long_press_timer();
-    if (state.nav_trigger_mode == NavTriggerMode::CLICK &&
+    ensure_long_press_timer(is_new_hold);
+    if (!modal_capture && state.nav_trigger_mode == NavTriggerMode::CLICK &&
         (!state.last_key_pressed || state.last_key != key)) {
       dispatch_nav_key(key, LV_EVENT_CLICKED);
     }
   } else if (state.last_key_pressed && state.pressed_key == key) {
-    dispatch_nav_key(key, LV_EVENT_RELEASED);
+    if (!modal_capture) {
+      dispatch_nav_key(key, LV_EVENT_RELEASED);
+    }
     emit_key_release(key);
     state.pressed_key = 0;
+    if (state.long_press_timer) {
+      lv_timer_pause(state.long_press_timer);
+    }
   } else {
     LOG_VERBOSE("key router: ignored release key={} pressed_key={} last_pressed={}",
                 key_name(key),
@@ -851,11 +868,31 @@ void set_nav_trigger_mode(NavTriggerMode mode) {
   LOG_VERBOSE("key router: trigger mode {} -> {}",
               state.nav_trigger_mode == NavTriggerMode::CLICK ? "click" : "long",
               mode == NavTriggerMode::CLICK ? "click" : "long");
-  state.nav_trigger_mode     = mode;
-  state.pressed_key          = 0;
+  state.nav_trigger_mode = mode;
+  reset_key_router_state();
+}
+
+void set_modal_key_capture(bool enabled) {
+  auto& state = key_router_state();
+  if (state.modal_key_capture == enabled) {
+    return;
+  }
+  LOG_VERBOSE("key router: modal key capture {}", enabled ? "enabled" : "disabled");
+  state.modal_key_capture = enabled;
+  reset_key_router_state();
+}
+
+void reset_key_router_state() {
+  auto& state = key_router_state();
+  state.last_key             = 0;
   state.last_key_pressed     = false;
+  state.pressed_key          = 0;
+  state.press_started_at     = 0;
   state.last_key_activity_at = 0;
   state.long_press_sent      = false;
+  if (state.long_press_timer) {
+    lv_timer_pause(state.long_press_timer);
+  }
 }
 
 const char* describe_key(uint32_t key) {

@@ -72,6 +72,11 @@ install(
     PATTERN ".DS_Store" EXCLUDE
 )
 install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/assets/i18n/"
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/${APP_NAME}/i18n"
+    PATTERN ".DS_Store" EXCLUDE
+)
+install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/assets/images/"
     DESTINATION "${CMAKE_INSTALL_DATADIR}/APPLaunch/share/images"
     FILES_MATCHING PATTERN "factory_test*.png"

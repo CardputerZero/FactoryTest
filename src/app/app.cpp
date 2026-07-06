@@ -22,6 +22,7 @@
 #include "screenshot_service.h"
 #include "start_menu_viewmodel.h"
 #include "theme.h"
+#include "translation_service.h"
 
 #if !USE_DESKTOP
 #if APP_USE_DRM
@@ -236,7 +237,20 @@ int Application::run() {
     LOG_WARN("key click sound asset not found: audio/click.wav");
   }
 
-  viewmodel::AppViewModel app_view_model;
+  model::TranslationService translations;
+  const auto zh_translation_path = assets.resolve("i18n/zh_CN.json");
+  if (!zh_translation_path.empty()) {
+    std::string translation_error;
+    if (!translations.load_language_file("zh_CN",
+                                         zh_translation_path.string(),
+                                         &translation_error)) {
+      LOG_WARN("failed to load zh_CN translation: {}", translation_error);
+    }
+  } else {
+    LOG_WARN("translation asset not found: i18n/zh_CN.json");
+  }
+
+  viewmodel::AppViewModel app_view_model(translations);
   viewmodel::StartMenuViewModel start_menu_view_model;
   viewmodel::KeyboardTestViewModel keyboard_view_model;
   viewmodel::LcdTestViewModel lcd_view_model;

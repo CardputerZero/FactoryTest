@@ -10,10 +10,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "base_screen.h"
 #include "connectivity_test_viewmodel.h"
+#include "dialog.h"
 #include "icon_list.h"
 #include "perf_test_viewmodel.h"
 #include "popup.h"
@@ -35,6 +37,10 @@ class StartScreen : public BaseScreen {
   void update_selection_(int32_t selected_index);
   void update_category_(int32_t selected_category_index);
   void activate_selected_item_();
+  void show_language_dialog_();
+  void close_language_dialog_();
+  bool handle_language_dialog_key_(uint32_t key, const char* key_name);
+  void refresh_language_();
   void show_exit_popup_();
   void hide_exit_popup_();
   static void key_listener(uint32_t key, const char* key_name, void* user_data);
@@ -45,6 +51,7 @@ class StartScreen : public BaseScreen {
   static void selected_observer(lv_observer_t* observer, lv_subject_t* subject);
   static void category_observer(lv_observer_t* observer, lv_subject_t* subject);
   static void theme_observer(lv_observer_t* observer, lv_subject_t* subject);
+  static void language_observer(lv_observer_t* observer, lv_subject_t* subject);
   static void width_anim_cb(void* obj, int32_t value);
   static void x_anim_cb(void* obj, int32_t value);
   static void list_width_anim_cb(void* obj, int32_t value);
@@ -65,7 +72,7 @@ class StartScreen : public BaseScreen {
     lv_obj_t* label{nullptr};
   };
 
-  std::vector<view::widgets::IconList::Item> current_list_items_() const;
+  std::vector<view::widgets::IconList::Item> current_list_items_();
   void rebuild_list_();
   void build_drawer_(lv_obj_t* content);
   void set_drawer_open_(bool open, bool animate);
@@ -87,6 +94,8 @@ class StartScreen : public BaseScreen {
   viewmodel::ConnectivityTestViewModel& connectivity_view_model_;
   std::unique_ptr<view::widgets::IconList> list_{};
   std::unique_ptr<view::widgets::Popup> exit_popup_{};
+  std::unique_ptr<view::widgets::Dialog> language_dialog_{};
+  lv_obj_t* language_dropdown_{nullptr};
   lv_obj_t* drawer_{nullptr};
   lv_obj_t* list_viewport_{nullptr};
   std::array<DrawerTab, model::StartMenuModel::K_CATEGORY_COUNT> tabs_{};
@@ -97,6 +106,7 @@ class StartScreen : public BaseScreen {
   lv_observer_t* selected_observer_handle_{nullptr};
   lv_observer_t* category_observer_handle_{nullptr};
   lv_observer_t* theme_observer_handle_{nullptr};
+  lv_observer_t* language_observer_handle_{nullptr};
 };
 
 }  // namespace screen

@@ -15,14 +15,7 @@ class BaseWidgets {
   explicit BaseWidgets(lv_obj_t* parent)
       : parent_(parent) {}
   virtual ~BaseWidgets() {
-    if (theme_observer_) {
-      lv_observer_remove(theme_observer_);
-      theme_observer_ = nullptr;
-    }
-
-    if (core_obj_ && lv_obj_is_valid(core_obj_)) {
-      lv_obj_delete(core_obj_);
-    }
+    destroy_core_obj_();
   }
 
   BaseWidgets(const BaseWidgets&) = delete;
@@ -33,11 +26,38 @@ class BaseWidgets {
   lv_obj_t* root() const { return core_obj_; }
 
  protected:
+  void destroy_core_obj_() {
+    auto* obj = core_obj_;
+    core_obj_ = nullptr;
+    core_obj_null_registered_ = false;
+
+    if (!obj || !lv_obj_is_valid(obj)) {
+      theme_observer_ = nullptr;
+      return;
+    }
+
+    /* Object-scoped observers are removed by LVGL from LV_EVENT_DELETE.  Clear
+     * our cached handle before deleting so a later destructor path cannot
+     * remove the same observer twice. */
+    theme_observer_ = nullptr;
+    lv_obj_delete(obj);
+  }
+
+  void register_core_obj_() {
+    if (!core_obj_ || core_obj_null_registered_) {
+      return;
+    }
+
+    lv_obj_add_event_cb(core_obj_, core_obj_delete_cb, LV_EVENT_DELETE, this);
+    core_obj_null_registered_ = true;
+  }
+
   void bind_theme_(lv_subject_t* subject, bool initial_dark_mode) {
     if (!subject || !core_obj_) {
       return;
     }
 
+    register_core_obj_();
     if (theme_observer_) {
       lv_observer_remove(theme_observer_);
       theme_observer_ = nullptr;
@@ -54,6 +74,17 @@ class BaseWidgets {
   lv_obj_t* core_obj_{nullptr};
 
  private:
+  static void core_obj_delete_cb(lv_event_t* event) {
+    auto* widget = static_cast<BaseWidgets*>(lv_event_get_user_data(event));
+    if (!widget) {
+      return;
+    }
+
+    widget->core_obj_ = nullptr;
+    widget->core_obj_null_registered_ = false;
+    widget->theme_observer_ = nullptr;
+  }
+
   static void theme_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
     auto* widget = static_cast<BaseWidgets*>(lv_observer_get_user_data(observer));
     if (!widget) {
@@ -64,6 +95,7 @@ class BaseWidgets {
   }
 
   lv_observer_t* theme_observer_{nullptr};
+  bool core_obj_null_registered_{false};
 };
 
 }  // namespace view::widgets

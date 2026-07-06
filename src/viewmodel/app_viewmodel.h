@@ -17,6 +17,7 @@
 #include "lvgl.h"
 #include "subjects.h"
 #include "test_session.h"
+#include "translation_service.h"
 
 namespace viewmodel {
 
@@ -40,7 +41,7 @@ struct NavAction {
 
 class AppViewModel {
  public:
-  AppViewModel();
+  explicit AppViewModel(model::TranslationService& translations);
   ~AppViewModel();
 
   AppViewModel(const AppViewModel&)            = delete;
@@ -52,14 +53,19 @@ class AppViewModel {
   lv_subject_t* title_y_offset_subject();
   lv_subject_t* nav_actions_subject();
   lv_subject_t* dark_mode_subject();
+  lv_subject_t* language_subject();
   lv_subject_t* current_page_subject();
   lv_subject_t* ftl_page_requested_subject();
   lv_subject_t* quit_requested_subject();
 
   bool is_dark_mode() const;
+  const std::string& language() const;
   const std::array<NavAction, 5>& nav_actions() const;
   void set_dark_mode(bool enabled);
   void toggle_dark_mode();
+  bool set_language(const std::string& locale);
+  std::string tr(const char* msgid) const;
+  const char* ui_font_name(const char* latin_font_name) const;
 
   model::AppPage current_page() const;
   bool is_test_sequence_active() const;
@@ -105,8 +111,10 @@ class AppViewModel {
 
  private:
   model::AppModel model_{};
+  model::TranslationService& translations_;
   model::TestSession test_session_{};
   std::size_t test_sequence_index_{0};
+  std::string title_msgid_{};
   reactive::StringSubject<48> title_subject_;
   reactive::IntSubject title_alignment_subject_;
   reactive::IntSubject title_x_offset_subject_;
@@ -116,6 +124,7 @@ class AppViewModel {
   int32_t ftl_request_revision_{0};
   std::array<NavAction, 5> nav_actions_{};
   reactive::BoolSubject dark_mode_subject_;
+  reactive::IntSubject language_subject_{0};
   reactive::IntSubject current_page_subject_;
   reactive::IntSubject ftl_page_requested_subject_{0};
   reactive::BoolSubject quit_requested_subject_;

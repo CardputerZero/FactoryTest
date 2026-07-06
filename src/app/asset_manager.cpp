@@ -41,6 +41,13 @@ std::filesystem::path weakly_canonical_path(const std::filesystem::path& path) {
   return ec ? path.lexically_normal() : canonical;
 }
 
+uint32_t normalized_font_size(const std::filesystem::path& file_name, uint32_t size) {
+  if (file_name.filename() == "alibaba-puhui-regular.ttf") {
+    return 12;
+  }
+  return size;
+}
+
 }  // namespace
 
 struct AssetManager::LoadedFont {
@@ -94,6 +101,7 @@ std::filesystem::path AssetManager::resolve_font(const std::filesystem::path& fi
 
 lv_font_t* AssetManager::load_font(const std::filesystem::path& file_name, uint32_t size) {
 #if LV_USE_FREETYPE
+  size      = normalized_font_size(file_name, size);
   auto path = resolve_font(file_name);
   if (path.empty()) {
     LOG_WARN("font asset not found: {}", file_name.string());

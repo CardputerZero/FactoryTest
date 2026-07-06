@@ -50,6 +50,7 @@ void NavBar::build() {
   }
 
   core_obj_ = lv_obj_create(parent_);
+  register_core_obj_();
   lv_obj_remove_style_all(core_obj_);
   lv_obj_set_size(core_obj_, LV_PCT(100), K_NAV_BAR_HEIGHT);
   lv_obj_align(core_obj_, LV_ALIGN_BOTTOM_MID, 0, 0);

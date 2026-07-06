@@ -98,7 +98,7 @@ void IrTestPage::build_content(lv_obj_t* content) {
     list_items.push_back({item.icon, item.title});
   }
 
-  auto* text_font = assets_ref_().load_font("inter-medium.ttf", 14);
+  auto* text_font = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 14);
   auto* icon_font = assets_ref_().load_font("Phosphor-Fill.ttf", 14);
   menu_list_ =
       std::make_unique<view::widgets::IconList>(menu_viewport,
@@ -116,9 +116,9 @@ void IrTestPage::build_content(lv_obj_t* content) {
   auto* sender_viewport   = build_subpage_container_(plane_, K_VIEWPORT_WIDTH);
   auto* receiver_viewport = build_subpage_container_(plane_, K_VIEWPORT_WIDTH * 2);
 
-  auto* title_font  = assets_ref_().load_font("inter-semibold.ttf", 16);
-  auto* value_font  = assets_ref_().load_font("inter-semibold.ttf", 13);
-  auto* detail_font = assets_ref_().load_font("inter-medium.ttf", 11);
+  auto* title_font  = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 16);
+  auto* value_font  = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 13);
+  auto* detail_font = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 11);
   auto* title       = title_font ? title_font : &lv_font_montserrat_16;
   auto* value       = value_font ? value_font : &lv_font_montserrat_12;
   auto* detail      = detail_font ? detail_font : &lv_font_montserrat_12;
@@ -137,9 +137,11 @@ void IrTestPage::build_content(lv_obj_t* content) {
   sender_status_label_ = create_label(sender_group, app_view_model_ref_(), title, 290);
   sender_data_label_   = create_label(sender_group, app_view_model_ref_(), value, 290);
   sender_detail_label_ = create_label(sender_group, app_view_model_ref_(), detail, 290);
-  set_label_text(sender_status_label_, "Enter/S Send Random Packet");
+  set_label_text(sender_status_label_, app_view_model_ref_().tr("Enter/S Send Random Packet"));
   set_label_text(sender_data_label_,
-                 "Addr " + platform::ir::format_nec_address(address_) + "  Cmd --");
+                 app_view_model_ref_().tr("Addr") + " " +
+                     platform::ir::format_nec_address(address_) + "  " +
+                     app_view_model_ref_().tr("Cmd") + " --");
   const auto sender_info = platform::ir::read_sender_info();
   set_label_text(sender_detail_label_,
                  sender_info.available ? sender_info.lirc_path : sender_info.error_message);
@@ -158,8 +160,10 @@ void IrTestPage::build_content(lv_obj_t* content) {
   receiver_status_label_ = create_label(receiver_group, app_view_model_ref_(), title, 290);
   receiver_data_label_   = create_label(receiver_group, app_view_model_ref_(), value, 290);
   receiver_detail_label_ = create_label(receiver_group, app_view_model_ref_(), detail, 290);
-  set_label_text(receiver_status_label_, "Waiting for NEC data");
-  set_label_text(receiver_data_label_, "Addr --  Cmd --");
+  set_label_text(receiver_status_label_, app_view_model_ref_().tr("Waiting for NEC data"));
+  set_label_text(receiver_data_label_,
+                 app_view_model_ref_().tr("Addr") + " --  " +
+                     app_view_model_ref_().tr("Cmd") + " --");
   const auto receiver_info = platform::ir::read_receiver_info();
   set_label_text(receiver_detail_label_,
                  receiver_info.available ? receiver_info.lirc_path : receiver_info.error_message);
@@ -275,8 +279,11 @@ void IrTestPage::refresh_receiver_() { update_receiver_status_(receiver_session_
 void IrTestPage::update_sender_status_(const platform::ir::IrSendResult& result) {
   const std::string protocol = result.protocol.empty() ? "NEC" : result.protocol;
   set_label_text(sender_status_label_,
-                 result.success ? protocol + " packet sent" : "IR send failed");
-  std::string data = "Addr " + platform::ir::format_nec_address(result.address) + "  Cmd " +
+                 result.success ? protocol + " " + app_view_model_ref_().tr("packet sent")
+                                : app_view_model_ref_().tr("IR send failed"));
+  std::string data = app_view_model_ref_().tr("Addr") + " " +
+                     platform::ir::format_nec_address(result.address) + "  " +
+                     app_view_model_ref_().tr("Cmd") + " " +
                      (result.success ? platform::ir::format_nec_command(result.command) : "--");
   set_label_text(sender_data_label_, data);
   std::string detail = result.message;
@@ -294,10 +301,11 @@ void IrTestPage::update_sender_status_(const platform::ir::IrSendResult& result)
 
 void IrTestPage::update_receiver_status_(const platform::ir::IrReceiveSnapshot& snapshot) {
   set_label_text(receiver_status_label_,
-                 snapshot.message.empty() ? "Waiting for NEC data" : snapshot.message);
-  std::string data = "Addr ";
+                 snapshot.message.empty() ? app_view_model_ref_().tr("Waiting for NEC data")
+                                          : app_view_model_ref_().tr(snapshot.message.c_str()));
+  std::string data = app_view_model_ref_().tr("Addr") + " ";
   data += !snapshot.data.empty() ? platform::ir::format_nec_address(snapshot.address) : "--";
-  data += "  Cmd ";
+  data += "  " + app_view_model_ref_().tr("Cmd") + " ";
   data += !snapshot.data.empty() ? platform::ir::format_nec_command(snapshot.command) : "--";
   set_label_text(receiver_data_label_, data);
 
@@ -308,7 +316,8 @@ void IrTestPage::update_receiver_status_(const platform::ir::IrReceiveSnapshot& 
     }
     detail += platform::ir::format_hex_bytes(snapshot.data);
     if (snapshot.address_filter_enabled) {
-      detail += snapshot.address_matched ? " | Address OK" : " | Expected ";
+      detail += snapshot.address_matched ? " | " + app_view_model_ref_().tr("Address OK")
+                                         : " | " + app_view_model_ref_().tr("Expected") + " ";
     }
     if (snapshot.address_filter_enabled && !snapshot.address_matched) {
       detail += platform::ir::format_nec_address(snapshot.expected_address);
@@ -322,7 +331,8 @@ void IrTestPage::update_receiver_status_(const platform::ir::IrReceiveSnapshot& 
     detail += snapshot.raw_summary;
   }
   if (detail.empty()) {
-    detail = snapshot.opened ? "Listening" : "Receiver not opened";
+    detail = snapshot.opened ? app_view_model_ref_().tr("Listening")
+                             : app_view_model_ref_().tr("Receiver not opened");
   }
   set_label_text(receiver_detail_label_, detail);
 }

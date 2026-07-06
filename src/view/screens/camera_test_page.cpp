@@ -93,24 +93,28 @@ void CameraTestPage::build_content(lv_obj_t* content) {
   error_title_ = lv_label_create(group);
   lv_obj_set_width(error_title_, 280);
   lv_obj_set_style_text_align(error_title_, LV_TEXT_ALIGN_CENTER, 0);
-  auto* title_font = assets_ref_().load_font("inter-semibold.ttf", 18);
+  auto* title_font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 18);
   lv_obj_set_style_text_font(error_title_, title_font ? title_font : &lv_font_montserrat_18, 0);
   reactive::bind_theme(error_title_,
                        app_view_model_ref_().dark_mode_subject(),
                        reactive::ThemeRole::TEXT);
-  lv_label_set_text(error_title_, "Camera device error");
+  const auto title = app_view_model_ref_().tr("Camera device error");
+  lv_label_set_text(error_title_, title.c_str());
 
   error_body_ = lv_label_create(group);
   lv_obj_set_width(error_body_, 280);
   lv_obj_set_style_text_align(error_body_, LV_TEXT_ALIGN_CENTER, 0);
-  auto* body_font = assets_ref_().load_font("inter-medium.ttf", 13);
+  auto* body_font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 13);
   lv_obj_set_style_text_font(error_body_, body_font ? body_font : &lv_font_montserrat_14, 0);
   reactive::bind_theme(error_body_,
                        app_view_model_ref_().dark_mode_subject(),
                        reactive::ThemeRole::TEXT);
-  lv_label_set_text(
-      error_body_,
-      error_message_.empty() ? "MIPI-CSI camera not detected." : error_message_.c_str());
+  const auto message = error_message_.empty()
+                           ? app_view_model_ref_().tr("MIPI-CSI camera not detected.")
+                           : error_message_;
+  lv_label_set_text(error_body_, message.c_str());
 }
 
 void CameraTestPage::update_preview_frame_() {

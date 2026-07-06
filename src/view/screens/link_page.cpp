@@ -6,7 +6,6 @@
 
 #include "link_page.h"
 
-#include <cstdlib>
 #include <iomanip>
 #include <sstream>
 #include <string>
@@ -101,23 +100,24 @@ void add_link_row(lv_obj_t* card,
   lv_obj_clear_flag(row, LV_OBJ_FLAG_CLICKABLE);
 
   auto* title_label = lv_label_create(row);
-  lv_label_set_text(title_label, title ? title : "Link");
+  const auto translated_title = app_view_model.tr(title ? title : "Link");
+  lv_label_set_text(title_label, translated_title.c_str());
   lv_obj_set_width(title_label, 84);
   lv_obj_set_style_text_font(title_label, fonts.title, 0);
   reactive::bind_theme(title_label, app_view_model.dark_mode_subject(), reactive::ThemeRole::TEXT);
 
-  std::string text = value;
+  std::string text = app_view_model.tr(value.c_str());
   if (!metric.detail.empty()) {
     text += " | ";
     text += metric.detail;
   } else {
     text += " | ";
-    text += link_status_text(metric.status);
+    text += app_view_model.tr(link_status_text(metric.status));
   }
 
   auto* value_label = lv_label_create(row);
   lv_label_set_text(value_label, text.c_str());
-  lv_label_set_long_mode(value_label, LV_LABEL_LONG_SCROLL);
+  lv_label_set_long_mode(value_label, LV_LABEL_LONG_DOT);
   lv_obj_set_width(value_label, K_LINK_ROW_WIDTH - 92);
   lv_obj_set_style_text_align(value_label, LV_TEXT_ALIGN_RIGHT, 0);
   lv_obj_set_style_text_font(value_label, fonts.value, 0);
@@ -143,15 +143,15 @@ void rebuild_link_panel(lv_obj_t* panel,
 
   lv_obj_clean(panel);
   const auto colors = view::palette(app_view_model.is_dark_mode());
-  const auto fonts  = load_card_fonts(assets);
-  auto* title_font  = assets.load_font("inter-semibold.ttf", 12);
-  auto* hint_font   = assets.load_font("inter-medium.ttf", 10);
+  const auto fonts  = load_card_fonts(assets, app_view_model);
+  auto* title_font  = assets.load_font(app_view_model.ui_font_name("inter-semibold.ttf"), 12);
+  auto* hint_font   = assets.load_font(app_view_model.ui_font_name("inter-medium.ttf"), 10);
 
   std::ostringstream title;
   title << "iperf " << snapshot.settings.iperf_host << ':' << snapshot.settings.iperf_port;
   auto* title_label = lv_label_create(panel);
   lv_label_set_text(title_label, title.str().c_str());
-  lv_label_set_long_mode(title_label, LV_LABEL_LONG_SCROLL);
+  lv_label_set_long_mode(title_label, LV_LABEL_LONG_DOT);
   lv_obj_set_width(title_label, K_LINK_CARD_WIDTH);
   lv_obj_set_style_text_align(title_label, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_style_text_font(title_label, title_font ? title_font : &lv_font_montserrat_12, 0);
@@ -188,7 +188,8 @@ void rebuild_link_panel(lv_obj_t* panel,
                snapshot.ethernet_iperf);
 
   auto* hint_label = lv_label_create(panel);
-  lv_label_set_text(hint_label, "5/R Restart  |  7 iperf Settings");
+  const auto hint = app_view_model.tr("5/R Restart  |  7 iperf Settings");
+  lv_label_set_text(hint_label, hint.c_str());
   lv_obj_set_width(hint_label, K_LINK_CARD_WIDTH);
   lv_obj_set_style_text_align(hint_label, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_style_text_font(hint_label, hint_font ? hint_font : &lv_font_montserrat_12, 0);
@@ -230,12 +231,18 @@ void LinkConnectivityView::show_config_dialog() {
 
   hide_config_dialog_();
   platform::set_nav_trigger_mode(platform::NavTriggerMode::LONG_PRESS);
+  platform::set_modal_key_capture(true);
+
+  if (refresh_timer_) {
+    lv_timer_pause(refresh_timer_);
+  }
 
   view::widgets::DialogConfig config;
-  config.scroll_y      = true;
-  config.pad_row       = 2;
-  config.title         = "iperf Settings";
-  config.shortcut_text = "ESC: Cancel  OK: Confirm";
+  config.scroll_y       = false;
+  config.pad_row        = 2;
+  config.title          = "iperf Settings";
+  config.shortcut_text  = "ESC: Cancel  OK: Confirm";
+  config.shortcut_width = 154;
 
   view::widgets::DialogCallbacks callbacks;
   callbacks.ok_action     = [this]() { apply_config_dialog_(); };
@@ -254,17 +261,9 @@ void LinkConnectivityView::show_config_dialog() {
   host_input_ = dialog_->add_textarea(view_model_.settings().iperf_host.c_str(), host_options);
   lv_obj_add_event_cb(host_input_, dialog_host_focus_cb, LV_EVENT_CLICKED, this);
   lv_obj_add_event_cb(host_input_, dialog_host_focus_cb, LV_EVENT_FOCUSED, this);
-
-  dialog_->add_label("Port");
-  char port_text[8]{};
-  lv_snprintf(port_text, sizeof(port_text), "%d", view_model_.settings().iperf_port);
-  view::widgets::DialogTextareaOptions port_options;
-  port_options.accepted_chars = "0123456789";
-  port_input_                 = dialog_->add_textarea(port_text, port_options);
-  lv_obj_add_event_cb(port_input_, dialog_port_focus_cb, LV_EVENT_CLICKED, this);
-  lv_obj_add_event_cb(port_input_, dialog_port_focus_cb, LV_EVENT_FOCUSED, this);
-
-  set_active_dialog_field_(DialogField::HOST);
+  if (host_input_) {
+    lv_obj_add_state(host_input_, LV_STATE_FOCUSED);
+  }
 }
 
 bool LinkConnectivityView::handle_key(uint32_t key, const char* key_name) {
@@ -273,8 +272,8 @@ bool LinkConnectivityView::handle_key(uint32_t key, const char* key_name) {
   }
 
   if (key == LV_KEY_BACKSPACE || key == LV_KEY_DEL) {
-    if (auto* input = active_dialog_input_()) {
-      lv_textarea_delete_char(input);
+    if (host_input_) {
+      lv_textarea_delete_char(host_input_);
     }
     return true;
   }
@@ -285,8 +284,6 @@ bool LinkConnectivityView::handle_key(uint32_t key, const char* key_name) {
 
   if (key == '\t' || key == LV_KEY_NEXT || key == LV_KEY_LEFT || key == LV_KEY_RIGHT ||
       key == LV_KEY_UP || key == LV_KEY_DOWN) {
-    set_active_dialog_field_(active_dialog_field_ == DialogField::HOST ? DialogField::PORT
-                                                                       : DialogField::HOST);
     return true;
   }
 
@@ -301,6 +298,9 @@ bool LinkConnectivityView::dialog_visible() const { return dialog_ && dialog_->v
 
 void LinkConnectivityView::refresh_() {
   const bool changed = view_model_.refresh();
+  if (dialog_visible()) {
+    return;
+  }
   if (changed || !panel_initialized_) {
     rebuild_();
   }
@@ -316,7 +316,11 @@ void LinkConnectivityView::rebuild_() {
 void LinkConnectivityView::hide_config_dialog_() {
   dialog_.reset();
   host_input_ = nullptr;
-  port_input_ = nullptr;
+  if (refresh_timer_) {
+    lv_timer_resume(refresh_timer_);
+    lv_timer_reset(refresh_timer_);
+  }
+  platform::set_modal_key_capture(false);
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
 }
 
@@ -325,42 +329,20 @@ void LinkConnectivityView::apply_config_dialog_() {
   if (host_input_) {
     settings.iperf_host = lv_textarea_get_text(host_input_);
   }
-  if (port_input_) {
-    settings.iperf_port = std::atoi(lv_textarea_get_text(port_input_));
-  }
 
   view_model_.set_settings(std::move(settings));
   hide_config_dialog_();
   restart();
 }
 
-void LinkConnectivityView::set_active_dialog_field_(DialogField field) {
-  active_dialog_field_ = field;
-  if (host_input_) {
-    lv_obj_clear_state(host_input_, LV_STATE_FOCUSED);
-  }
-  if (port_input_) {
-    lv_obj_clear_state(port_input_, LV_STATE_FOCUSED);
-  }
-
-  if (auto* input = active_dialog_input_()) {
-    lv_obj_add_state(input, LV_STATE_FOCUSED);
-  }
-}
-
-lv_obj_t* LinkConnectivityView::active_dialog_input_() const {
-  return active_dialog_field_ == DialogField::HOST ? host_input_ : port_input_;
-}
-
 bool LinkConnectivityView::append_dialog_char_(char ch) {
-  const bool host_field = active_dialog_field_ == DialogField::HOST;
-  const bool allowed    = (ch >= '0' && ch <= '9') || (host_field && ch == '.');
+  const bool allowed = (ch >= '0' && ch <= '9') || ch == '.';
   if (!allowed) {
     return true;
   }
 
-  if (auto* input = active_dialog_input_()) {
-    lv_textarea_add_char(input, static_cast<uint32_t>(ch));
+  if (host_input_) {
+    lv_textarea_add_char(host_input_, static_cast<uint32_t>(ch));
   }
   return true;
 }
@@ -374,15 +356,8 @@ void LinkConnectivityView::refresh_timer_cb(lv_timer_t* timer) {
 
 void LinkConnectivityView::dialog_host_focus_cb(lv_event_t* event) {
   auto* view = static_cast<LinkConnectivityView*>(lv_event_get_user_data(event));
-  if (view) {
-    view->set_active_dialog_field_(DialogField::HOST);
-  }
-}
-
-void LinkConnectivityView::dialog_port_focus_cb(lv_event_t* event) {
-  auto* view = static_cast<LinkConnectivityView*>(lv_event_get_user_data(event));
-  if (view) {
-    view->set_active_dialog_field_(DialogField::PORT);
+  if (view && view->host_input_) {
+    lv_obj_add_state(view->host_input_, LV_STATE_FOCUSED);
   }
 }
 

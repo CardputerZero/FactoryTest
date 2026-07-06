@@ -32,7 +32,6 @@ constexpr int32_t K_SWITCH_WIDTH          = 38;
 constexpr int32_t K_SWITCH_HEIGHT         = 20;
 constexpr uint32_t K_GPIO_ACTION_DELAY_MS = 120;
 constexpr uint32_t K_INPUT_POLL_MS        = 250;
-constexpr const char* K_FUNCTION_OPTIONS  = "Output\nInput";
 
 bool key_name_is(const char* key_name, const char* expected) {
   return key_name && expected && std::strcmp(key_name, expected) == 0;
@@ -115,8 +114,8 @@ void ExtIoConnectivityView::build(lv_obj_t* parent,
   reactive::bind_theme(root_, app_view_model.dark_mode_subject(), reactive::ThemeRole::SURFACE);
 
   auto* icon_font   = assets.load_font("Phosphor-Fill.ttf", 14);
-  auto* title_font  = assets.load_font("inter-semibold.ttf", 11);
-  auto* detail_font = assets.load_font("inter-medium.ttf", 10);
+  auto* title_font  = assets.load_font(app_view_model.ui_font_name("inter-semibold.ttf"), 11);
+  auto* detail_font = assets.load_font(app_view_model.ui_font_name("inter-medium.ttf"), 10);
 
   for (std::size_t i = 0; i < rows_.size(); ++i) {
     auto& row = rows_[i];
@@ -139,7 +138,8 @@ void ExtIoConnectivityView::build(lv_obj_t* parent,
     lv_obj_set_style_text_font(row.icon_label, icon_font ? icon_font : &lv_font_montserrat_14, 0);
 
     row.title_label = lv_label_create(row.row);
-    lv_label_set_text(row.title_label, row.title ? row.title : "GPIO");
+    const auto row_title = app_view_model.tr(row.title ? row.title : "GPIO");
+    lv_label_set_text(row.title_label, row_title.c_str());
     lv_obj_set_width(row.title_label, K_TITLE_WIDTH);
     lv_label_set_long_mode(row.title_label, LV_LABEL_LONG_CLIP);
     lv_obj_set_style_text_font(row.title_label,
@@ -147,7 +147,8 @@ void ExtIoConnectivityView::build(lv_obj_t* parent,
                                0);
 
     row.detail_label = lv_label_create(row.row);
-    lv_label_set_text(row.detail_label, row.detail ? row.detail : "line");
+    const auto row_detail = app_view_model.tr(row.detail ? row.detail : "line");
+    lv_label_set_text(row.detail_label, row_detail.c_str());
     lv_obj_set_width(row.detail_label, K_DETAIL_WIDTH);
     lv_label_set_long_mode(row.detail_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_font(row.detail_label,
@@ -155,7 +156,8 @@ void ExtIoConnectivityView::build(lv_obj_t* parent,
                                0);
 
     row.state_label = lv_label_create(row.row);
-    lv_label_set_text(row.state_label, "OFF");
+    const auto off_text = app_view_model.tr("OFF");
+    lv_label_set_text(row.state_label, off_text.c_str());
     lv_obj_set_width(row.state_label, K_STATE_WIDTH);
     lv_obj_set_style_text_align(row.state_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(row.state_label,
@@ -352,15 +354,18 @@ void ExtIoConnectivityView::apply_row_style_(SwitchRow& row) {
     lv_obj_set_style_text_color(row.title_label, colors.text, 0);
   }
   if (row.detail_label) {
-    lv_label_set_text(row.detail_label,
-                      row.error ? row.error_message.c_str() : (row.detail ? row.detail : "line"));
+    const auto detail =
+        row.error ? app_view_model_->tr(row.error_message.c_str())
+                  : app_view_model_->tr(row.detail ? row.detail : "line");
+    lv_label_set_text(row.detail_label, detail.c_str());
     lv_obj_set_style_text_color(row.detail_label, row.error ? colors.error : colors.text_muted, 0);
   }
   if (row.state_label) {
-    lv_label_set_text(
-        row.state_label,
-        row.error ? "ERR"
-                  : (input_mode ? (row.active ? "HIGH" : "LOW") : (row.active ? "ON" : "OFF")));
+    const char* state = row.error ? "ERR"
+                                  : (input_mode ? (row.active ? "HIGH" : "LOW")
+                                                : (row.active ? "ON" : "OFF"));
+    const auto state_text = app_view_model_->tr(state);
+    lv_label_set_text(row.state_label, state_text.c_str());
     lv_obj_set_style_text_color(
         row.state_label,
         row.error ? colors.error : (row.active ? colors.success : colors.text_muted),
@@ -429,11 +434,13 @@ void ExtIoConnectivityView::show_config_dialog() {
   }
 
   platform::set_nav_trigger_mode(platform::NavTriggerMode::LONG_PRESS);
+  platform::set_modal_key_capture(true);
   view::widgets::DialogConfig config;
-  config.width               = 244;
-  config.height              = 112;
+  config.width               = 286;
+  config.height              = 150;
   config.title               = "EXT.IO Function";
   config.shortcut_text       = "F/X: Select  Enter: Save";
+  config.shortcut_width      = 150;
   config.use_nav_action_keys = false;
 
   view::widgets::DialogCallbacks callbacks;
@@ -446,7 +453,9 @@ void ExtIoConnectivityView::show_config_dialog() {
                                                                     std::move(callbacks));
   dialog_->build();
 
-  function_dropdown_ = dialog_->add_dropdown(K_FUNCTION_OPTIONS, function_index_(), 196);
+  const auto function_options = app_view_model_->tr("Output") + "\n" +
+                                app_view_model_->tr("Input");
+  function_dropdown_ = dialog_->add_dropdown(function_options.c_str(), function_index_(), 246);
   if (function_dropdown_) {
     lv_obj_add_state(function_dropdown_, LV_STATE_FOCUSED);
   }
@@ -457,6 +466,7 @@ bool ExtIoConnectivityView::dialog_visible() const { return dialog_ && dialog_->
 void ExtIoConnectivityView::hide_config_dialog_() {
   dialog_.reset();
   function_dropdown_ = nullptr;
+  platform::set_modal_key_capture(false);
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
 }
 

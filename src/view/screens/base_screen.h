@@ -14,7 +14,7 @@
 #include "app_viewmodel.h"
 #include "lvgl.h"
 #include "navbar.h"
-#include "dialog.h"
+#include "test_confirm_dialog.h"
 #include "titlebar.h"
 
 namespace app {
@@ -60,7 +60,7 @@ class BaseScreen {
   lv_obj_t* content_{nullptr};
   std::unique_ptr<view::widgets::TitleBar> title_bar_{};
   std::unique_ptr<view::widgets::NavBar> nav_bar_{};
-  std::unique_ptr<view::widgets::Dialog> test_result_dialog_{};
+  std::unique_ptr<view::widgets::TestConfirmDialog> test_result_dialog_{};
 };
 
 }  // namespace screen

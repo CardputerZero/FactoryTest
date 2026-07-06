@@ -22,6 +22,8 @@
 #include "start_screen.h"
 #include "test_result_page.h"
 
+#include "linux_input.h"
+
 namespace app {
 namespace {
 
@@ -386,6 +388,7 @@ void ScreenManager::load_screen_(std::unique_ptr<screen::BaseScreen> next_screen
     return;
   }
 
+  platform::reset_key_router_state();
   lv_screen_load(next_screen->root());
   current_screen_ = std::move(next_screen);
 }

@@ -224,8 +224,8 @@ void PowerInfoPage::build_content(lv_obj_t* content) {
   lv_obj_align(grid_, LV_ALIGN_TOP_MID, 0, 0);
 
   auto* icon_font  = assets_ref_().load_font("Phosphor-Fill.ttf", 14);
-  auto* key_font   = assets_ref_().load_font("inter-semibold.ttf", 11);
-  auto* value_font = assets_ref_().load_font("inter-medium.ttf", 11);
+  auto* key_font   = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 11);
+  auto* value_font = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 11);
   platform::power::PowerSupplyInfo info;
   std::string error_message;
   const bool has_info            = platform::power::read_battery_info(info, error_message);
@@ -233,12 +233,14 @@ void PowerInfoPage::build_content(lv_obj_t* content) {
   const int32_t capacity_percent = has_info ? info.capacity_percent : -1;
 
   for (std::size_t i = 0; i < fields.size(); ++i) {
+    const auto label = app_view_model_ref_().tr(fields[i].label);
+    const auto value = app_view_model_ref_().tr(fields[i].value.c_str());
     cards_[i] =
         std::make_unique<view::widgets::IconCard>(grid_,
                                                   app_view_model_ref_(),
                                                   field_icon(i, capacity_percent),
-                                                  fields[i].label,
-                                                  fields[i].value.c_str(),
+                                                  label.c_str(),
+                                                  value.c_str(),
                                                   icon_font ? icon_font : &lv_font_montserrat_14,
                                                   key_font ? key_font : &lv_font_montserrat_12,
                                                   value_font ? value_font : &lv_font_montserrat_12,
@@ -290,7 +292,8 @@ void PowerInfoPage::refresh_() {
       if (i == K_CAPACITY_FIELD_INDEX) {
         cards_[i]->set_icon(field_icon(i, capacity_percent));
       }
-      cards_[i]->set_value(fields[i].value.c_str());
+      const auto value = app_view_model_ref_().tr(fields[i].value.c_str());
+      cards_[i]->set_value(value.c_str());
     }
   }
 }

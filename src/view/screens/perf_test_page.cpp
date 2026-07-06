@@ -100,7 +100,7 @@ void PerfTestPage::build_content(lv_obj_t* content) {
                        app_view_model_ref_().dark_mode_subject(),
                        reactive::ThemeRole::SURFACE);
 
-  auto* text_font = assets_ref_().load_font("inter-medium.ttf", 14);
+  auto* text_font = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 14);
   auto* icon_font = assets_ref_().load_font("Phosphor-Fill.ttf", 14);
 
   std::vector<view::widgets::IconList::Item> list_items;

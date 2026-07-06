@@ -259,8 +259,9 @@ void IoTestPage::show_confirm_hold_popup_() {
     view::widgets::PopupConfig config;
     config.width       = 250;
     config.label_width = 234;
-    config.message     = "Hold 8 to confirm test";
+    config.message     = app_view_model_ref_().tr("Hold 8 to confirm test");
     config.tone        = view::widgets::PopupTone::SUCCESS;
+    config.font        = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 12);
     confirm_hold_popup_ =
         std::make_unique<view::widgets::Popup>(root(), app_view_model_ref_(), config);
     confirm_hold_popup_->build();
@@ -292,8 +293,10 @@ void IoTestPage::show_loading_modal_() {
                        reactive::ThemeRole::BUTTON);
 
   auto* label = lv_label_create(loading_modal_);
-  lv_label_set_text(label, title);
-  auto* font = assets_ref_().load_font("inter-semibold.ttf", 12);
+  const auto text = app_view_model_ref_().tr(title);
+  lv_label_set_text(label, text.c_str());
+  auto* font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 12);
   lv_obj_set_style_text_font(label, font ? font : &lv_font_montserrat_12, 0);
   reactive::bind_theme(label, app_view_model_ref_().dark_mode_subject(), reactive::ThemeRole::TEXT);
   lv_obj_center(label);

@@ -50,6 +50,7 @@ void IconButton::build() {
   }
 
   core_obj_ = lv_button_create(parent_);
+  register_core_obj_();
   lv_obj_remove_style_all(core_obj_);
   lv_obj_set_size(core_obj_, width_, height_);
   lv_obj_clear_flag(core_obj_, LV_OBJ_FLAG_SCROLLABLE);

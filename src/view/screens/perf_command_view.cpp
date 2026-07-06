@@ -105,9 +105,9 @@ void PerfCommandView::build(lv_obj_t* parent,
   lv_obj_clear_flag(group, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_align(group, LV_ALIGN_TOP_MID, 0, 4);
 
-  auto* title_font  = assets.load_font("inter-semibold.ttf", 14);
-  auto* body_font   = assets.load_font("inter-medium.ttf", 11);
-  auto* detail_font = assets.load_font("inter-medium.ttf", 10);
+  auto* title_font  = assets.load_font(app_view_model.ui_font_name("inter-semibold.ttf"), 14);
+  auto* body_font   = assets.load_font(app_view_model.ui_font_name("inter-medium.ttf"), 11);
+  auto* detail_font = assets.load_font(app_view_model.ui_font_name("inter-medium.ttf"), 10);
 
   status_label_ = lv_label_create(group);
   lv_obj_set_width(status_label_, K_CONTENT_WIDTH);
@@ -134,7 +134,8 @@ void PerfCommandView::build(lv_obj_t* parent,
   reactive::bind_theme(command_label_,
                        app_view_model.dark_mode_subject(),
                        reactive::ThemeRole::TEXT);
-  lv_label_set_text(command_label_, test_hint(command_.kind));
+  const auto hint = app_view_model.tr(test_hint(command_.kind));
+  lv_label_set_text(command_label_, hint.c_str());
 
   stdout_card_ = lv_obj_create(group);
   lv_obj_remove_style_all(stdout_card_);
@@ -153,7 +154,8 @@ void PerfCommandView::build(lv_obj_t* parent,
   lv_obj_set_style_text_align(stdout_label_, LV_TEXT_ALIGN_LEFT, 0);
   set_label_font(stdout_label_, detail_font, &lv_font_montserrat_12);
   lv_obj_set_style_text_color(stdout_label_, colors.info, 0);
-  lv_label_set_text(stdout_label_, "waiting for command output...");
+  const auto waiting = app_view_model.tr("waiting for command output...");
+  lv_label_set_text(stdout_label_, waiting.c_str());
 
   report_host_ = lv_obj_create(group);
   lv_obj_remove_style_all(report_host_);
@@ -161,7 +163,8 @@ void PerfCommandView::build(lv_obj_t* parent,
   lv_obj_add_flag(report_host_, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(report_host_, LV_OBJ_FLAG_SCROLLABLE);
 
-  lv_label_set_text(status_label_, (title_ + " 0%").c_str());
+  const auto title_text = app_view_model.tr(title_.c_str());
+  lv_label_set_text(status_label_, (title_text + " 0%").c_str());
 
   start_();
   poll_timer_ = lv_timer_create(timer_cb, K_POLL_MS, this);
@@ -231,7 +234,8 @@ void PerfCommandView::update_progress_(int percent) {
     lv_bar_set_value(progress_bar_, percent, LV_ANIM_ON);
   }
   if (status_label_ && !report_shown_) {
-    lv_label_set_text(status_label_, (title_ + " " + std::to_string(percent) + "%").c_str());
+    const auto title_text = app_view_model_ ? app_view_model_->tr(title_.c_str()) : title_;
+    lv_label_set_text(status_label_, (title_text + " " + std::to_string(percent) + "%").c_str());
   }
 }
 
@@ -290,7 +294,12 @@ void PerfCommandView::show_report_(const platform::perf::TestResult& result) {
                                        ? colors.warning
                                        : colors.error);
   if (status_label_) {
-    lv_label_set_text(status_label_, (title_ + result_status_text(result.status)).c_str());
+    const auto title_text = app_view_model_ ? app_view_model_->tr(title_.c_str()) : title_;
+    const char* raw_status = result_status_text(result.status);
+    const auto status_text =
+        app_view_model_ ? app_view_model_->tr(raw_status[0] == ' ' ? raw_status + 1 : raw_status)
+                        : std::string{raw_status[0] == ' ' ? raw_status + 1 : raw_status};
+    lv_label_set_text(status_label_, (title_text + " " + status_text).c_str());
     lv_obj_set_style_text_color(status_label_, status_color, 0);
   }
   if (progress_bar_) {
@@ -309,7 +318,7 @@ void PerfCommandView::show_report_(const platform::perf::TestResult& result) {
         {i == 0 ? result_icon(result.status) : view::ICON_INFO, report_titles_[i].c_str()});
   }
 
-  auto* text_font = assets_->load_font("inter-medium.ttf", 11);
+  auto* text_font = assets_->load_font(app_view_model_->ui_font_name("inter-medium.ttf"), 11);
   auto* icon_font = assets_->load_font("Phosphor-Fill.ttf", 12);
   report_list_ =
       std::make_unique<view::widgets::IconList>(report_host_,

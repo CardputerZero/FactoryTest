@@ -76,6 +76,7 @@ void IconList::build() {
   }
 
   core_obj_ = lv_obj_create(parent_);
+  register_core_obj_();
   lv_obj_remove_style_all(core_obj_);
   lv_obj_set_size(core_obj_, width_, height_);
   lv_obj_set_flex_flow(core_obj_, LV_FLEX_FLOW_COLUMN);
@@ -120,7 +121,8 @@ void IconList::build() {
     lv_obj_align(row.icon_label, LV_ALIGN_LEFT_MID, 0, 0);
 
     row.text_label = lv_label_create(row.button);
-    lv_label_set_text(row.text_label, items_[i].title ? items_[i].title : "");
+    const auto translated_title = view_model_.tr(items_[i].title.c_str());
+    lv_label_set_text(row.text_label, translated_title.c_str());
     lv_label_set_long_mode(row.text_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
     const int32_t status_space = has_status ? K_STATUS_WIDTH + K_RIGHT_PADDING : 0;
     lv_obj_set_width(row.text_label,
@@ -131,7 +133,8 @@ void IconList::build() {
     lv_obj_align(row.text_label, LV_ALIGN_LEFT_MID, K_TEXT_OFFSET_X, 0);
 
     row.status_label = lv_label_create(row.button);
-    lv_label_set_text(row.status_label, status_text(items_[i].status));
+    const auto translated_status = view_model_.tr(status_text(items_[i].status));
+    lv_label_set_text(row.status_label, translated_status.c_str());
     lv_label_set_long_mode(row.status_label, LV_LABEL_LONG_CLIP);
     lv_obj_set_width(row.status_label, K_STATUS_WIDTH);
     lv_obj_set_style_text_align(row.status_label, LV_TEXT_ALIGN_RIGHT, 0);

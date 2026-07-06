@@ -26,10 +26,10 @@
  *====================*/
 
 /* stdlib malloc/free */
-#define LV_USE_STDLIB_MALLOC LV_STDLIB_BUILTIN
+#define LV_USE_STDLIB_MALLOC LV_STDLIB_CLIB
 
 /* Memory size */
-#define LV_MEM_SIZE (16U * 1024U * 1024U)
+#define LV_MEM_SIZE (32U * 1024U * 1024U)
 
 #define LV_DRAW_THREAD_STACK_SIZE (32U * 1024U)
 
@@ -106,7 +106,7 @@
 #define LV_FONT_MONTSERRAT_28 1
 
 #define LV_USE_FREETYPE 1
-#define LV_FREETYPE_CACHE_FT_GLYPH_CNT 256
+#define LV_FREETYPE_CACHE_FT_GLYPH_CNT 96
 
 #define LV_USE_TINY_TTF 0
 #define LV_TINY_TTF_FILE_SUPPORT 0

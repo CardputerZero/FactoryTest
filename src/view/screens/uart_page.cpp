@@ -138,7 +138,7 @@ void UartConnectivityView::build(lv_obj_t* parent,
   lv_label_set_text(log_label_, "");
   lv_label_set_long_mode(log_label_, LV_LABEL_LONG_WRAP);
   lv_obj_set_width(log_label_, K_UART_WIDTH - 14);
-  auto* log_font = assets.load_font("inter-medium.ttf", 10);
+  auto* log_font = assets.load_font(app_view_model.ui_font_name("inter-medium.ttf"), 10);
   lv_obj_set_style_text_font(log_label_, log_font ? log_font : &lv_font_montserrat_12, 0);
   reactive::bind_theme(log_label_, app_view_model.dark_mode_subject(), reactive::ThemeRole::TEXT);
 
@@ -158,7 +158,7 @@ void UartConnectivityView::build(lv_obj_t* parent,
   input_label_ = lv_label_create(input_card);
   lv_label_set_long_mode(input_label_, LV_LABEL_LONG_DOT);
   lv_obj_set_width(input_label_, K_UART_WIDTH - 12);
-  auto* input_font = assets.load_font("inter-medium.ttf", 11);
+  auto* input_font = assets.load_font(app_view_model.ui_font_name("inter-medium.ttf"), 11);
   lv_obj_set_style_text_font(input_label_, input_font ? input_font : &lv_font_montserrat_12, 0);
   reactive::bind_theme(input_label_, app_view_model.dark_mode_subject(), reactive::ThemeRole::TEXT);
   lv_obj_center(input_label_);
@@ -261,11 +261,13 @@ void UartConnectivityView::show_config_dialog() {
   }
 
   platform::set_nav_trigger_mode(platform::NavTriggerMode::LONG_PRESS);
+  platform::set_modal_key_capture(true);
   view::widgets::DialogConfig config;
-  config.width               = 244;
-  config.height              = 112;
+  config.width               = 286;
+  config.height              = 150;
   config.title               = "UART Baud Rate";
   config.shortcut_text       = "F/X: Select  Enter: Save";
+  config.shortcut_width      = 150;
   config.use_nav_action_keys = false;
 
   view::widgets::DialogCallbacks callbacks;
@@ -278,7 +280,7 @@ void UartConnectivityView::show_config_dialog() {
                                                                     std::move(callbacks));
   dialog_->build();
 
-  baud_dropdown_ = dialog_->add_dropdown(K_BAUD_OPTIONS, baud_index_for_rate_(baud_rate_), 196);
+  baud_dropdown_ = dialog_->add_dropdown(K_BAUD_OPTIONS, baud_index_for_rate_(baud_rate_), 246);
   if (baud_dropdown_) {
     lv_obj_add_state(baud_dropdown_, LV_STATE_FOCUSED);
   }
@@ -300,9 +302,12 @@ void UartConnectivityView::open_session_() {
   }
 
   if (result.status == platform::connectivity::UartOpenStatus::OCCUPIED_BY_CONSOLE) {
-    show_status_("UART console active\nDisable login shell in raspi-config");
+    show_status_(app_view_model_ ? app_view_model_->tr("UART console active\nDisable login shell in raspi-config")
+                                 : "UART console active\nDisable login shell in raspi-config");
   } else {
-    show_status_(result.message.empty() ? "Unable to open /dev/ttyS0" : result.message);
+    show_status_(result.message.empty() ? (app_view_model_ ? app_view_model_->tr("Unable to open /dev/ttyS0")
+                                                           : "Unable to open /dev/ttyS0")
+                                        : result.message);
   }
 }
 
@@ -368,7 +373,7 @@ void UartConnectivityView::send_input_() {
   append_log_(">>>", payload);
 
   if (!session_) {
-    append_log_("***", "UART is not open");
+    append_log_("***", app_view_model_ ? app_view_model_->tr("UART is not open") : "UART is not open");
     return;
   }
 
@@ -389,7 +394,8 @@ void UartConnectivityView::reset_buffers_() {
 
   log_lines_.clear();
   refresh_log_label_();
-  append_log_("***", "UART buffers reset");
+  append_log_("***",
+              app_view_model_ ? app_view_model_->tr("UART buffers reset") : "UART buffers reset");
 }
 
 void UartConnectivityView::show_status_(const std::string& message) {
@@ -415,7 +421,7 @@ void UartConnectivityView::show_status_(const std::string& message) {
   lv_label_set_long_mode(status_label_, LV_LABEL_LONG_WRAP);
   lv_obj_set_width(status_label_, 260);
   lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
-  auto* font = assets_->load_font("inter-semibold.ttf", 12);
+  auto* font = assets_->load_font(app_view_model_->ui_font_name("inter-semibold.ttf"), 12);
   lv_obj_set_style_text_font(status_label_, font ? font : &lv_font_montserrat_12, 0);
   const auto colors = view::palette(app_view_model_->is_dark_mode());
   lv_obj_set_style_text_color(status_label_, colors.warning, 0);
@@ -425,6 +431,7 @@ void UartConnectivityView::show_status_(const std::string& message) {
 void UartConnectivityView::hide_config_dialog_() {
   dialog_.reset();
   baud_dropdown_ = nullptr;
+  platform::set_modal_key_capture(false);
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
 }
 
@@ -436,9 +443,14 @@ void UartConnectivityView::apply_config_dialog_() {
   if (session_) {
     std::string error;
     if (session_->set_baud_rate(baud_rate_, error)) {
-      append_log_("***", std::string{"Baud set to "} + std::to_string(baud_rate_));
+      const auto prefix = app_view_model_ ? app_view_model_->tr("Baud set to") : "Baud set to";
+      append_log_("***", prefix + " " + std::to_string(baud_rate_));
     } else {
-      append_log_("***", error.empty() ? "Failed to set baud" : error);
+      append_log_("***",
+                  error.empty()
+                      ? (app_view_model_ ? app_view_model_->tr("Failed to set baud")
+                                         : "Failed to set baud")
+                      : error);
     }
   } else {
     if (status_label_ && lv_obj_is_valid(status_label_)) {
@@ -521,6 +533,9 @@ void UartConnectivityView::show_hold_popup_(HoldAction action) {
     config.width       = 250;
     config.label_width = 234;
     config.tone        = view::widgets::PopupTone::WARNING;
+    if (assets_) {
+      config.font = assets_->load_font(app_view_model_->ui_font_name("inter-semibold.ttf"), 12);
+    }
     hold_popup_ = std::make_unique<view::widgets::Popup>(dialog_parent_, *app_view_model_, config);
     hold_popup_->build();
   }
@@ -546,7 +561,8 @@ void UartConnectivityView::show_hold_popup_(HoldAction action) {
     default:
       break;
   }
-  hold_popup_->set_text(message);
+  const auto translated = app_view_model_ ? app_view_model_->tr(message) : std::string{message};
+  hold_popup_->set_text(translated.c_str());
   hold_popup_->show();
 }
 

@@ -189,7 +189,7 @@ void TestResultPage::build_content(lv_obj_t* content) {
 
   auto items  = load_result_items(app_view_model_ref_().test_result_path(), result_titles_);
   item_count_ = items.size();
-  auto* text_font = assets_ref_().load_font("inter-medium.ttf", 14);
+  auto* text_font = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 14);
   auto* icon_font = assets_ref_().load_font("Phosphor-Fill.ttf", 14);
   result_list_ =
       std::make_unique<view::widgets::IconList>(viewport,

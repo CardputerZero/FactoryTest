@@ -20,6 +20,7 @@ namespace view::widgets {
 
 enum class DialogButtonTone {
   DEFAULT,
+  PRIMARY,
   SUCCESS,
   WARNING,
   ERROR,
@@ -37,10 +38,8 @@ struct DialogConfig {
   bool show_shortcuts{true};
   std::string shortcut_text{"ESC: Cancel  OK: Confirm"};
   bool show_ok_button{true};
-  bool show_skip_button{false};
   bool show_cancel_button{true};
   std::string ok_button_label{"OK"};
-  std::string skip_button_label{"Skip"};
   std::string cancel_button_label{"Cancel"};
   int32_t pad_all{8};
   int32_t pad_row{4};
@@ -51,16 +50,13 @@ struct DialogConfig {
   int32_t button_row_width{214};
   int32_t button_bottom_pad{4};
   int32_t body_font_size{12};
-  DialogButtonTone ok_button_tone{DialogButtonTone::DEFAULT};
-  DialogButtonTone skip_button_tone{DialogButtonTone::DEFAULT};
+  DialogButtonTone ok_button_tone{DialogButtonTone::PRIMARY};
   DialogButtonTone cancel_button_tone{DialogButtonTone::DEFAULT};
   bool use_nav_action_keys{false};
-  bool focus_button_navigation{false};
 };
 
 struct DialogCallbacks {
   std::function<void()> ok_action{};
-  std::function<void()> skip_action{};
   std::function<void()> cancel_action{};
 };
 
@@ -85,10 +81,8 @@ class Dialog : public BaseWidgets {
   bool visible() const;
   bool handle_key(uint32_t key, const char* key_name = nullptr);
   void set_ok_action(std::function<void()> action);
-  void set_skip_action(std::function<void()> action);
   void set_cancel_action(std::function<void()> action);
   void trigger_ok();
-  void trigger_skip();
   void trigger_cancel();
   void close();
 
@@ -100,7 +94,6 @@ class Dialog : public BaseWidgets {
   lv_obj_t* add_dropdown(const char* options, uint32_t selected, int32_t width = 196);
   lv_obj_t* add_display_field(const char* text, int32_t width = 246, int32_t height = 26);
   lv_obj_t* ok_button() const;
-  lv_obj_t* skip_button() const;
   lv_obj_t* cancel_button() const;
 
  private:
@@ -110,7 +103,6 @@ class Dialog : public BaseWidgets {
   };
   enum class ButtonRole {
     CANCEL,
-    SKIP,
     OK,
   };
 
@@ -127,20 +119,14 @@ class Dialog : public BaseWidgets {
                         lv_event_cb_t callback);
   void apply_button_tone_(lv_obj_t* button, lv_obj_t* label, DialogButtonTone tone);
   lv_color_t tone_color_(DialogButtonTone tone) const;
-  void update_button_focus_();
   void apply_dialog_theme_(bool dark_mode);
   void apply_theme(bool dark_mode) override;
-  void move_button_focus_(int32_t direction);
-  void trigger_focused_button_();
-  bool is_focus_previous_key_(uint32_t key, const char* key_name) const;
-  bool is_focus_next_key_(uint32_t key, const char* key_name) const;
   void add_title_row_();
   void add_button_row_();
   bool is_ok_key_(uint32_t key, const char* key_name) const;
   bool is_cancel_key_(uint32_t key, const char* key_name) const;
   static bool key_name_is_one_of(const char* key_name, const char* a, const char* b, const char* c);
   static void ok_button_cb(lv_event_t* event);
-  static void skip_button_cb(lv_event_t* event);
   static void cancel_button_cb(lv_event_t* event);
   static void textarea_key_cb(lv_event_t* event);
   static void textarea_ready_cb(lv_event_t* event);
@@ -152,10 +138,8 @@ class Dialog : public BaseWidgets {
   lv_obj_t* content_{nullptr};
   lv_obj_t* button_row_{nullptr};
   lv_obj_t* ok_button_{nullptr};
-  lv_obj_t* skip_button_{nullptr};
   lv_obj_t* cancel_button_{nullptr};
   std::vector<ButtonEntry> button_entries_{};
-  std::size_t focused_button_index_{0};
   bool action_triggered_{false};
 };
 

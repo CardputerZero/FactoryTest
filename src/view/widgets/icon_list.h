@@ -27,7 +27,7 @@ class IconList : public BaseWidgets {
 
   struct Item {
     const char* icon;
-    const char* title;
+    std::string title;
     bool hidden{false};
     Status status{Status::NONE};
   };
