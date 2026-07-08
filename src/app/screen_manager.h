@@ -40,17 +40,14 @@ class ScreenManager {
   void show_lcd_test_page();
   void show_audio_test_page();
   void show_camera_test_page();
-  void show_connectivity_test_page();
   void show_io_test_page(model::AppPage page);
-  void show_ir_test_page();
+  void show_ir_test_page(model::AppPage page);
   void show_imu_test_page();
   void show_power_info_page();
   void show_device_info_page();
   void show_perf_test_page();
   void show_perf_single_test_page(model::AppPage page);
   void show_test_result_page();
-  void request_ftl_effect_page();
-  void show_ftl_effect_page();
   void show_placeholder_page(model::AppPage page);
   void request_page(model::AppPage page);
   void flush_requested_page();
@@ -69,13 +66,10 @@ class ScreenManager {
   AssetManager& assets_;
   std::unique_ptr<screen::BaseScreen> current_screen_{};
   lv_observer_t* page_observer_{nullptr};
-  lv_observer_t* ftl_page_observer_{nullptr};
   model::AppPage requested_page_{model::AppPage::START};
   model::AppPage loaded_page_{model::AppPage::START};
   bool has_loaded_page_{false};
-  bool ftl_page_loaded_{false};
   bool page_switch_scheduled_{false};
-  bool ftl_page_switch_scheduled_{false};
 };
 
 }  // namespace app

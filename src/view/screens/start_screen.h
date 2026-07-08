@@ -78,7 +78,6 @@ class StartScreen : public BaseScreen {
   void set_drawer_open_(bool open, bool animate);
   void toggle_drawer_(bool animate);
   void set_focus_area_(FocusArea area);
-  bool update_ftl_easter_egg_(uint32_t key);
   void apply_screen_theme_(bool dark_mode);
   void apply_content_theme_(bool dark_mode);
   void apply_drawer_theme_(bool dark_mode);
@@ -101,7 +100,6 @@ class StartScreen : public BaseScreen {
   std::array<DrawerTab, model::StartMenuModel::K_CATEGORY_COUNT> tabs_{};
   FocusArea focus_area_{FocusArea::LIST};
   bool drawer_open_{true};
-  std::size_t ftl_sequence_index_{0};
   int32_t rendered_category_index_{-1};
   lv_observer_t* selected_observer_handle_{nullptr};
   lv_observer_t* category_observer_handle_{nullptr};

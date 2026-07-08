@@ -29,6 +29,7 @@ constexpr int K_MEMORY_DURATION_SECONDS = 30;
 constexpr int K_SD_DURATION_SECONDS     = 20;
 
 constexpr const char* K_STRESS_NG_YAML_PATH = "/tmp/factory_test_mem_stress.yaml";
+constexpr const char* K_STRESS_NG_TEMP_PATH = "/tmp";
 constexpr const char* K_FIO_DATA_PATH       = "/var/tmp/factory_test_sdcard.bin";
 
 void mark_passed(TestResult& result, bool passed) {
@@ -98,7 +99,8 @@ bool executable_on_path(const std::string& executable) {
   }
 
   const char* raw_path = std::getenv("PATH");
-  const std::string path = raw_path && raw_path[0] != '\0' ? raw_path : "/usr/local/bin:/usr/bin:/bin";
+  const std::string path =
+      raw_path && raw_path[0] != '\0' ? raw_path : "/usr/local/bin:/usr/bin:/bin";
   std::size_t start = 0;
   while (start <= path.size()) {
     const auto end = path.find(':', start);
@@ -420,9 +422,9 @@ TestResult run_command_and_collect(const TestCommand& command,
   result.command_line = command_to_string(command);
 
   if (!executable_on_path(command.executable)) {
-    result.status  = TestStatus::WARNING;
-    result.passed  = false;
-    result.summary = binary_not_found_message(command);
+    result.status                = TestStatus::WARNING;
+    result.passed                = false;
+    result.summary               = binary_not_found_message(command);
     result.process.error_message = result.summary;
     if (progress_callback) {
       progress_callback({command.kind, {}, false, 0, 100});
@@ -493,6 +495,8 @@ TestCommand make_memory_stress_ng_command() {
           "256M",
           "--vm-keep",
           "--vm-populate",
+          "--temp-path",
+          K_STRESS_NG_TEMP_PATH,
           "--memcpy",
           "2",
           "--timeout",

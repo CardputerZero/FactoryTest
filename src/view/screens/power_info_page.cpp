@@ -64,7 +64,6 @@ const char* field_icon(std::size_t index, int32_t capacity_percent) {
       view::ICON_PULSE,
       view::ICON_HEART,
       view::ICON_THERMOMETER,
-      view::ICON_REPEAT,
       view::ICON_TAG,
   };
   if (index == K_CAPACITY_FIELD_INDEX) {
@@ -76,13 +75,6 @@ const char* field_icon(std::size_t index, int32_t capacity_percent) {
 
 std::string text_or_empty(const std::string& value) {
   return value.empty() ? K_EMPTY_VALUE : value;
-}
-
-std::string format_int(int32_t value) {
-  if (value < 0) {
-    return K_EMPTY_VALUE;
-  }
-  return std::to_string(value);
 }
 
 std::string format_percent(int32_t value) {
@@ -152,7 +144,6 @@ std::array<PowerField, PowerInfoPage::K_FIELD_COUNT> make_fields(
       {"Current", format_current(current)},
       {"Health", text_or_empty(info.health)},
       {"Temp", format_temp(info.temp_decic)},
-      {"Cycle", format_int(info.cycle_count)},
       {"Tech", text_or_empty(info.technology)},
   }};
 }
@@ -168,7 +159,6 @@ std::array<PowerField, PowerInfoPage::K_FIELD_COUNT> make_error_fields(
       {"Current", K_EMPTY_VALUE},
       {"Health", K_EMPTY_VALUE},
       {"Temp", K_EMPTY_VALUE},
-      {"Cycle", K_EMPTY_VALUE},
       {"Tech", K_EMPTY_VALUE},
   }};
 }

@@ -137,7 +137,7 @@ void ExtIoConnectivityView::build(lv_obj_t* parent,
     lv_obj_set_style_text_align(row.icon_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(row.icon_label, icon_font ? icon_font : &lv_font_montserrat_14, 0);
 
-    row.title_label = lv_label_create(row.row);
+    row.title_label      = lv_label_create(row.row);
     const auto row_title = app_view_model.tr(row.title ? row.title : "GPIO");
     lv_label_set_text(row.title_label, row_title.c_str());
     lv_obj_set_width(row.title_label, K_TITLE_WIDTH);
@@ -146,7 +146,7 @@ void ExtIoConnectivityView::build(lv_obj_t* parent,
                                title_font ? title_font : &lv_font_montserrat_12,
                                0);
 
-    row.detail_label = lv_label_create(row.row);
+    row.detail_label      = lv_label_create(row.row);
     const auto row_detail = app_view_model.tr(row.detail ? row.detail : "line");
     lv_label_set_text(row.detail_label, row_detail.c_str());
     lv_obj_set_width(row.detail_label, K_DETAIL_WIDTH);
@@ -155,7 +155,7 @@ void ExtIoConnectivityView::build(lv_obj_t* parent,
                                detail_font ? detail_font : &lv_font_montserrat_12,
                                0);
 
-    row.state_label = lv_label_create(row.row);
+    row.state_label     = lv_label_create(row.row);
     const auto off_text = app_view_model.tr("OFF");
     lv_label_set_text(row.state_label, off_text.c_str());
     lv_obj_set_width(row.state_label, K_STATE_WIDTH);
@@ -266,6 +266,16 @@ void ExtIoConnectivityView::toggle_row_(std::size_t index) {
   apply_row_style_(row);
 }
 
+void ExtIoConnectivityView::release_output_lines_() {
+  for (auto& row : rows_) {
+    platform::gpio::release_output_value(row.gpio);
+    row.active = false;
+    row.error  = false;
+    row.error_message.clear();
+  }
+  has_gpio_action_ = false;
+}
+
 void ExtIoConnectivityView::read_output_states_() {
   for (auto& row : rows_) {
     bool active = false;
@@ -354,16 +364,15 @@ void ExtIoConnectivityView::apply_row_style_(SwitchRow& row) {
     lv_obj_set_style_text_color(row.title_label, colors.text, 0);
   }
   if (row.detail_label) {
-    const auto detail =
-        row.error ? app_view_model_->tr(row.error_message.c_str())
-                  : app_view_model_->tr(row.detail ? row.detail : "line");
+    const auto detail = row.error ? app_view_model_->tr(row.error_message.c_str())
+                                  : app_view_model_->tr(row.detail ? row.detail : "line");
     lv_label_set_text(row.detail_label, detail.c_str());
     lv_obj_set_style_text_color(row.detail_label, row.error ? colors.error : colors.text_muted, 0);
   }
   if (row.state_label) {
-    const char* state = row.error ? "ERR"
-                                  : (input_mode ? (row.active ? "HIGH" : "LOW")
-                                                : (row.active ? "ON" : "OFF"));
+    const char* state =
+        row.error ? "ERR"
+                  : (input_mode ? (row.active ? "HIGH" : "LOW") : (row.active ? "ON" : "OFF"));
     const auto state_text = app_view_model_->tr(state);
     lv_label_set_text(row.state_label, state_text.c_str());
     lv_obj_set_style_text_color(
@@ -453,8 +462,7 @@ void ExtIoConnectivityView::show_config_dialog() {
                                                                     std::move(callbacks));
   dialog_->build();
 
-  const auto function_options = app_view_model_->tr("Output") + "\n" +
-                                app_view_model_->tr("Input");
+  const auto function_options = app_view_model_->tr("Output") + "\n" + app_view_model_->tr("Input");
   function_dropdown_ = dialog_->add_dropdown(function_options.c_str(), function_index_(), 246);
   if (function_dropdown_) {
     lv_obj_add_state(function_dropdown_, LV_STATE_FOCUSED);
@@ -478,6 +486,7 @@ void ExtIoConnectivityView::apply_config_dialog_() {
     return;
   }
 
+  release_output_lines_();
   io_function_ = next_function;
   if (io_function_ == IoFunction::INPUT) {
     read_input_states_();

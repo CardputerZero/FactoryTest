@@ -34,3 +34,7 @@ keyboard_sun_dim_outline: U+EA21
 keyboard_sun_outline: U+EA22
 keyboard_sym: U+EA23
 keyboard_sym_outline: U+EA24
+keyboard_play_pause: U+EA25
+keyboard_rewind: U+EA26
+keyboard_fast_forward: U+EA27
+keyboard_question_circle: U+EA28

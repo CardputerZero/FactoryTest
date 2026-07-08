@@ -106,6 +106,7 @@ void apply_slider_theme(lv_obj_t* slider, bool dark_mode) {
   }
 
   const auto colors = palette(dark_mode);
+  lv_obj_set_height(slider, 8);
   lv_obj_set_style_bg_opa(slider, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_bg_color(slider, colors.button, LV_PART_MAIN);
   lv_obj_set_style_border_width(slider, 1, LV_PART_MAIN);
@@ -118,7 +119,8 @@ void apply_slider_theme(lv_obj_t* slider, bool dark_mode) {
 
   lv_obj_set_style_bg_opa(slider, LV_OPA_COVER, LV_PART_KNOB);
   lv_obj_set_style_bg_color(slider, colors.primary_hover, LV_PART_KNOB);
-  lv_obj_set_style_border_width(slider, 2, LV_PART_KNOB);
+  lv_obj_set_style_pad_all(slider, 3, LV_PART_KNOB);
+  lv_obj_set_style_border_width(slider, 1, LV_PART_KNOB);
   lv_obj_set_style_border_color(slider, colors.surface, LV_PART_KNOB);
 }
 

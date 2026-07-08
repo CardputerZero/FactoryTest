@@ -42,6 +42,7 @@ const char* field_icon(std::size_t index) {
       view::ICON_PACKAGE,
       view::ICON_TIMER,
       view::ICON_CLOCK,
+      view::ICON_MAPPIN,
   };
   return index < (sizeof(ICONS) / sizeof(ICONS[0])) ? ICONS[index] : view::ICON_INFO;
 }

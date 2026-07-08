@@ -66,23 +66,8 @@ bool is_theme_toggle_key(uint32_t key) { return key == 't' || key == 'T'; }
 
 bool is_screenshot_key(uint32_t key) { return key == 'p' || key == 'P'; }
 
-bool is_io_page(model::AppPage page) {
-  switch (page) {
-    case model::AppPage::CONNECTIVITY_TEST:
-    case model::AppPage::WIFI_TEST:
-    case model::AppPage::BT_TEST:
-    case model::AppPage::ETH_TEST:
-    case model::AppPage::USB_TEST:
-    case model::AppPage::HDMI_TEST:
-    case model::AppPage::I2C_TEST:
-    case model::AppPage::SPI_TEST:
-    case model::AppPage::UART_TEST:
-    case model::AppPage::EXT_IO_TEST:
-    case model::AppPage::LINK_TEST:
-      return true;
-    default:
-      return false;
-  }
+bool page_handles_global_key_locally(model::AppPage page, uint32_t key) {
+  return page == model::AppPage::UART_TEST && (is_theme_toggle_key(key) || is_screenshot_key(key));
 }
 
 #if !USE_DESKTOP && APP_USE_DRM
@@ -154,25 +139,31 @@ lv_display_t* init_drm_display() {
 }
 #endif
 
-void global_key_listener(uint32_t key, const char* key_name, bool long_pressed, void* user_data) {
+bool global_key_listener(uint32_t key, const char* key_name, bool long_pressed, void* user_data) {
   LV_UNUSED(key_name);
 
   auto* app_view_model = static_cast<viewmodel::AppViewModel*>(user_data);
   if (!app_view_model) {
-    return;
+    return false;
   }
 
   const bool keyboard_page = app_view_model->current_page() == model::AppPage::KEYBOARD_TEST;
-  const bool connectivity_page = is_io_page(app_view_model->current_page());
   const bool should_handle = (keyboard_page && long_pressed) || (!keyboard_page && !long_pressed);
-  if (is_theme_toggle_key(key) && should_handle && !connectivity_page) {
+  if (should_handle && page_handles_global_key_locally(app_view_model->current_page(), key)) {
+    return false;
+  }
+  if (is_theme_toggle_key(key) && should_handle) {
     app_view_model->toggle_dark_mode();
     LOG_DEBUG("theme toggled from {} T key, dark_mode={}",
               keyboard_page ? "keyboard long-press" : "global",
               app_view_model->is_dark_mode());
-  } else if (is_screenshot_key(key) && should_handle && !connectivity_page) {
-    platform::screenshot::capture_active_screen_with_overlay();
+    return true;
   }
+  if (is_screenshot_key(key) && should_handle) {
+    platform::screenshot::capture_active_screen_with_overlay();
+    return true;
+  }
+  return false;
 }
 
 lv_display_t* init_display() {

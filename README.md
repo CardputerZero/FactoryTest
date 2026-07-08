@@ -7,19 +7,13 @@ This repository holds the factory test application of CardputerZero.
 + Download the debian release
 
 ```
-wget https://github.com/CardputerZero/FactoryTest/releases/download/0.1.1/FactoryTest_0.1.1_m5stack1_arm64.deb
+wget https://github.com/CardputerZero/FactoryTest/releases/download/0.2.2/FactoryTest_0.2.2_m5stack1_arm64.deb
 ```
 
 + Install the package
 
 ```
-sudo dpkg -i FactoryTest_0.1.1_m5stack1_arm64.deb
-```
-
-+ Fix dependency issue
-
-```
-sudo apt -f install
+sudo apt install ./FactoryTest_0.2.2_m5stack1_arm64.deb
 ```
 
 
@@ -28,6 +22,27 @@ sudo apt -f install
 TODO
 
 ## Changelog
+
+### 0.2.2 - 2026-07-08
+
+- Update Input test FN layer layout for media, brightness, volume, navigation, and PrintScreen keys.
+- Add keypad-style extra font glyphs for play/pause, rewind, fast-forward, and question icons.
+- Add key input mappings for media keys and PrintScreen.
+
+### 0.2.1 - 2026-07-07
+
+- Restore UART page-owned long-press handling for P/T shortcuts.
+- Release EXT.IO GPIO output requests before switching direction.
+- Use /tmp for memory stress temporary files.
+- Flatten IR send/receive into separate top-level test pages.
+
+### 0.2.0 - 2026-07-06
+
+- Add Chinese localization with dynamic translation and CJK font loading.
+- Add Language settings entry and Chinese translations for pages, dialogs, status text, and navigation.
+- Split test confirmation into a dedicated dialog and fix modal ESC/cancel key handling.
+- Improve config dialog layout for link, UART, and EXT.IO tests.
+- Package i18n assets and bump release version to 0.2.0.
 
 ### 0.1.1 - 2026-07-03
 

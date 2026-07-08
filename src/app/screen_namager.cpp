@@ -6,14 +6,13 @@
 
 #include "audio_test_page.h"
 #include "camera_test_page.h"
-#include "conn_test_page.h"
 #include "device_info_page.h"
-#include "ftl_effect_page.h"
 #include "imu_test_page.h"
 #include "io_test_page.h"
 #include "ir_test_page.h"
 #include "keyboard_test_page.h"
 #include "lcd_test_page.h"
+#include "linux_input.h"
 #include "perf_single_test_page.h"
 #include "perf_test_page.h"
 #include "placeholder_test_page.h"
@@ -22,8 +21,6 @@
 #include "start_screen.h"
 #include "test_result_page.h"
 
-#include "linux_input.h"
-
 namespace app {
 namespace {
 
@@ -31,13 +28,6 @@ void flush_requested_page_async(void* user_data) {
   auto* manager = static_cast<ScreenManager*>(user_data);
   if (manager) {
     manager->flush_requested_page();
-  }
-}
-
-void show_ftl_effect_page_async(void* user_data) {
-  auto* manager = static_cast<ScreenManager*>(user_data);
-  if (manager) {
-    manager->show_ftl_effect_page();
   }
 }
 
@@ -50,27 +40,16 @@ void current_page_observer(lv_observer_t* observer, lv_subject_t* subject) {
   manager->request_page(static_cast<model::AppPage>(lv_subject_get_int(subject)));
 }
 
-void ftl_page_observer(lv_observer_t* observer, lv_subject_t* subject) {
-  if (lv_subject_get_int(subject) <= 0) {
-    return;
-  }
-
-  auto* manager = static_cast<ScreenManager*>(lv_observer_get_target(observer));
-  if (manager) {
-    manager->request_ftl_effect_page();
-  }
-}
-
 const char* placeholder_title(model::AppPage page) {
   switch (page) {
     case model::AppPage::AUDIO_TEST:
       return "Audio Test";
     case model::AppPage::CAMERA_TEST:
       return "Camera Test";
-    case model::AppPage::CONNECTIVITY_TEST:
-      return "Connectivity Test";
-    case model::AppPage::IR_TEST:
-      return "IR Test";
+    case model::AppPage::IR_SEND_TEST:
+      return "IR Sender";
+    case model::AppPage::IR_RECEIVE_TEST:
+      return "IR Receiver";
     case model::AppPage::IMU_TEST:
       return "IMU Test";
     case model::AppPage::POWER_INFO:
@@ -135,15 +114,10 @@ ScreenManager::ScreenManager(viewmodel::AppViewModel& app_view_model,
 
 ScreenManager::~ScreenManager() {
   lv_async_call_cancel(flush_requested_page_async, this);
-  lv_async_call_cancel(show_ftl_effect_page_async, this);
 
   if (page_observer_) {
     lv_observer_remove(page_observer_);
     page_observer_ = nullptr;
-  }
-  if (ftl_page_observer_) {
-    lv_observer_remove(ftl_page_observer_);
-    ftl_page_observer_ = nullptr;
   }
 }
 
@@ -156,8 +130,6 @@ void ScreenManager::start() {
                                                        current_page_observer,
                                                        this,
                                                        nullptr);
-  ftl_page_observer_ = lv_subject_add_observer_with_target(
-      app_view_model_.ftl_page_requested_subject(), ftl_page_observer, this, nullptr);
   request_page(app_view_model_.current_page());
 }
 
@@ -169,7 +141,6 @@ void ScreenManager::show_start_page() {
                                                      assets_));
   loaded_page_     = model::AppPage::START;
   has_loaded_page_ = true;
-  ftl_page_loaded_ = false;
 }
 
 void ScreenManager::show_keyboard_test_page() {
@@ -177,68 +148,51 @@ void ScreenManager::show_keyboard_test_page() {
       std::make_unique<screen::KeyboardTestPage>(app_view_model_, keyboard_view_model_, assets_));
   loaded_page_     = model::AppPage::KEYBOARD_TEST;
   has_loaded_page_ = true;
-  ftl_page_loaded_ = false;
 }
 
 void ScreenManager::show_lcd_test_page() {
   load_screen_(std::make_unique<screen::LcdTestPage>(app_view_model_, lcd_view_model_, assets_));
   loaded_page_     = model::AppPage::LCD_TEST;
   has_loaded_page_ = true;
-  ftl_page_loaded_ = false;
 }
 
 void ScreenManager::show_audio_test_page() {
   load_screen_(std::make_unique<screen::AudioTestPage>(app_view_model_, assets_));
   loaded_page_     = model::AppPage::AUDIO_TEST;
   has_loaded_page_ = true;
-  ftl_page_loaded_ = false;
 }
 
 void ScreenManager::show_camera_test_page() {
   load_screen_(std::make_unique<screen::CameraTestPage>(app_view_model_, assets_));
   loaded_page_     = model::AppPage::CAMERA_TEST;
   has_loaded_page_ = true;
-  ftl_page_loaded_ = false;
 }
 
-void ScreenManager::show_connectivity_test_page() {
-  if (app_view_model_.is_test_sequence_active()) {
-    connectivity_view_model_.show_menu();
-  }
-  load_screen_(std::make_unique<screen::ConnTestPage>(app_view_model_,
-                                                              connectivity_view_model_,
-                                                              assets_));
-  loaded_page_     = model::AppPage::CONNECTIVITY_TEST;
+void ScreenManager::show_ir_test_page(model::AppPage page) {
+  const auto subpage = page == model::AppPage::IR_RECEIVE_TEST
+                           ? screen::IrTestPage::SubPage::RECEIVER
+                           : screen::IrTestPage::SubPage::SENDER;
+  load_screen_(std::make_unique<screen::IrTestPage>(app_view_model_, assets_, subpage));
+  loaded_page_     = page;
   has_loaded_page_ = true;
-  ftl_page_loaded_ = false;
-}
-
-void ScreenManager::show_ir_test_page() {
-  load_screen_(std::make_unique<screen::IrTestPage>(app_view_model_, assets_));
-  loaded_page_     = model::AppPage::IR_TEST;
-  has_loaded_page_ = true;
-  ftl_page_loaded_ = false;
 }
 
 void ScreenManager::show_imu_test_page() {
   load_screen_(std::make_unique<screen::ImuTestPage>(app_view_model_, assets_));
   loaded_page_     = model::AppPage::IMU_TEST;
   has_loaded_page_ = true;
-  ftl_page_loaded_ = false;
 }
 
 void ScreenManager::show_power_info_page() {
   load_screen_(std::make_unique<screen::PowerInfoPage>(app_view_model_, assets_));
   loaded_page_     = model::AppPage::POWER_INFO;
   has_loaded_page_ = true;
-  ftl_page_loaded_ = false;
 }
 
 void ScreenManager::show_device_info_page() {
   load_screen_(std::make_unique<screen::DeviceInfoPage>(app_view_model_, assets_));
   loaded_page_     = model::AppPage::DEVICE_INFO;
   has_loaded_page_ = true;
-  ftl_page_loaded_ = false;
 }
 
 void ScreenManager::show_perf_test_page() {
@@ -248,44 +202,27 @@ void ScreenManager::show_perf_test_page() {
   load_screen_(std::make_unique<screen::PerfTestPage>(app_view_model_, perf_view_model_, assets_));
   loaded_page_     = model::AppPage::PERF_TEST;
   has_loaded_page_ = true;
-  ftl_page_loaded_ = false;
 }
 
 void ScreenManager::show_io_test_page(model::AppPage page) {
-  load_screen_(
-      std::make_unique<screen::IoTestPage>(app_view_model_, connectivity_view_model_, assets_, page));
+  load_screen_(std::make_unique<screen::IoTestPage>(app_view_model_,
+                                                    connectivity_view_model_,
+                                                    assets_,
+                                                    page));
   loaded_page_     = page;
   has_loaded_page_ = true;
-  ftl_page_loaded_ = false;
 }
 
 void ScreenManager::show_perf_single_test_page(model::AppPage page) {
   load_screen_(std::make_unique<screen::PerfSingleTestPage>(app_view_model_, assets_, page));
   loaded_page_     = page;
   has_loaded_page_ = true;
-  ftl_page_loaded_ = false;
 }
 
 void ScreenManager::show_test_result_page() {
   load_screen_(std::make_unique<screen::TestResultPage>(app_view_model_, assets_));
   loaded_page_     = model::AppPage::TEST_RESULT;
   has_loaded_page_ = true;
-  ftl_page_loaded_ = false;
-}
-
-void ScreenManager::request_ftl_effect_page() {
-  if (ftl_page_switch_scheduled_) {
-    return;
-  }
-  ftl_page_switch_scheduled_ = lv_async_call(show_ftl_effect_page_async, this) == LV_RESULT_OK;
-}
-
-void ScreenManager::show_ftl_effect_page() {
-  ftl_page_switch_scheduled_ = false;
-  lv_async_call_cancel(flush_requested_page_async, this);
-  page_switch_scheduled_ = false;
-  load_screen_(std::make_unique<screen::FtlEffectPage>(app_view_model_, assets_));
-  ftl_page_loaded_ = true;
 }
 
 void ScreenManager::show_placeholder_page(model::AppPage page) {
@@ -296,7 +233,6 @@ void ScreenManager::show_placeholder_page(model::AppPage page) {
                                                     "This test page is not implemented yet."));
   loaded_page_     = page;
   has_loaded_page_ = true;
-  ftl_page_loaded_ = false;
 }
 
 void ScreenManager::request_page(model::AppPage page) {
@@ -313,13 +249,10 @@ void ScreenManager::flush_requested_page() {
   page_switch_scheduled_ = false;
 
   if (has_loaded_page_ && requested_page_ == loaded_page_) {
-    if (!ftl_page_loaded_) {
-      if (!app_view_model_.is_test_sequence_active()) {
-        return;
-      }
-      has_loaded_page_ = false;
+    if (!app_view_model_.is_test_sequence_active()) {
+      return;
     }
-    ftl_page_loaded_ = false;
+    has_loaded_page_ = false;
   }
 
   switch (requested_page_) {
@@ -338,11 +271,9 @@ void ScreenManager::flush_requested_page() {
     case model::AppPage::CAMERA_TEST:
       show_camera_test_page();
       return;
-    case model::AppPage::CONNECTIVITY_TEST:
-      show_connectivity_test_page();
-      return;
-    case model::AppPage::IR_TEST:
-      show_ir_test_page();
+    case model::AppPage::IR_SEND_TEST:
+    case model::AppPage::IR_RECEIVE_TEST:
+      show_ir_test_page(requested_page_);
       return;
     case model::AppPage::IMU_TEST:
       show_imu_test_page();

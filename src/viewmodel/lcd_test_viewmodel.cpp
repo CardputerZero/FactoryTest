@@ -32,6 +32,11 @@ void LcdTestViewModel::reset_test() {
   publish_all_();
 }
 
+void LcdTestViewModel::set_brightness_percent(int32_t percent) {
+  model_.set_brightness_percent(percent);
+  publish_all_();
+}
+
 void LcdTestViewModel::advance_color() {
   model_.advance_color_index();
   publish_all_();

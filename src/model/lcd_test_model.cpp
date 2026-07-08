@@ -22,6 +22,10 @@ void LcdTestModel::reset() {
   brightness_test_active_ = false;
 }
 
+void LcdTestModel::set_brightness_percent(int32_t percent) {
+  brightness_percent_ = std::clamp(percent, K_MIN_BRIGHTNESS_PERCENT, 100);
+}
+
 void LcdTestModel::advance_color_index() {
   if (brightness_test_active_) {
     return;

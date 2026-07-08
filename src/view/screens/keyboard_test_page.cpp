@@ -77,6 +77,7 @@ constexpr const char* K_MATCH_DELETE          = "delete";
 constexpr const char* K_MATCH_DISABLED        = "__disabled";
 constexpr const char* K_MATCH_DOWN            = "down";
 constexpr const char* K_MATCH_E               = "e";
+constexpr const char* K_MATCH_END             = "end";
 constexpr const char* K_MATCH_ENTER           = "enter";
 constexpr const char* K_MATCH_ESC             = "esc";
 constexpr const char* K_MATCH_F               = "f";
@@ -92,6 +93,7 @@ constexpr const char* K_MATCH_F9              = "f9";
 constexpr const char* K_MATCH_F10             = "f10";
 constexpr const char* K_MATCH_F11             = "f11";
 constexpr const char* K_MATCH_F12             = "f12";
+constexpr const char* K_MATCH_FAST_FORWARD    = "fastforward";
 constexpr const char* K_MATCH_FN              = "fn";
 constexpr const char* K_MATCH_G               = "g";
 constexpr const char* K_MATCH_H               = "h";
@@ -109,8 +111,11 @@ constexpr const char* K_MATCH_O               = "o";
 constexpr const char* K_MATCH_P               = "p";
 constexpr const char* K_MATCH_PAGE_DOWN       = "pagedown";
 constexpr const char* K_MATCH_PAGE_UP         = "pageup";
+constexpr const char* K_MATCH_PLAY_PAUSE      = "playpause";
+constexpr const char* K_MATCH_PRINTSCREEN     = "printscreen";
 constexpr const char* K_MATCH_Q               = "q";
 constexpr const char* K_MATCH_R               = "r";
+constexpr const char* K_MATCH_REWIND          = "rewind";
 constexpr const char* K_MATCH_RIGHT           = "right";
 constexpr const char* K_MATCH_S               = "s";
 constexpr const char* K_MATCH_SHIFT           = "shift";
@@ -167,6 +172,7 @@ constexpr const char* ICON_KB_PAGE_DOWN          = "\uE0A5";
 constexpr const char* ICON_KB_PAGE_UP            = "\uE0A7";
 constexpr const char* ICON_KB_PERIOD             = "\uE0AD";
 constexpr const char* ICON_KB_PLUS               = "\uE0AF";
+constexpr const char* ICON_KB_PRINTSCREEN        = "\uE0B1";
 constexpr const char* ICON_KB_QUESTION           = "\uE0B5";
 constexpr const char* ICON_KB_QUOTE              = "\uE0B7";
 constexpr const char* ICON_KB_SEMICOLON          = "\uE0C1";
@@ -195,6 +201,11 @@ constexpr const char* ICON_KB_EXTRA_SPEAKER_LOW  = "\uEA1B";
 constexpr const char* ICON_KB_EXTRA_SPEAKER_X    = "\uEA1D";
 constexpr const char* ICON_KB_EXTRA_SUN          = "\uEA1F";
 constexpr const char* ICON_KB_EXTRA_SUN_DIM      = "\uEA20";
+
+constexpr const char* ICON_KB_EXTRA_PLAY_PAUSE   = "\uEA25";
+constexpr const char* ICON_KB_EXTRA_REWIND       = "\uEA26";
+constexpr const char* ICON_KB_EXTRA_FAST_FORWARD = "\uEA27";
+constexpr const char* ICON_KB_EXTRA_QUESTION     = "\uEA28";
 
 constexpr KeyLayer STANDARD_KEY = KeyLayer::STANDARD_KEY;
 constexpr KeyLayer FN_KEY       = KeyLayer::FN_KEY;
@@ -264,14 +275,14 @@ constexpr std::array<KeySpec, 138> K_KEYS = {{
     {FN_KEY, K_MATCH_DELETE, ICON_KB_DELETE, 1, 10, KeyFont::KENNEY},
 
     {FN_KEY, K_MATCH_SYM, ICON_KB_EXTRA_SYM, 2, 0, KeyFont::EXTRA, true},
-    {FN_KEY, K_MATCH_BRIGHTNESS_DOWN, ICON_KB_EXTRA_SUN_DIM, 2, 1, KeyFont::EXTRA},
-    {FN_KEY, K_MATCH_BRIGHTNESS_UP, ICON_KB_EXTRA_SUN, 2, 2, KeyFont::EXTRA},
-    {FN_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 2, 3, KeyFont::EXTRA, true},
+    {FN_KEY, K_MATCH_PLAY_PAUSE, ICON_KB_EXTRA_PLAY_PAUSE, 2, 1, KeyFont::EXTRA},
+    {FN_KEY, K_MATCH_REWIND, ICON_KB_EXTRA_REWIND, 2, 2, KeyFont::EXTRA},
+    {FN_KEY, K_MATCH_FAST_FORWARD, ICON_KB_EXTRA_FAST_FORWARD, 2, 3, KeyFont::EXTRA},
     {FN_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 2, 4, KeyFont::EXTRA, true},
     {FN_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 2, 5, KeyFont::EXTRA, true},
     {FN_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 2, 6, KeyFont::EXTRA, true},
-    {FN_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 2, 7, KeyFont::EXTRA, true},
-    {FN_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 2, 8, KeyFont::EXTRA, true},
+    {FN_KEY, K_MATCH_BRIGHTNESS_DOWN, ICON_KB_EXTRA_SUN_DIM, 2, 7, KeyFont::EXTRA},
+    {FN_KEY, K_MATCH_BRIGHTNESS_UP, ICON_KB_EXTRA_SUN, 2, 8, KeyFont::EXTRA},
     {FN_KEY, K_MATCH_F11, ICON_KB_F11, 2, 9, KeyFont::KENNEY},
     {FN_KEY, K_MATCH_F12, ICON_KB_F12, 2, 10, KeyFont::KENNEY},
 
@@ -281,10 +292,10 @@ constexpr std::array<KeySpec, 138> K_KEYS = {{
     {FN_KEY, K_MATCH_VOLUME_UP, ICON_KB_EXTRA_SPEAKER_HIGH, 3, 3, KeyFont::EXTRA},
     {FN_KEY, K_MATCH_UP, ICON_KB_ARROW_UP, 3, 4, KeyFont::KENNEY},
     {FN_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 3, 5, KeyFont::EXTRA, true},
-    {FN_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 3, 6, KeyFont::EXTRA, true},
-    {FN_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 3, 7, KeyFont::EXTRA, true},
-    {FN_KEY, K_MATCH_PAGE_UP, ICON_KB_PAGE_UP, 3, 8, KeyFont::KENNEY},
-    {FN_KEY, K_MATCH_PAGE_DOWN, ICON_KB_PAGE_DOWN, 3, 9, KeyFont::KENNEY},
+    {FN_KEY, "?", ICON_KB_EXTRA_QUESTION, 3, 6, KeyFont::EXTRA},
+    {FN_KEY, K_MATCH_PRINTSCREEN, ICON_KB_PRINTSCREEN, 3, 7, KeyFont::KENNEY},
+    {FN_KEY, K_MATCH_HOME, ICON_KB_HOME, 3, 8, KeyFont::KENNEY},
+    {FN_KEY, K_MATCH_PAGE_UP, ICON_KB_PAGE_UP, 3, 9, KeyFont::KENNEY},
     {FN_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 3, 10, KeyFont::EXTRA, true},
 
     {FN_KEY, K_MATCH_FN, view::ICON_KB_FN, 4, 0, KeyFont::KENNEY, true},
@@ -294,9 +305,9 @@ constexpr std::array<KeySpec, 138> K_KEYS = {{
     {FN_KEY, K_MATCH_DOWN, ICON_KB_ARROW_DOWN, 4, 4, KeyFont::KENNEY},
     {FN_KEY, K_MATCH_RIGHT, ICON_KB_ARROW_RIGHT, 4, 5, KeyFont::KENNEY},
     {FN_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 4, 6, KeyFont::EXTRA, true},
-    {FN_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 4, 7, KeyFont::EXTRA, true},
-    {FN_KEY, K_MATCH_HOME, ICON_KB_HOME, 4, 8, KeyFont::KENNEY},
-    {FN_KEY, K_MATCH_INSERT, ICON_KB_INSERT, 4, 9, KeyFont::KENNEY},
+    {FN_KEY, K_MATCH_INSERT, ICON_KB_INSERT, 4, 7, KeyFont::KENNEY},
+    {FN_KEY, K_MATCH_END, ICON_KB_END, 4, 8, KeyFont::KENNEY},
+    {FN_KEY, K_MATCH_PAGE_DOWN, ICON_KB_PAGE_DOWN, 4, 9, KeyFont::KENNEY},
     {FN_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 4, 10, KeyFont::EXTRA, true},
 
     {SYM_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 0, 0, KeyFont::EXTRA, true},

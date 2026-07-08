@@ -46,6 +46,10 @@ constexpr uint32_t K_KEY_VOLUME_DOWN     = K_SPECIAL_KEY_BASE | 11U;
 constexpr uint32_t K_KEY_VOLUME_UP       = K_SPECIAL_KEY_BASE | 12U;
 constexpr uint32_t K_KEY_BRIGHTNESS_DOWN = K_SPECIAL_KEY_BASE | 13U;
 constexpr uint32_t K_KEY_BRIGHTNESS_UP   = K_SPECIAL_KEY_BASE | 14U;
+constexpr uint32_t K_KEY_PLAY_PAUSE      = K_SPECIAL_KEY_BASE | 15U;
+constexpr uint32_t K_KEY_REWIND          = K_SPECIAL_KEY_BASE | 16U;
+constexpr uint32_t K_KEY_FAST_FORWARD    = K_SPECIAL_KEY_BASE | 17U;
+constexpr uint32_t K_KEY_PRINTSCREEN     = K_SPECIAL_KEY_BASE | 18U;
 constexpr uint32_t K_KEY_F_BASE          = K_SPECIAL_KEY_BASE | 0x100U;
 constexpr uint32_t K_LONG_PRESS_MS       = 700;
 
@@ -68,6 +72,7 @@ struct KeyRouterState {
   GlobalKeyListener global_key_listener{nullptr};
   void* global_key_listener_user_data{nullptr};
   bool modal_key_capture{false};
+  bool pressed_key_consumed_by_global{false};
 };
 
 struct KeyMapEntry {
@@ -131,7 +136,7 @@ constexpr std::array<KeyNameEntry, 12> K_LV_KEY_NAMES = {{
     {LV_KEY_END, "End"},
 }};
 
-constexpr std::array<KeyNameEntry, 16> K_SPECIAL_KEY_NAMES = {{
+constexpr std::array<KeyNameEntry, 20> K_SPECIAL_KEY_NAMES = {{
     {' ', "Space"},
     {'\t', "Tab"},
     {K_KEY_CTRL, "Ctrl"},
@@ -148,6 +153,10 @@ constexpr std::array<KeyNameEntry, 16> K_SPECIAL_KEY_NAMES = {{
     {K_KEY_VOLUME_UP, "VolumeUp"},
     {K_KEY_BRIGHTNESS_DOWN, "BrightnessDown"},
     {K_KEY_BRIGHTNESS_UP, "BrightnessUp"},
+    {K_KEY_PLAY_PAUSE, "PlayPause"},
+    {K_KEY_REWIND, "Rewind"},
+    {K_KEY_FAST_FORWARD, "FastForward"},
+    {K_KEY_PRINTSCREEN, "PrintScreen"},
 }};
 
 #if !USE_DESKTOP
@@ -237,15 +246,18 @@ void dispatch_nav_key(uint32_t key, lv_event_code_t event_code) {
   lv_obj_send_event(button, event_code, nullptr);
 }
 
-void emit_key(uint32_t key) {
+bool emit_key(uint32_t key) {
   auto& state     = key_router_state();
   const auto name = key_name(key);
   if (state.global_key_listener) {
-    state.global_key_listener(key, name.c_str(), false, state.global_key_listener_user_data);
+    if (state.global_key_listener(key, name.c_str(), false, state.global_key_listener_user_data)) {
+      return true;
+    }
   }
   if (state.key_listener) {
     state.key_listener(key, name.c_str(), state.key_listener_user_data);
   }
+  return false;
 }
 
 void emit_key_release(uint32_t key) {
@@ -256,15 +268,18 @@ void emit_key_release(uint32_t key) {
   }
 }
 
-void emit_long_key(uint32_t key) {
+bool emit_long_key(uint32_t key) {
   auto& state     = key_router_state();
   const auto name = key_name(key);
   if (state.global_key_listener) {
-    state.global_key_listener(key, name.c_str(), true, state.global_key_listener_user_data);
+    if (state.global_key_listener(key, name.c_str(), true, state.global_key_listener_user_data)) {
+      return true;
+    }
   }
   if (state.long_key_listener) {
     state.long_key_listener(key, name.c_str(), state.long_key_listener_user_data);
   }
+  return false;
 }
 
 void long_press_timer_cb(lv_timer_t* timer) {
@@ -287,7 +302,9 @@ void long_press_timer_cb(lv_timer_t* timer) {
     LOG_VERBOSE("key router: modal captured long key={}", key_name(state.pressed_key));
     return;
   }
-  emit_long_key(state.pressed_key);
+  if (state.pressed_key_consumed_by_global || emit_long_key(state.pressed_key)) {
+    return;
+  }
   dispatch_nav_key(state.pressed_key, LV_EVENT_LONG_PRESSED);
 }
 
@@ -303,8 +320,8 @@ void ensure_long_press_timer(bool reset) {
 }
 
 void route_key_state(uint32_t key, bool pressed, const char* source) {
-  auto& state            = key_router_state();
-  const bool is_new_hold = !state.last_key_pressed || key != state.pressed_key;
+  auto& state              = key_router_state();
+  const bool is_new_hold   = !state.last_key_pressed || key != state.pressed_key;
   const bool modal_capture = state.modal_key_capture;
   LOG_VERBOSE("key router: input source={} key={} state={} last_key={} last_pressed={} mode={}",
               source ? source : "unknown",
@@ -315,27 +332,32 @@ void route_key_state(uint32_t key, bool pressed, const char* source) {
               state.nav_trigger_mode == NavTriggerMode::CLICK ? "click" : "long");
   if (pressed) {
     if (is_new_hold) {
-      state.pressed_key      = key;
-      state.press_started_at = lv_tick_get();
-      state.long_press_sent  = false;
+      state.pressed_key                    = key;
+      state.press_started_at               = lv_tick_get();
+      state.long_press_sent                = false;
+      state.pressed_key_consumed_by_global = false;
       audio::play_key_click_sound();
-      emit_key(key);
-      if (!modal_capture) {
+      state.pressed_key_consumed_by_global = emit_key(key);
+      if (!modal_capture && !state.pressed_key_consumed_by_global) {
         dispatch_nav_key(key, LV_EVENT_PRESSED);
       }
     }
     state.last_key_activity_at = lv_tick_get();
     ensure_long_press_timer(is_new_hold);
-    if (!modal_capture && state.nav_trigger_mode == NavTriggerMode::CLICK &&
+    if (!modal_capture && !state.pressed_key_consumed_by_global &&
+        state.nav_trigger_mode == NavTriggerMode::CLICK &&
         (!state.last_key_pressed || state.last_key != key)) {
       dispatch_nav_key(key, LV_EVENT_CLICKED);
     }
   } else if (state.last_key_pressed && state.pressed_key == key) {
-    if (!modal_capture) {
+    if (!modal_capture && !state.pressed_key_consumed_by_global) {
       dispatch_nav_key(key, LV_EVENT_RELEASED);
     }
-    emit_key_release(key);
-    state.pressed_key = 0;
+    if (!state.pressed_key_consumed_by_global) {
+      emit_key_release(key);
+    }
+    state.pressed_key                    = 0;
+    state.pressed_key_consumed_by_global = false;
     if (state.long_press_timer) {
       lv_timer_pause(state.long_press_timer);
     }
@@ -450,7 +472,7 @@ constexpr std::array<KeyMapEntry, 5> K_KEYPAD_SYMBOL_KEYS = {{
     {KEY_KPSLASH, '/'},
 }};
 
-constexpr std::array<KeyMapEntry, 29> K_SPECIAL_EVDEV_KEYS = {{
+constexpr std::array<KeyMapEntry, 33> K_SPECIAL_EVDEV_KEYS = {{
     {KEY_ESC, LV_KEY_ESC},
     {KEY_ENTER, LV_KEY_ENTER},
     {KEY_KPENTER, LV_KEY_ENTER},
@@ -480,6 +502,10 @@ constexpr std::array<KeyMapEntry, 29> K_SPECIAL_EVDEV_KEYS = {{
     {KEY_VOLUMEUP, K_KEY_VOLUME_UP},
     {KEY_BRIGHTNESSDOWN, K_KEY_BRIGHTNESS_DOWN},
     {KEY_BRIGHTNESSUP, K_KEY_BRIGHTNESS_UP},
+    {KEY_PLAYPAUSE, K_KEY_PLAY_PAUSE},
+    {KEY_REWIND, K_KEY_REWIND},
+    {KEY_FASTFORWARD, K_KEY_FAST_FORWARD},
+    {KEY_SYSRQ, K_KEY_PRINTSCREEN},
 }};
 
 constexpr std::array<KeyMapEntry, 12> K_FUNCTION_KEYS = {{
@@ -883,7 +909,7 @@ void set_modal_key_capture(bool enabled) {
 }
 
 void reset_key_router_state() {
-  auto& state = key_router_state();
+  auto& state                = key_router_state();
   state.last_key             = 0;
   state.last_key_pressed     = false;
   state.pressed_key          = 0;

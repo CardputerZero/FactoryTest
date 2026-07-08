@@ -95,6 +95,15 @@ LcdTestPage::LcdTestPage(viewmodel::AppViewModel& app_view_model,
       lcd_view_model_(lcd_view_model) {
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
   lcd_view_model_.reset_test();
+  int32_t current_brightness = 0;
+  if (platform::backlight::read_brightness_percent(current_brightness)) {
+    hardware_brightness_percent_ =
+        std::clamp(current_brightness, model::LcdTestModel::K_MIN_BRIGHTNESS_PERCENT, 100);
+    target_brightness_percent_    = hardware_brightness_percent_;
+    requested_brightness_percent_ = hardware_brightness_percent_;
+    hardware_brightness_loaded_   = true;
+    lcd_view_model_.set_brightness_percent(hardware_brightness_percent_);
+  }
   update_nav_actions_();
   init();
   platform::set_key_listener(key_listener, this);
@@ -286,7 +295,7 @@ void LcdTestPage::build_content(lv_obj_t* content) {
                                                  this);
   apply_color_index_(0);
   apply_brightness_active_(lcd_view_model_.is_brightness_test_active());
-  apply_brightness_percent_(model::LcdTestModel::K_INITIAL_BRIGHTNESS_PERCENT);
+  apply_brightness_percent_(requested_brightness_percent_);
   show_tile_(K_COLOR_TILE_INDEX, false);
 }
 

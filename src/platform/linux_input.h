@@ -11,7 +11,7 @@ constexpr size_t K_NAV_KEY_COUNT = 5;
 using KeyListener                = void (*)(uint32_t key, const char* key_name, void* user_data);
 using KeyReleaseListener         = void (*)(uint32_t key, const char* key_name, void* user_data);
 using LongKeyListener            = void (*)(uint32_t key, const char* key_name, void* user_data);
-using GlobalKeyListener          = void (*)(uint32_t key,
+using GlobalKeyListener          = bool (*)(uint32_t key,
                                             const char* key_name,
                                             bool long_pressed,
                                             void* user_data);

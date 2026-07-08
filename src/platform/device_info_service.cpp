@@ -13,6 +13,8 @@
 #include <cctype>
 #include <cerrno>
 #include <cstdio>
+#include <cstdlib>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -207,18 +209,69 @@ std::string read_uptime() {
 }
 
 #if defined(__linux__)
-std::string format_rtc_time(const rtc_time& rtc) {
+std::string format_local_time(std::time_t value) {
+  std::tm local{};
+#if defined(_WIN32)
+  localtime_s(&local, &value);
+#else
+  if (!localtime_r(&value, &local)) {
+    return K_EMPTY_VALUE;
+  }
+#endif
+
   char buffer[24];
   std::snprintf(buffer,
                 sizeof(buffer),
                 "%04d-%02d-%02d %02d:%02d:%02d",
-                rtc.tm_year + 1900,
-                rtc.tm_mon + 1,
-                rtc.tm_mday,
-                rtc.tm_hour,
-                rtc.tm_min,
-                rtc.tm_sec);
+                local.tm_year + 1900,
+                local.tm_mon + 1,
+                local.tm_mday,
+                local.tm_hour,
+                local.tm_min,
+                local.tm_sec);
   return buffer;
+}
+
+std::string format_rtc_time_as_local(std::tm rtc_utc) {
+  rtc_utc.tm_isdst = 0;
+  const std::time_t utc_time = timegm(&rtc_utc);
+  if (utc_time == static_cast<std::time_t>(-1)) {
+    return K_EMPTY_VALUE;
+  }
+  return format_local_time(utc_time);
+}
+
+std::string format_rtc_time_as_local(const rtc_time& rtc) {
+  std::tm rtc_utc{};
+  rtc_utc.tm_sec  = rtc.tm_sec;
+  rtc_utc.tm_min  = rtc.tm_min;
+  rtc_utc.tm_hour = rtc.tm_hour;
+  rtc_utc.tm_mday = rtc.tm_mday;
+  rtc_utc.tm_mon  = rtc.tm_mon;
+  rtc_utc.tm_year = rtc.tm_year;
+  return format_rtc_time_as_local(rtc_utc);
+}
+
+bool parse_rtc_datetime(const std::string& value, std::tm& rtc_utc) {
+  int year  = 0;
+  int month = 0;
+  int day   = 0;
+  int hour  = 0;
+  int min   = 0;
+  int sec   = 0;
+  if (std::sscanf(value.c_str(), "%d-%d-%d %d:%d:%d", &year, &month, &day, &hour, &min, &sec) !=
+      6) {
+    return false;
+  }
+
+  rtc_utc         = {};
+  rtc_utc.tm_year = year - 1900;
+  rtc_utc.tm_mon  = month - 1;
+  rtc_utc.tm_mday = day;
+  rtc_utc.tm_hour = hour;
+  rtc_utc.tm_min  = min;
+  rtc_utc.tm_sec  = sec;
+  return true;
 }
 
 std::string read_rtc_ioctl() {
@@ -237,7 +290,7 @@ std::string read_rtc_ioctl() {
     return {};
   }
 
-  return format_rtc_time(rtc);
+  return format_rtc_time_as_local(rtc);
 }
 
 std::string read_rtc_sysfs() {
@@ -247,7 +300,9 @@ std::string read_rtc_sysfs() {
     std::string date;
     std::string time;
     if (read_text_file(root / "date", date) && read_text_file(root / "time", time)) {
-      return date + " " + time;
+      std::tm rtc_utc{};
+      const auto value = date + " " + time;
+      return parse_rtc_datetime(value, rtc_utc) ? format_rtc_time_as_local(rtc_utc) : value;
     }
   }
   return {};
@@ -280,6 +335,49 @@ std::string read_hwclock_command() {
 }
 #endif
 
+std::string timezone_from_path(std::filesystem::path path) {
+  const auto text = path.lexically_normal().string();
+  constexpr const char* marker = "zoneinfo/";
+  const auto pos              = text.find(marker);
+  if (pos == std::string::npos) {
+    return {};
+  }
+  return text.substr(pos + std::char_traits<char>::length(marker));
+}
+
+std::string read_timezone() {
+  if (const char* env_tz = std::getenv("TZ"); env_tz && env_tz[0] != '\0') {
+    std::string value = trim(env_tz);
+    if (!value.empty() && value.front() == ':') {
+      value.erase(value.begin());
+    }
+    if (!value.empty()) {
+      return value;
+    }
+  }
+
+  std::string value;
+  if (read_text_file("/etc/timezone", value)) {
+    return value;
+  }
+
+  std::error_code ec;
+  if (const auto symlink = std::filesystem::read_symlink("/etc/localtime", ec); !ec) {
+    if (const auto timezone = timezone_from_path(symlink); !timezone.empty()) {
+      return timezone;
+    }
+  }
+
+  ec.clear();
+  if (const auto canonical = std::filesystem::canonical("/etc/localtime", ec); !ec) {
+    if (const auto timezone = timezone_from_path(canonical); !timezone.empty()) {
+      return timezone;
+    }
+  }
+
+  return K_EMPTY_VALUE;
+}
+
 std::string read_rtc() {
 #if defined(__linux__)
   if (const auto value = read_rtc_ioctl(); !value.empty()) {
@@ -309,6 +407,7 @@ std::vector<DeviceInfoField> read_device_info_fields() {
       {"Kernel", read_or_empty("/proc/sys/kernel/osrelease")},
       {"Uptime", read_uptime()},
       {"RTC", read_rtc()},
+      {"Timezone", read_timezone()},
   };
 }
 

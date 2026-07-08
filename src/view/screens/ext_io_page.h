@@ -65,6 +65,7 @@ class ExtIoConnectivityView {
   void set_selected_index_(std::size_t index);
   void toggle_selected_();
   void toggle_row_(std::size_t index);
+  void release_output_lines_();
   void read_output_states_();
   void read_input_states_();
   void wait_for_gpio_slot_();

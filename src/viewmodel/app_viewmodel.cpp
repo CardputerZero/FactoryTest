@@ -19,12 +19,13 @@ struct TestSequenceItem {
   model::AppPage page;
 };
 
-constexpr std::array<TestSequenceItem, 21> K_TEST_SEQUENCE = {{
+constexpr std::array<TestSequenceItem, 22> K_TEST_SEQUENCE = {{
     {"Input Test", model::AppPage::KEYBOARD_TEST},
     {"Display Test", model::AppPage::LCD_TEST},
     {"Audio Test", model::AppPage::AUDIO_TEST},
     {"Camera Test", model::AppPage::CAMERA_TEST},
-    {"IR Test", model::AppPage::IR_TEST},
+    {"IR Sender", model::AppPage::IR_SEND_TEST},
+    {"IR Receiver", model::AppPage::IR_RECEIVE_TEST},
     {"Wi-Fi", model::AppPage::WIFI_TEST},
     {"Bluetooth", model::AppPage::BT_TEST},
     {"Ethernet", model::AppPage::ETH_TEST},
@@ -80,10 +81,6 @@ lv_subject_t* AppViewModel::dark_mode_subject() { return dark_mode_subject_.nati
 lv_subject_t* AppViewModel::language_subject() { return language_subject_.native(); }
 
 lv_subject_t* AppViewModel::current_page_subject() { return current_page_subject_.native(); }
-
-lv_subject_t* AppViewModel::ftl_page_requested_subject() {
-  return ftl_page_requested_subject_.native();
-}
 
 lv_subject_t* AppViewModel::quit_requested_subject() { return quit_requested_subject_.native(); }
 
@@ -200,9 +197,9 @@ void AppViewModel::show_audio_test_page() { show_page_(model::AppPage::AUDIO_TES
 
 void AppViewModel::show_camera_test_page() { show_page_(model::AppPage::CAMERA_TEST); }
 
-void AppViewModel::show_connectivity_test_page() { show_page_(model::AppPage::CONNECTIVITY_TEST); }
+void AppViewModel::show_ir_send_test_page() { show_page_(model::AppPage::IR_SEND_TEST); }
 
-void AppViewModel::show_ir_test_page() { show_page_(model::AppPage::IR_TEST); }
+void AppViewModel::show_ir_receive_test_page() { show_page_(model::AppPage::IR_RECEIVE_TEST); }
 
 void AppViewModel::show_imu_test_page() { show_page_(model::AppPage::IMU_TEST); }
 
@@ -213,8 +210,6 @@ void AppViewModel::show_device_info_page() { show_page_(model::AppPage::DEVICE_I
 void AppViewModel::show_perf_test_page() { show_page_(model::AppPage::PERF_TEST); }
 
 void AppViewModel::show_test_result_page() { show_page_(model::AppPage::TEST_RESULT); }
-
-void AppViewModel::request_ftl_page() { ftl_page_requested_subject_.set(++ftl_request_revision_); }
 
 void AppViewModel::start_full_test_sequence() {
   model_.set_test_sequence_active(true);
@@ -234,9 +229,7 @@ void AppViewModel::show_single_test_page(model::AppPage page) {
 
 void AppViewModel::refresh_current_page() { current_page_subject_.notify(); }
 
-void AppViewModel::complete_current_test() {
-  complete_current_test(model::TestResult::PASS);
-}
+void AppViewModel::complete_current_test() { complete_current_test(model::TestResult::PASS); }
 
 void AppViewModel::complete_current_test(model::TestResult result) {
   if (model_.test_sequence_active()) {
@@ -274,10 +267,10 @@ const char* AppViewModel::current_test_name() const {
       return "Audio Test";
     case model::AppPage::CAMERA_TEST:
       return "Camera Test";
-    case model::AppPage::IR_TEST:
-      return "IR Test";
-    case model::AppPage::CONNECTIVITY_TEST:
-      return "Connectivity Test";
+    case model::AppPage::IR_SEND_TEST:
+      return "IR Sender";
+    case model::AppPage::IR_RECEIVE_TEST:
+      return "IR Receiver";
     case model::AppPage::WIFI_TEST:
       return "Wi-Fi";
     case model::AppPage::BT_TEST:

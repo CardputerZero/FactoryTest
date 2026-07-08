@@ -20,10 +20,10 @@ const char* AppModel::app_title() const {
       return "Audio Test";
     case AppPage::CAMERA_TEST:
       return "Camera Test";
-    case AppPage::CONNECTIVITY_TEST:
-      return "Connectivity Test";
-    case AppPage::IR_TEST:
-      return "IR Test";
+    case AppPage::IR_SEND_TEST:
+      return "IR Sender";
+    case AppPage::IR_RECEIVE_TEST:
+      return "IR Receiver";
     case AppPage::POWER_INFO:
       return "Power Information";
     case AppPage::IMU_TEST:

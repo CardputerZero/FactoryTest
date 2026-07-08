@@ -21,7 +21,7 @@ namespace screen {
 
 class PowerInfoPage : public BaseScreen {
  public:
-  static constexpr std::size_t K_FIELD_COUNT = 10;
+  static constexpr std::size_t K_FIELD_COUNT = 9;
 
   PowerInfoPage(viewmodel::AppViewModel& app_view_model, app::AssetManager& assets);
   ~PowerInfoPage() override;

@@ -36,6 +36,7 @@ class OutputLine {
 
 bool set_output_value(const OutputLineConfig& config, bool active, std::string& error_message);
 bool get_output_value(const OutputLineConfig& config, bool& active, std::string& error_message);
+void release_output_value(const OutputLineConfig& config);
 bool get_input_value(const OutputLineConfig& config, bool& active, std::string& error_message);
 bool set_external_bus_i2c_mode(bool enabled, std::string& error_message);
 bool set_external_bus_uart_mode(std::string& error_message);

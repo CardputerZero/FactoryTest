@@ -168,6 +168,8 @@ struct OutputLine::Impl {
   explicit Impl(OutputLineConfig line_config)
       : config(std::move(line_config)) {}
 
+  ~Impl() { release_locked(); }
+
   bool set_value(bool active, std::string& error_message) {
     std::lock_guard<std::mutex> lock(mutex);
     error_message.clear();
@@ -304,11 +306,25 @@ bool get_output_value(const OutputLineConfig& config, bool& active, std::string&
 #endif
 }
 
+void release_output_value(const OutputLineConfig& config) {
+  std::lock_guard<std::mutex> lock(output_lines_mutex());
+  const auto it = output_lines().find(line_key(config));
+  if (it != output_lines().end()) {
+    if (it->second) {
+      it->second->release();
+    }
+    output_lines().erase(it);
+  }
+}
+
 bool get_input_value(const OutputLineConfig& config, bool& active, std::string& error_message) {
   {
     std::lock_guard<std::mutex> lock(output_lines_mutex());
     const auto it = output_lines().find(line_key(config));
     if (it != output_lines().end()) {
+      if (it->second) {
+        it->second->release();
+      }
       output_lines().erase(it);
     }
   }

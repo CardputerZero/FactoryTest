@@ -36,8 +36,11 @@ const char* icon_for_test_name(const std::string& name) {
   if (name == "Camera Test") {
     return view::ICON_CAMERA;
   }
-  if (name == "IR Test") {
-    return view::ICON_BROADCAST;
+  if (name == "IR Sender") {
+    return view::ICON_PAPER_PLANE;
+  }
+  if (name == "IR Receiver") {
+    return view::ICON_ENVELOPE_OPEN;
   }
   if (name == "Wi-Fi") {
     return view::ICON_WIFI;
@@ -104,17 +107,15 @@ view::widgets::IconList::Status status_for_result(std::string result) {
   return view::widgets::IconList::Status::NONE;
 }
 
-std::vector<view::widgets::IconList::Item> load_result_items(
-    const std::string& path,
-    std::vector<std::string>& titles) {
+std::vector<view::widgets::IconList::Item> load_result_items(const std::string& path,
+                                                             std::vector<std::string>& titles) {
   std::vector<view::widgets::IconList::Item> items;
   titles.clear();
   const auto parsed = platform::process::parse_json_file(path);
-  if (!parsed.success() ||
-      parsed.value.type != platform::process::OutputValue::Type::Object) {
+  if (!parsed.success() || parsed.value.type != platform::process::OutputValue::Type::Object) {
     titles.push_back("No test results found");
-    items.push_back({view::ICON_INFO, titles.back().c_str(), false,
-                     view::widgets::IconList::Status::WARN});
+    items.push_back(
+        {view::ICON_INFO, titles.back().c_str(), false, view::widgets::IconList::Status::WARN});
     return items;
   }
 
@@ -122,8 +123,8 @@ std::vector<view::widgets::IconList::Item> load_result_items(
   if (results_it == parsed.value.object_values.end() ||
       results_it->second.type != platform::process::OutputValue::Type::Array) {
     titles.push_back("No test results found");
-    items.push_back({view::ICON_INFO, titles.back().c_str(), false,
-                     view::widgets::IconList::Status::WARN});
+    items.push_back(
+        {view::ICON_INFO, titles.back().c_str(), false, view::widgets::IconList::Status::WARN});
     return items;
   }
 
@@ -148,14 +149,16 @@ std::vector<view::widgets::IconList::Item> load_result_items(
             : "";
 
     titles.push_back(name);
-    items.push_back(
-        {icon_for_test_name(titles.back()), titles.back().c_str(), false, status_for_result(result)});
+    items.push_back({icon_for_test_name(titles.back()),
+                     titles.back().c_str(),
+                     false,
+                     status_for_result(result)});
   }
 
   if (items.empty()) {
     titles.push_back("No test results found");
-    items.push_back({view::ICON_INFO, titles.back().c_str(), false,
-                     view::widgets::IconList::Status::WARN});
+    items.push_back(
+        {view::ICON_INFO, titles.back().c_str(), false, view::widgets::IconList::Status::WARN});
   }
   return items;
 }
@@ -189,7 +192,8 @@ void TestResultPage::build_content(lv_obj_t* content) {
 
   auto items  = load_result_items(app_view_model_ref_().test_result_path(), result_titles_);
   item_count_ = items.size();
-  auto* text_font = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 14);
+  auto* text_font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 14);
   auto* icon_font = assets_ref_().load_font("Phosphor-Fill.ttf", 14);
   result_list_ =
       std::make_unique<view::widgets::IconList>(viewport,
