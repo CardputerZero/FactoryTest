@@ -36,7 +36,7 @@ AudioTestPage::AudioTestPage(viewmodel::AppViewModel& app_view_model, app::Asset
     : BaseScreen(app_view_model, assets) {
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
   set_default_test_nav_();
-  has_audio_device_ = platform::audio::find_i2s_audio_device(device_, device_error_);
+  has_audio_device_ = platform::audio::find_audio_device(device_, device_error_);
   job_state_        = std::make_shared<AudioJobState>();
   init();
   platform::set_key_listener(key_listener, this);

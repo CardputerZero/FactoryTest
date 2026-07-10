@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cctype>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
@@ -60,15 +59,12 @@ struct PlaybackState {
 
 struct SelectedDevice {
   std::string name;
-  ma_device_id id{};
-  std::string card_key;
+  std::string id;
   bool found{false};
 };
 
 struct SelectedAudioDevice {
   AudioDevice info;
-  ma_device_id playback_id{};
-  ma_device_id capture_id{};
   bool playback_found{false};
   bool capture_found{false};
 };
@@ -80,10 +76,8 @@ struct MiniaudioContext {
   MiniaudioContext() {
     ma_result result;
 #if defined(__linux__)
-    const ma_backend backends[] = {ma_backend_alsa};
-    ma_context_config config = ma_context_config_init();
-    config.alsa.useVerboseDeviceEnumeration = MA_TRUE;
-    result = ma_context_init(backends, 1, &config, &context);
+    const ma_backend backends[] = {ma_backend_pulseaudio};
+    result = ma_context_init(backends, 1, nullptr, &context);
 #else
     result = ma_context_init(nullptr, 0, nullptr, &context);
 #endif
@@ -147,48 +141,7 @@ KeyClickState& key_click_state() {
   return state;
 }
 
-std::string lower_copy(std::string value) {
-  std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-    return static_cast<char>(std::tolower(ch));
-  });
-  return value;
-}
-
-int i2s_device_score(const std::string& name, const std::string& device_id) {
-  const auto lower = lower_copy(name + " " + device_id);
-  if (lower.find("null") != std::string::npos || lower.find("default") != std::string::npos ||
-      lower.find("sysdefault") != std::string::npos || lower.find("dmix") != std::string::npos ||
-      lower.find("dsnoop") != std::string::npos) {
-    return 0;
-  }
-  if (lower.find("hdmi") != std::string::npos || lower.find("vc4") != std::string::npos ||
-      lower.find("mai pcm") != std::string::npos) {
-    return 0;
-  }
-  int score = 0;
-  if (lower.find("es8389") != std::string::npos) {
-    score = 400;
-  } else if (lower.find("i2s") != std::string::npos) {
-    score = 300;
-  } else if (lower.find("simple-card") != std::string::npos ||
-             lower.find("simple card") != std::string::npos) {
-    score = 200;
-  } else if (lower.find("codec") != std::string::npos) {
-    score = 100;
-  }
-
-  if (score > 0 && lower.find("plughw") != std::string::npos) {
-    score += 80;
-  } else if (score > 0 && lower.find("hw:") != std::string::npos) {
-    score += 60;
-  }
-  return score;
-}
-
 std::string miniaudio_device_id(ma_backend backend, const ma_device_id& id) {
-  if (backend == ma_backend_alsa) {
-    return id.alsa;
-  }
   if (backend == ma_backend_pulseaudio) {
     return id.pulse;
   }
@@ -217,85 +170,43 @@ std::string miniaudio_device_id(ma_backend backend, const ma_device_id& id) {
   return value;
 }
 
-std::string audio_device_card_key(ma_backend backend,
-                                  const ma_device_id& id,
-                                  const std::string& name) {
-  if (backend == ma_backend_alsa) {
-    const std::string alsa_id = id.alsa;
-    const auto card = alsa_id.find("CARD=");
-    if (card != std::string::npos) {
-      const auto begin = card + 5;
-      const auto end = alsa_id.find(',', begin);
-      return lower_copy(alsa_id.substr(begin, end == std::string::npos ? end : end - begin));
-    }
-    if (alsa_id.size() > 1 && alsa_id[0] == ':') {
-      const auto comma = alsa_id.find(',');
-      if (comma != std::string::npos && comma > 1) {
-        return alsa_id.substr(1, comma - 1);
-      }
-    }
-  }
-
-  const auto comma = name.find(',');
-  if (comma != std::string::npos) {
-    return lower_copy(name.substr(0, comma));
-  }
-  return lower_copy(name);
-}
-
-ma_share_mode playback_share_mode(ma_backend backend, const ma_device_id& id) {
-  if (backend == ma_backend_alsa) {
-    const std::string alsa_id = id.alsa;
-    if (alsa_id.rfind("hw:", 0) == 0) {
-      return ma_share_mode_exclusive;
-    }
-  }
-  return ma_share_mode_shared;
-}
-
 const char* share_mode_name(ma_share_mode share_mode) {
   return share_mode == ma_share_mode_exclusive ? "exclusive" : "shared";
 }
 
-SelectedDevice select_i2s_audio_device(ma_backend backend,
-                                       ma_device_info* devices,
-                                       ma_uint32 device_count,
-                                       const char* direction,
-                                       const std::string& preferred_card_key = {}) {
+SelectedDevice select_system_audio_device(ma_backend backend,
+                                          ma_device_info* devices,
+                                          ma_uint32 device_count,
+                                          const char* direction) {
   SelectedDevice selected;
-  int selected_score = 0;
-
+  if (device_count == 0) {
+    LOG_ERROR("no miniaudio {} system device found", direction);
+    return selected;
+  }
   for (ma_uint32 i = 0; i < device_count; ++i) {
-    const std::string name = devices[i].name;
-    const std::string device_id = miniaudio_device_id(backend, devices[i].id);
-    const std::string card_key = audio_device_card_key(backend, devices[i].id, name);
-    int score = i2s_device_score(name, device_id);
-    if (!preferred_card_key.empty() && card_key == preferred_card_key) {
-      score += 1000;
-    }
-    if (score > selected_score) {
-      selected.name  = name;
-      selected.id    = devices[i].id;
-      selected.card_key = card_key;
+    if (devices[i].isDefault) {
+      selected.name  = devices[i].name;
+      selected.id    = miniaudio_device_id(backend, devices[i].id);
       selected.found = true;
-      selected_score = score;
+      break;
     }
+  }
+  if (!selected.found) {
+    selected.name  = devices[0].name;
+    selected.id    = miniaudio_device_id(backend, devices[0].id);
+    selected.found = true;
   }
 
-  if (selected.found) {
-    LOG_INFO("selected miniaudio {} I2S device: name='{}' id='{}'",
-             direction,
-             selected.name,
-             miniaudio_device_id(backend, selected.id));
-  } else {
-    LOG_ERROR("no miniaudio {} I2S device matched", direction);
-  }
+  LOG_INFO("selected miniaudio {} system device: name='{}' id='{}'",
+           direction,
+           selected.name,
+           selected.id);
   return selected;
 }
 
-bool enumerate_selected_audio_devices(MiniaudioContext& context,
-                                      SelectedDevice& playback,
-                                      SelectedDevice& capture) {
+bool enumerate_system_audio_devices(MiniaudioContext& context,
+                                    SelectedDevice& playback,
+                                    SelectedDevice& capture) {
   ma_device_info* playback_devices = nullptr;
   ma_device_info* capture_devices  = nullptr;
   ma_uint32 playback_count         = 0;
@@ -313,40 +224,13 @@ bool enumerate_selected_audio_devices(MiniaudioContext& context,
     return false;
   }
 
+  playback = select_system_audio_device(context.context.backend,
+                                        playback_devices,
+                                        playback_count,
+                                        "playback");
   capture =
-      select_i2s_audio_device(context.context.backend, capture_devices, capture_count, "capture");
-  playback = select_i2s_audio_device(context.context.backend,
-                                     playback_devices,
-                                     playback_count,
-                                     "playback",
-                                     capture.card_key);
+      select_system_audio_device(context.context.backend, capture_devices, capture_count, "capture");
   return playback.found && capture.found;
-}
-
-SelectedDevice select_i2s_audio_device(ma_context& context,
-                                       ma_device_type type,
-                                       const char* direction) {
-  SelectedDevice selected;
-  ma_device_info* playback_devices = nullptr;
-  ma_device_info* capture_devices  = nullptr;
-  ma_uint32 playback_count         = 0;
-  ma_uint32 capture_count          = 0;
-  const ma_result result =
-      ma_context_get_devices(&context,
-                             type == ma_device_type_playback ? &playback_devices : nullptr,
-                             type == ma_device_type_playback ? &playback_count : nullptr,
-                             type == ma_device_type_capture ? &capture_devices : nullptr,
-                             type == ma_device_type_capture ? &capture_count : nullptr);
-  if (result != MA_SUCCESS) {
-    LOG_ERROR("failed to enumerate miniaudio {} devices: {}",
-              direction,
-              ma_result_description(result));
-    return selected;
-  }
-
-  ma_device_info* devices = type == ma_device_type_playback ? playback_devices : capture_devices;
-  const ma_uint32 count   = type == ma_device_type_playback ? playback_count : capture_count;
-  return select_i2s_audio_device(context.backend, devices, count, direction);
 }
 
 SelectedAudioDevice snapshot_selected_audio_device() {
@@ -356,12 +240,12 @@ SelectedAudioDevice snapshot_selected_audio_device() {
 
 SelectedDevice snapshot_selected_playback_device() {
   const auto selected = snapshot_selected_audio_device();
-  return {selected.info.playback_device, selected.playback_id, {}, selected.playback_found};
+  return {selected.info.playback_device, {}, selected.playback_found};
 }
 
 SelectedDevice snapshot_selected_capture_device() {
   const auto selected = snapshot_selected_audio_device();
-  return {selected.info.capture_device, selected.capture_id, {}, selected.capture_found};
+  return {selected.info.capture_device, {}, selected.capture_found};
 }
 
 void capture_data_callback(ma_device* device,
@@ -528,32 +412,19 @@ bool ensure_key_click_device_locked(KeyClickState& state, const std::shared_ptr<
     return false;
   }
 
-  SelectedDevice playback = snapshot_selected_playback_device();
-  if (!playback.found) {
-    playback = select_i2s_audio_device(state.context->context, ma_device_type_playback, "playback");
-  }
-  if (!playback.found) {
-    state.context.reset();
-    return false;
-  }
-
-  const ma_share_mode share_mode = playback_share_mode(state.context->context.backend, playback.id);
   ma_device_config config   = ma_device_config_init(ma_device_type_playback);
   config.playback.format    = ma_format_s16;
   config.playback.channels  = K_PLAYBACK_CHANNELS;
-  config.playback.shareMode = share_mode;
+  config.playback.shareMode = ma_share_mode_shared;
   config.sampleRate         = audio->sample_rate;
   config.dataCallback       = key_click_data_callback;
   config.pUserData          = &state;
-  config.playback.pDeviceID = &playback.id;
 
-  LOG_INFO("initializing key click playback: name='{}' id='{}' rate={} input_channels={} output_channels={} share={}",
-           playback.name,
-           miniaudio_device_id(state.context->context.backend, playback.id),
+  LOG_INFO("initializing key click playback: backend={} device=default rate={} input_channels={} output_channels={} share=shared",
+           ma_get_backend_name(state.context->context.backend),
            audio->sample_rate,
            audio->channels,
-           K_PLAYBACK_CHANNELS,
-           share_mode_name(share_mode));
+           K_PLAYBACK_CHANNELS);
 
   ma_result result = ma_device_init(&state.context->context, &config, &state.device);
   if (result != MA_SUCCESS) {
@@ -666,17 +537,11 @@ bool play_audio(const std::shared_ptr<WavAudio>& audio,
   }
 
   SelectedDevice playback = snapshot_selected_playback_device();
-  if (!playback.found) {
-    playback = select_i2s_audio_device(context.context, ma_device_type_playback, "playback");
-  }
-  if (!playback.found) {
-    return false;
-  }
 
   PlaybackState state;
   state.audio = audio;
 
-  const ma_share_mode share_mode = playback_share_mode(context.context.backend, playback.id);
+  constexpr ma_share_mode share_mode = ma_share_mode_shared;
   ma_device_config config   = ma_device_config_init(ma_device_type_playback);
   config.playback.format    = ma_format_s16;
   config.playback.channels  = K_PLAYBACK_CHANNELS;
@@ -684,12 +549,11 @@ bool play_audio(const std::shared_ptr<WavAudio>& audio,
   config.sampleRate         = audio->sample_rate;
   config.dataCallback       = playback_data_callback;
   config.pUserData          = &state;
-  config.playback.pDeviceID = &playback.id;
 
   const float clamped_volume = std::max(0.0F, std::min(1.0F, volume));
-  LOG_INFO("initializing miniaudio playback: name='{}' id='{}' rate={} input_channels={} output_channels={} share={} volume={:.2f}",
-           playback.name,
-           miniaudio_device_id(context.context.backend, playback.id),
+  LOG_INFO("initializing miniaudio playback: backend={} device='{}' rate={} input_channels={} output_channels={} share={} volume={:.2f}",
+           ma_get_backend_name(context.context.backend),
+           playback.found ? playback.name : "default",
            audio->sample_rate,
            audio->channels,
            K_PLAYBACK_CHANNELS,
@@ -730,7 +594,7 @@ bool play_audio(const std::shared_ptr<WavAudio>& audio,
 
 }  // namespace
 
-bool find_i2s_audio_device(AudioDevice& device, std::string& error_message) {
+bool find_audio_device(AudioDevice& device, std::string& error_message) {
   MiniaudioContext context;
   if (!context.initialized) {
     error_message = "Audio device error";
@@ -739,7 +603,7 @@ bool find_i2s_audio_device(AudioDevice& device, std::string& error_message) {
 
   SelectedDevice playback;
   SelectedDevice capture;
-  if (!enumerate_selected_audio_devices(context, playback, capture)) {
+  if (!enumerate_system_audio_devices(context, playback, capture)) {
     error_message = "Audio device error";
     return false;
   }
@@ -752,8 +616,6 @@ bool find_i2s_audio_device(AudioDevice& device, std::string& error_message) {
     std::lock_guard<std::mutex> lock(selected_audio_device_mutex());
     auto& selected          = selected_audio_device();
     selected.info           = device;
-    selected.playback_id    = playback.id;
-    selected.capture_id     = capture.id;
     selected.playback_found = true;
     selected.capture_found  = true;
   }
@@ -776,12 +638,6 @@ bool record_wav(const AudioDevice& device, const std::string& output_path, int s
     return false;
   }
   SelectedDevice capture = snapshot_selected_capture_device();
-  if (!capture.found) {
-    capture = select_i2s_audio_device(context.context, ma_device_type_capture, "capture");
-  }
-  if (!capture.found) {
-    return false;
-  }
 
   CaptureState state;
   state.target_samples = static_cast<std::size_t>(seconds) * K_AUDIO_SAMPLE_RATE * K_AUDIO_CHANNELS;
@@ -793,11 +649,10 @@ bool record_wav(const AudioDevice& device, const std::string& output_path, int s
   config.sampleRate        = K_AUDIO_SAMPLE_RATE;
   config.dataCallback      = capture_data_callback;
   config.pUserData         = &state;
-  config.capture.pDeviceID = &capture.id;
 
-  LOG_INFO("initializing miniaudio capture: name='{}' id='{}' rate={} channels={}",
-           capture.name,
-           miniaudio_device_id(context.context.backend, capture.id),
+  LOG_INFO("initializing miniaudio capture: backend={} device='{}' rate={} channels={}",
+           ma_get_backend_name(context.context.backend),
+           capture.found ? capture.name : "default",
            K_AUDIO_SAMPLE_RATE,
            K_AUDIO_CHANNELS);
 
@@ -853,9 +708,7 @@ void set_key_click_sound_path(const std::string& input_path) {
     std::lock_guard<std::mutex> lock(state.mutex);
     state.path  = audio ? input_path : std::string{};
     std::atomic_store(&state.audio, audio);
-    if (audio) {
-      ensure_key_click_device_locked(state, audio);
-    } else {
+    if (!audio) {
       stop_key_click_device_locked(state);
     }
   }

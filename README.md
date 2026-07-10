@@ -25,9 +25,9 @@ TODO
 
 ### 0.2.4 - 2026-07-10
 
-- Select the ES8389 I2S device through miniaudio ALSA verbose device IDs for Audio Test capture and playback.
-- Keep key-click playback on a persistent miniaudio device while leaving click volume at the system default.
-- Play Audio Test recording results at 80% volume with stereo output for the connected ES8389 left channel.
+- Use the miniaudio PulseAudio backend so Audio Test and key-click playback share the system-managed audio path.
+- Use the system default playback and capture devices instead of opening the ES8389 I2S card directly.
+- Play Audio Test recording results at 80% volume with stereo output.
 - Reduce miniaudio logs to selected devices and initialization details.
 
 ### 0.2.3 - 2026-07-09
