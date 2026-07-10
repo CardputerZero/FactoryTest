@@ -6,7 +6,7 @@
 
 cmake_minimum_required(VERSION 3.23)
 
-project(factory_test VERSION 0.2.2 LANGUAGES C CXX)
+project(factory_test VERSION 0.2.4 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -20,16 +20,13 @@ set(APP_KEY_INPUT_DEVICE "" CACHE STRING "Optional Linux evdev keyboard/keypad d
 set(APP_FRAMEBUFFER_DEVICE "/dev/fb0" CACHE STRING "Linux framebuffer device path used by embedded builds")
 set(APP_DRM_DEVICE "/dev/dri/card1" CACHE STRING "Linux DRM device path used when APP_USE_DRM=ON")
 set(APP_DRM_CONNECTOR_ID "-1" CACHE STRING "DRM connector id used when APP_USE_DRM=ON; -1 auto-selects")
-set(APP_ALSA_PLAYBACK_DEVICE "" CACHE STRING "Optional ALSA playback PCM device, e.g. plughw:0,0")
-set(APP_ALSA_CAPTURE_DEVICE "" CACHE STRING "Optional ALSA capture PCM device, e.g. plughw:0,0")
 set(APP_USE_DRM OFF CACHE BOOL "Enable LVGL Linux DRM/KMS backend for embedded Linux builds")
 set(CM0_ALLOW_FETCH_DEPS ON CACHE BOOL "Allow downloading missing CM0 BSP/dependencies during cross builds")
 set(APP_USE_LIBCAMERA 0)
 set(APP_USE_LIBNM 0)
 set(APP_USE_BLUEZ 0)
 set(APP_USE_LIBUDEV 0)
-set(APP_USE_PIPEWIRE 0)
-set(APP_USE_ALSA 0)
+set(APP_USE_MINIAUDIO 0)
 set(APP_USE_LIBIPERF 0)
 set(APP_USE_LIBOPING 0)
 set(APP_USE_LIRC 0)
@@ -151,24 +148,18 @@ if(USE_DESKTOP)
                 message(WARNING "libudev was not found; USB enumeration will use fallback messages")
             endif()
 
-            pkg_check_modules(ALSA QUIET IMPORTED_TARGET alsa)
-            if(TARGET PkgConfig::ALSA)
-                list(APPEND PLATFORM_LIBS PkgConfig::ALSA)
-                set(APP_USE_ALSA 1)
-                message(STATUS "ALSA direct audio backend enabled")
-            else()
-                message(WARNING "alsa was not found; audio service may depend on PipeWire fallback")
-            endif()
-
-            pkg_check_modules(PIPEWIRE QUIET IMPORTED_TARGET libpipewire-0.3)
-            if(TARGET PkgConfig::PIPEWIRE)
-                list(APPEND PLATFORM_LIBS PkgConfig::PIPEWIRE)
-                set(APP_USE_PIPEWIRE 1)
-                message(STATUS "PipeWire audio backend enabled")
-            else()
-                message(WARNING "libpipewire-0.3 was not found; audio service will use fallback messages")
-            endif()
         endif()
+    endif()
+
+    find_path(MINIAUDIO_INCLUDE_DIR
+        NAMES miniaudio.h
+        HINTS "${CMAKE_CURRENT_SOURCE_DIR}/.cache/sdk_bsp-src/usr/include"
+    )
+    if(MINIAUDIO_INCLUDE_DIR)
+        set(APP_USE_MINIAUDIO 1)
+        message(STATUS "miniaudio backend enabled")
+    else()
+        message(FATAL_ERROR "miniaudio.h was not found; install libminiaudio-dev or provide it in .cache/sdk_bsp-src/usr/include")
     endif()
 
     find_path(LIBIPERF_INCLUDE_DIR iperf_api.h)
@@ -467,40 +458,12 @@ else()
         message(WARNING "libudev headers or libraries not found; USB enumeration will use fallback messages")
     endif()
 
-    cm0_find_header(ALSA_INCLUDE_DIR alsa/asoundlib.h "${CM0_SYSROOT}/usr/include")
-    cm0_find_library(ALSA_LIBRARY asound libasound.so libasound.so.2)
-    if(ALSA_INCLUDE_DIR AND ALSA_LIBRARY)
-        cm0_add_imported_library(CM0::ALSA "${ALSA_LIBRARY}" "${ALSA_INCLUDE_DIR}")
-        list(APPEND PLATFORM_INCLUDE_DIR "${ALSA_INCLUDE_DIR}")
-        list(APPEND PLATFORM_LIBS CM0::ALSA)
-        set(APP_USE_ALSA 1)
-        message(STATUS "ALSA direct audio backend enabled")
+    cm0_find_header(MINIAUDIO_INCLUDE_DIR miniaudio.h "${CM0_SYSROOT}/usr/include" "${CM0_SDK_ROOT}/usr/include")
+    if(MINIAUDIO_INCLUDE_DIR)
+        set(APP_USE_MINIAUDIO 1)
+        message(STATUS "miniaudio backend enabled")
     else()
-        message(WARNING "alsa headers/library not found; audio service may depend on PipeWire fallback")
-    endif()
-
-    cm0_find_header(PIPEWIRE_INCLUDE_DIR
-        pipewire/pipewire.h
-        "${CM0_SYSROOT}/usr/include/pipewire-0.3"
-        "${CM0_SYSROOT}/usr/include"
-    )
-    cm0_find_header(SPA_INCLUDE_DIR
-        spa/param/audio/format-utils.h
-        "${CM0_SYSROOT}/usr/include/spa-0.2"
-        "${CM0_SYSROOT}/usr/include"
-    )
-    cm0_find_library(PIPEWIRE_LIBRARY pipewire-0.3 libpipewire-0.3.so libpipewire-0.3.so.0)
-    if(PIPEWIRE_INCLUDE_DIR AND SPA_INCLUDE_DIR AND PIPEWIRE_LIBRARY)
-        cm0_add_imported_library(CM0::PipeWire
-            "${PIPEWIRE_LIBRARY}"
-            "${PIPEWIRE_INCLUDE_DIR};${SPA_INCLUDE_DIR}"
-        )
-        list(APPEND PLATFORM_INCLUDE_DIR "${PIPEWIRE_INCLUDE_DIR}" "${SPA_INCLUDE_DIR}")
-        list(APPEND PLATFORM_LIBS CM0::PipeWire)
-        set(APP_USE_PIPEWIRE 1)
-        message(STATUS "PipeWire audio backend enabled")
-    else()
-        message(WARNING "libpipewire-0.3 headers/library not found; audio service will use fallback messages")
+        message(FATAL_ERROR "miniaudio.h was not found in the CM0 SDK sysroot")
     endif()
 
     cm0_find_header(LIBIPERF_INCLUDE_DIR iperf_api.h "${CM0_SYSROOT}/usr/include")
@@ -618,6 +581,12 @@ if(USE_DESKTOP)
     list(REMOVE_DUPLICATES SERIALIZATION_LIBS)
 endif()
 
+if(APP_USE_MINIAUDIO AND UNIX AND NOT APPLE)
+    list(APPEND PLATFORM_LIBS ${CMAKE_DL_LIBS} m)
+endif()
+list(REMOVE_DUPLICATES PLATFORM_INCLUDE_DIR)
+list(REMOVE_DUPLICATES PLATFORM_LIBS)
+
 file(GLOB_RECURSE SERIALIZATION_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/serialization/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/serialization/*.cpp")
 add_library(serialization STATIC ${SERIALIZATION_SOURCES})
 target_include_directories(serialization PUBLIC ${SERIALIZATION_INCLUDE_DIR} ${PLATFORM_INCLUDE_DIR} "${CMAKE_CURRENT_SOURCE_DIR}/src/serialization")
@@ -636,10 +605,8 @@ target_compile_definitions(${PROJECT_NAME}_platform PUBLIC
     APP_USE_LIBNM=${APP_USE_LIBNM}
     APP_USE_BLUEZ=${APP_USE_BLUEZ}
     APP_USE_LIBUDEV=${APP_USE_LIBUDEV}
-    APP_USE_PIPEWIRE=${APP_USE_PIPEWIRE}
-    APP_USE_ALSA=${APP_USE_ALSA}
-    APP_ALSA_PLAYBACK_DEVICE="${APP_ALSA_PLAYBACK_DEVICE}"
-    APP_ALSA_CAPTURE_DEVICE="${APP_ALSA_CAPTURE_DEVICE}"
+    APP_USE_MINIAUDIO=${APP_USE_MINIAUDIO}
+    APP_MINIAUDIO_HEADER="${MINIAUDIO_INCLUDE_DIR}/miniaudio.h"
     APP_USE_LIBIPERF=${APP_USE_LIBIPERF}
     APP_USE_LIBOPING=${APP_USE_LIBOPING}
     APP_USE_LIRC=${APP_USE_LIRC}

@@ -7,13 +7,13 @@ This repository holds the factory test application of CardputerZero.
 + Download the debian release
 
 ```
-wget https://github.com/CardputerZero/FactoryTest/releases/download/0.2.2/FactoryTest_0.2.2_m5stack1_arm64.deb
+wget https://github.com/CardputerZero/FactoryTest/releases/download/0.2.4/FactoryTest_0.2.4_m5stack1_arm64.deb
 ```
 
 + Install the package
 
 ```
-sudo apt install ./FactoryTest_0.2.2_m5stack1_arm64.deb
+sudo apt install ./FactoryTest_0.2.4_m5stack1_arm64.deb
 ```
 
 
@@ -22,6 +22,20 @@ sudo apt install ./FactoryTest_0.2.2_m5stack1_arm64.deb
 TODO
 
 ## Changelog
+
+### 0.2.4 - 2026-07-10
+
+- Select the ES8389 I2S device through miniaudio ALSA verbose device IDs for Audio Test capture and playback.
+- Keep key-click playback on a persistent miniaudio device while leaving click volume at the system default.
+- Play Audio Test recording results at 80% volume with stereo output for the connected ES8389 left channel.
+- Reduce miniaudio logs to selected devices and initialization details.
+
+### 0.2.3 - 2026-07-09
+
+- Refactor Audio Test recording and playback to use miniaudio.
+- Remove ALSA/PipeWire build and package dependencies.
+- Simplify Audio Test status UI and Enter-only recording flow.
+- Pin miniaudio Audio Test capture/playback to the selected I2S device.
 
 ### 0.2.2 - 2026-07-08
 

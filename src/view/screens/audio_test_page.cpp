@@ -7,8 +7,8 @@
 #include "audio_test_page.h"
 
 #include <chrono>
-#include <cstring>
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <thread>
 
@@ -22,10 +22,9 @@ namespace {
 
 constexpr int K_RECORD_SECONDS         = 5;
 constexpr const char* K_RECORDING_PATH = "/tmp/factory_audio_test.wav";
-constexpr uint32_t K_LEVEL_POINT_COUNT = 42;
 
 bool is_enter_key(uint32_t key, const char* key_name) {
-  if (key == LV_KEY_ENTER || key == '\n' || key == '\r') {
+  if (key == LV_KEY_ENTER || key == '\r') {
     return true;
   }
   return key_name && (std::strcmp(key_name, "Enter") == 0 || std::strcmp(key_name, "Return") == 0);
@@ -50,10 +49,6 @@ AudioTestPage::~AudioTestPage() {
     lv_timer_delete(poll_timer_);
     poll_timer_ = nullptr;
   }
-  if (theme_observer_handle_) {
-    lv_observer_remove(theme_observer_handle_);
-    theme_observer_handle_ = nullptr;
-  }
 }
 
 void AudioTestPage::build_content(lv_obj_t* content) {
@@ -76,51 +71,13 @@ void AudioTestPage::build_content(lv_obj_t* content) {
                        app_view_model_ref_().dark_mode_subject(),
                        reactive::ThemeRole::TEXT);
 
-  level_chart_ = lv_chart_create(group);
-  lv_obj_remove_style_all(level_chart_);
-  lv_obj_set_size(level_chart_, 250, 54);
-  lv_chart_set_type(level_chart_, LV_CHART_TYPE_LINE);
-  lv_chart_set_update_mode(level_chart_, LV_CHART_UPDATE_MODE_SHIFT);
-  lv_chart_set_point_count(level_chart_, K_LEVEL_POINT_COUNT);
-  lv_chart_set_range(level_chart_, LV_CHART_AXIS_PRIMARY_Y, 0, 100);
-  lv_chart_set_div_line_count(level_chart_, 3, 0);
-  level_series_ = lv_chart_add_series(level_chart_,
-                                      view::palette(app_view_model_ref_().is_dark_mode()).info,
-                                      LV_CHART_AXIS_PRIMARY_Y);
-  apply_level_chart_theme_(app_view_model_ref_().is_dark_mode());
-  theme_observer_handle_ = reactive::observe_obj(level_chart_,
-                                                 app_view_model_ref_().dark_mode_subject(),
-                                                 theme_observer,
-                                                 this);
-  for (uint32_t i = 0; i < K_LEVEL_POINT_COUNT; ++i) {
-    lv_chart_set_next_value(level_chart_, level_series_, 0);
-  }
-
-  error_label_ = lv_label_create(group);
-  lv_obj_set_width(error_label_, 280);
-  lv_obj_set_style_text_align(error_label_, LV_TEXT_ALIGN_CENTER, 0);
-  auto* device_font =
-      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 12);
-  lv_obj_set_style_text_font(error_label_, device_font ? device_font : &lv_font_montserrat_12, 0);
-  reactive::bind_theme(error_label_,
-                       app_view_model_ref_().dark_mode_subject(),
-                       reactive::ThemeRole::TEXT);
-
   if (has_audio_device_) {
-    const auto text = app_view_model_ref_().tr("Press 6 or Enter to start recording");
+    const auto text = app_view_model_ref_().tr("Press Enter to start recording");
     lv_label_set_text(status_label_, text.c_str());
-    lv_label_set_text(error_label_, "");
-    lv_obj_add_flag(error_label_, LV_OBJ_FLAG_HIDDEN);
   } else {
     const auto text = app_view_model_ref_().tr("Audio device error");
     lv_label_set_text(status_label_, text.c_str());
-    lv_label_set_text(error_label_, device_error_.c_str());
-    lv_obj_add_flag(level_chart_, LV_OBJ_FLAG_HIDDEN);
   }
-}
-
-void AudioTestPage::apply_level_chart_theme_(bool dark_mode) {
-  view::apply_chart_theme(level_chart_, level_series_, dark_mode);
 }
 
 void AudioTestPage::start_recording_() {
@@ -134,7 +91,6 @@ void AudioTestPage::start_recording_() {
   }
 
   recording_started_at_ = lv_tick_get();
-  job_state_->success.store(false);
   job_state_->stage.store(JobStage::RECORDING);
   update_status_();
 
@@ -152,7 +108,6 @@ void AudioTestPage::start_recording_() {
     state->stage.store(JobStage::PLAYING);
 
     const bool played = platform::audio::play_wav(device, K_RECORDING_PATH);
-    state->success.store(played);
     state->stage.store(played ? JobStage::COMPLETE : JobStage::ERROR);
   }).detach();
 }
@@ -169,15 +124,10 @@ void AudioTestPage::update_status_() {
   }
 
   const auto stage = job_state_ ? job_state_->stage.load() : JobStage::IDLE;
-  if (stage == JobStage::RECORDING || stage == JobStage::PLAYING) {
-    update_level_chart_();
-  } else if (level_chart_ && level_series_) {
-    lv_chart_set_next_value(level_chart_, level_series_, 0);
-  }
   std::string text;
   switch (stage) {
     case JobStage::IDLE:
-      text = app_view_model_ref_().tr("Press 6 or Enter to start recording");
+      text = app_view_model_ref_().tr("Press Enter to start recording");
       break;
     case JobStage::RECORDING: {
       const uint32_t elapsed_ms = lv_tick_elaps(recording_started_at_);
@@ -195,22 +145,16 @@ void AudioTestPage::update_status_() {
       break;
     }
     case JobStage::WAITING_TO_PLAY:
-      text = app_view_model_ref_().tr("Recording") + " (0)";
+      text = app_view_model_ref_().tr("Recording complete");
       break;
     case JobStage::PLAYING:
       text = app_view_model_ref_().tr("Playing");
       break;
     case JobStage::COMPLETE:
-      text = app_view_model_ref_().tr("Does record and play normal?");
+      text = app_view_model_ref_().tr("Playback complete");
       break;
     case JobStage::ERROR:
-      text = app_view_model_ref_().tr("Audio test failed. Press 6 or Enter to retry.");
-      if (error_label_) {
-        const auto detail =
-            app_view_model_ref_().tr("See logs for PipeWire capture/playback details.");
-        lv_label_set_text(error_label_, detail.c_str());
-        lv_obj_remove_flag(error_label_, LV_OBJ_FLAG_HIDDEN);
-      }
+      text = app_view_model_ref_().tr("Audio test failed. Press Enter to retry.");
       break;
   }
   if (!text.empty()) {
@@ -218,25 +162,7 @@ void AudioTestPage::update_status_() {
   }
 }
 
-void AudioTestPage::update_level_chart_() {
-  if (!level_chart_ || !level_series_) {
-    return;
-  }
-
-  const int32_t level = static_cast<int32_t>(platform::audio::current_audio_level() * 100.0F);
-  lv_chart_set_next_value(level_chart_, level_series_, level);
-}
-
-void AudioTestPage::theme_observer(lv_observer_t* observer, lv_subject_t* subject) {
-  auto* page = static_cast<AudioTestPage*>(lv_observer_get_user_data(observer));
-  if (page) {
-    page->apply_level_chart_theme_(lv_subject_get_int(subject) != 0);
-  }
-}
-
 void AudioTestPage::key_listener(uint32_t key, const char* key_name, void* user_data) {
-  LV_UNUSED(key_name);
-
   auto* page = static_cast<AudioTestPage*>(user_data);
   if (!page) {
     return;
@@ -245,7 +171,7 @@ void AudioTestPage::key_listener(uint32_t key, const char* key_name, void* user_
     return;
   }
 
-  if (key == '6' || is_enter_key(key, key_name)) {
+  if (is_enter_key(key, key_name)) {
     page->start_recording_();
   }
 }
