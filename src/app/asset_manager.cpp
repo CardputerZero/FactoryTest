@@ -6,6 +6,10 @@
 
 #include "asset_manager.h"
 
+#if defined(FACTORY_TEST_SCONS_BUILD)
+#include "factory_test_config.h"
+#endif
+
 #include "logger.h"
 
 #if LV_USE_FREETYPE

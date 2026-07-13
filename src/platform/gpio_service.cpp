@@ -6,6 +6,10 @@
 
 #include "gpio_service.h"
 
+#if defined(FACTORY_TEST_SCONS_BUILD)
+#include "factory_test_config.h"
+#endif
+
 #include <cerrno>
 #include <cstring>
 #include <map>

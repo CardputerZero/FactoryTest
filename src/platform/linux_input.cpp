@@ -1,5 +1,9 @@
 #include "linux_input.h"
 
+#if defined(FACTORY_TEST_SCONS_BUILD)
+#include "factory_test_config.h"
+#endif
+
 #include <array>
 #include <cstdint>
 #include <cstdio>

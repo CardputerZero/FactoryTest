@@ -1,0 +1,72 @@
+# SPDX-FileCopyrightText: 2026 M5Stack Technology CO LTD
+#
+# SPDX-License-Identifier: MIT
+
+menuconfig FACTORY_TEST_SCONS_CONFIG
+    bool "Configure FactoryTest SCons build"
+    default y
+
+if FACTORY_TEST_SCONS_CONFIG
+
+config FACTORY_TEST_USE_DESKTOP
+    bool "Build the SDL desktop backend"
+    default y if V9_5_LV_USE_SDL
+    default n
+
+config FACTORY_TEST_USE_DRM
+    bool "Use the DRM/KMS display backend"
+    default n
+    select V9_5_LV_USE_LINUX_DRM
+
+config FACTORY_TEST_USE_APP_USE_LIBCAMERA_FGF_libcamera_FGF_libcamera_FGF_libcamera_GANG_base
+    bool "Enable native libcamera support"
+    default n if V9_5_LV_USE_SDL
+    default y
+
+config FACTORY_TEST_USE_APP_USE_LIBNM_FGF_libnm_FGF_libnm_FGF_libgio_GANG_2_DOT_0_FGF_libgobject_GANG_2_DOT_0_FGF_libglib_GANG_2_DOT_0
+    bool "Enable NetworkManager support"
+    default n
+
+config FACTORY_TEST_USE_BLUEZ
+    bool "Enable BlueZ D-Bus support"
+    default n if V9_5_LV_USE_SDL
+    default y
+
+config FACTORY_TEST_USE_APP_USE_LIBUDEV_FGF_libudev_FGF_libudev
+    bool "Enable libudev USB enumeration"
+    default n if V9_5_LV_USE_SDL
+    default y
+
+config FACTORY_TEST_USE_MINIAUDIO
+    bool "Enable Miniaudio support"
+    default y
+
+config FACTORY_TEST_USE_APP_USE_LIBIPERF_FGF_libiperf_FGF_libiperf_FGF_libsctp
+    bool "Enable libiperf throughput tests"
+    default n
+
+config FACTORY_TEST_USE_APP_USE_LIBOPING_FGF_liboping_FGF_liboping
+    bool "Enable liboping ping tests"
+    default n
+
+config FACTORY_TEST_USE_APP_USE_LIRC_FGF_liblirc_FGF_liblirc
+    bool "Enable LIRC infrared support"
+    default n
+
+config FACTORY_TEST_USE_APP_USE_LIBGPIOD_FGF_libgpiod_FGF_libgpiod
+    bool "Enable libgpiod support"
+    default n
+
+config FACTORY_TEST_USE_APP_USE_LIBSERIALPORT_FGF_libserialport_FGF_libserialport
+    bool "Enable libserialport support"
+    default n
+
+config FACTORY_TEST_USE_APP_USE_LIBYAML_FGF_libyaml_FGF_libyaml
+    bool "Enable libyaml parsing"
+    default n
+
+config FACTORY_TEST_USE_APP_USE_LIBCJSON_FGF_libcjson_FGF_libcjson
+    bool "Enable cJSON parsing"
+    default n
+
+endif

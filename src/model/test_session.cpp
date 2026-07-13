@@ -6,6 +6,10 @@
 
 #include "test_session.h"
 
+#if defined(FACTORY_TEST_SCONS_BUILD)
+#include "factory_test_config.h"
+#endif
+
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
