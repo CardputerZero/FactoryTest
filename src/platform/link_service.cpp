@@ -15,11 +15,11 @@
 #include <cctype>
 #include <cerrno>
 #include <cmath>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <sstream>
@@ -42,7 +42,6 @@
 #include <linux/i2c-dev.h>
 #include <linux/i2c.h>
 #include <sys/ioctl.h>
-#include <sys/wait.h>
 #include <termios.h>
 #include <unistd.h>
 #endif
@@ -683,152 +682,105 @@ LinkInterfaceSelection active_link_interface(bool wireless) {
   return {{}, wireless ? "No AP connected" : "Ethernet interface not enabled"};
 }
 
-bool is_safe_ping_host(const char* host) {
-  if (!host || host[0] == '\0') {
-    return false;
-  }
-  for (const char* cursor = host; *cursor; ++cursor) {
-    const auto ch = static_cast<unsigned char>(*cursor);
-    if (std::isalnum(ch) == 0 && *cursor != '.' && *cursor != '-' && *cursor != ':') {
-      return false;
-    }
-  }
-  return true;
-}
-
-int parse_ping_ttl(const std::string& output) {
-  const auto ttl_pos = output.find("ttl=");
-  if (ttl_pos == std::string::npos) {
-    return -1;
-  }
-
-  const char* begin = output.c_str() + ttl_pos + 4;
-  char* end         = nullptr;
-  const long ttl    = std::strtol(begin, &end, 10);
-  return end != begin && ttl > 0 ? static_cast<int>(ttl) : -1;
-}
-
-bool contains_permission_error(const std::string& message) {
-  const auto lower = lower_copy(message);
-  return lower.find("operation not permitted") != std::string::npos ||
-         lower.find("permission denied") != std::string::npos ||
-         lower.find("not authorized") != std::string::npos;
-}
-
-LinkPingResult run_ping_command(const char* host, const char* ping_path, bool use_pkexec) {
-  LinkPingResult result;
-#if defined(__linux__)
-  if (!is_safe_ping_host(host)) {
-    result.message = "invalid ping host";
-    return result;
-  }
-
-  std::string command = use_pkexec ? "pkexec " : "";
-  command += ping_path && ping_path[0] != '\0' ? ping_path : "/usr/bin/ping";
-  command += " -c 1 -W 1 ";
-  command += host;
-  command += " 2>&1";
-
-  std::array<char, 256> buffer{};
-  std::string output;
-  FILE* pipe = popen(command.c_str(), "r");
-  if (!pipe) {
-    result.message = use_pkexec ? "failed to run pkexec ping" : "failed to run ping";
-    return result;
-  }
-
-  while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe)) {
-    output += buffer.data();
-  }
-  const int status = pclose(pipe);
-  const int ttl    = parse_ping_ttl(output);
-  if (status >= 0 && WIFEXITED(status) && WEXITSTATUS(status) == 0 && ttl > 0) {
-    result.success = true;
-    result.ttl     = ttl;
-    result.message = "TTL " + std::to_string(ttl);
-    return result;
-  }
-
-  result.ttl = ttl;
-  result.message =
-      output.empty() ? (use_pkexec ? "pkexec ping failed" : "ping failed") : trim(output);
-#else
-  (void)host;
-  (void)ping_path;
-  (void)use_pkexec;
-  result.message = "ping helper is only available on Linux";
-#endif
-  return result;
-}
-
-LinkPingResult run_ping_helper(const char* host, bool use_pkexec) {
-  LinkPingResult last_result;
-  std::optional<LinkPingResult> permission_result;
-  constexpr const char* PING_PATHS[] = {"/usr/bin/ping", "/bin/ping"};
-  for (const char* path : PING_PATHS) {
-    auto result = run_ping_command(host, path, use_pkexec);
-    if (result.success) {
-      return result;
-    }
-    if (contains_permission_error(result.message) && !permission_result) {
-      permission_result = result;
-    }
-    last_result = std::move(result);
-  }
-  if (permission_result) {
-    return *permission_result;
-  }
-  return last_result;
-}
-
-LinkPingResult run_ping_test(const char* host) {
+LinkPingResult run_ping_test() {
   LinkPingResult result;
 #if APP_USE_LIBOPING
+  static constexpr std::array<const char*, 3> K_PUBLIC_DNS_HOSTS = {
+      "8.8.8.8",
+      "223.5.5.5",
+      "119.29.29.29",
+  };
+
   pingobj_t* ping = ping_construct();
   if (!ping) {
     result.message = "failed to create ping object";
+    LOG_ERROR("connectivity ping failed: {}", result.message);
     return result;
   }
 
   double timeout = 1.0;
-  ping_setopt(ping, PING_OPT_TIMEOUT, &timeout);
-  if (ping_host_add(ping, host) < 0) {
-    result.message = ping_get_error(ping) ? ping_get_error(ping) : "failed to add ping host";
+  if (ping_setopt(ping, PING_OPT_TIMEOUT, &timeout) < 0) {
+    result.message = ping_get_error(ping) ? ping_get_error(ping) : "failed to set ping timeout";
+    LOG_ERROR("connectivity public DNS ping setup failed: {}", result.message);
+    ping_destroy(ping);
+    return result;
+  }
+
+  std::size_t host_count = 0;
+  for (const char* host : K_PUBLIC_DNS_HOSTS) {
+    if (ping_host_add(ping, host) < 0) {
+      const char* error = ping_get_error(ping);
+      LOG_ERROR("connectivity failed to add public DNS ping host '{}': {}",
+                host,
+                error ? error : "unknown liboping error");
+      continue;
+    }
+    ++host_count;
+  }
+  if (host_count == 0) {
+    result.message = "failed to add public DNS hosts";
+    LOG_ERROR("connectivity ping failed: {}", result.message);
     ping_destroy(ping);
     return result;
   }
 
   if (ping_send(ping) < 0) {
     result.message = ping_get_error(ping) ? ping_get_error(ping) : "ping send failed";
-    ping_destroy(ping);
-    if (!contains_permission_error(result.message)) {
-      return result;
-    }
-    return run_ping_helper(host, true);
-  }
-
-  auto* iter = ping_iterator_get(ping);
-  if (!iter) {
-    result.message = "no ping reply";
+    LOG_ERROR("connectivity public DNS liboping send failed: {}. Verify the installed factory_test binary has cap_net_raw=ep",
+              result.message);
     ping_destroy(ping);
     return result;
   }
 
-  int ttl         = -1;
-  size_t ttl_size = sizeof(ttl);
-  if (ping_iterator_get_info(iter, PING_INFO_RECV_TTL, &ttl, &ttl_size) == 0 && ttl > 0) {
-    result.success = true;
-    result.ttl     = ttl;
-    result.message = "TTL " + std::to_string(ttl);
+  double best_latency = std::numeric_limits<double>::infinity();
+  for (auto* iter = ping_iterator_get(ping); iter; iter = ping_iterator_next(iter)) {
+    std::array<char, 64> hostname{};
+    size_t hostname_size = hostname.size();
+    if (ping_iterator_get_info(iter, PING_INFO_HOSTNAME, hostname.data(), &hostname_size) != 0 ||
+        hostname[0] == '\0') {
+      std::strncpy(hostname.data(), "<unknown>", hostname.size() - 1);
+    }
+
+    double latency      = -1.0;
+    size_t latency_size = sizeof(latency);
+    if (ping_iterator_get_info(iter, PING_INFO_LATENCY, &latency, &latency_size) != 0 ||
+        !std::isfinite(latency) || latency < 0.0) {
+      LOG_WARN("connectivity public DNS '{}' did not reply", hostname.data());
+      continue;
+    }
+
+    int ttl         = -1;
+    size_t ttl_size = sizeof(ttl);
+    if (ping_iterator_get_info(iter, PING_INFO_RECV_TTL, &ttl, &ttl_size) != 0) {
+      ttl = -1;
+    }
+    LOG_INFO("connectivity public DNS '{}' replied in {:.3f} ms with TTL {}",
+             hostname.data(),
+             latency,
+             ttl);
+
+    if (latency < best_latency) {
+      best_latency      = latency;
+      result.success    = true;
+      result.host       = hostname.data();
+      result.latency_ms = latency;
+      result.ttl        = ttl;
+    }
+  }
+
+  if (result.success) {
+    result.message = result.host;
+    if (result.ttl > 0) {
+      result.message += ", TTL " + std::to_string(result.ttl);
+    }
   } else {
-    result.message = "no TTL in ping reply";
+    result.message = "No public DNS replied";
+    LOG_WARN("connectivity ping failed: none of the public DNS hosts replied");
   }
   ping_destroy(ping);
 #else
-  result = run_ping_helper(host, false);
-  if (!result.success && contains_permission_error(result.message)) {
-    result = run_ping_helper(host, true);
-  }
+  result.message = "liboping backend is not enabled";
+  LOG_ERROR("connectivity ping unavailable: {}", result.message);
 #endif
   return result;
 }
@@ -947,18 +899,24 @@ LinkIperfResult run_iperf_for_interface(const LinkTestSettings& settings,
 }  // namespace
 
 LinkTestResult run_link_test(const LinkTestSettings& settings) {
-  LOG_INFO("connectivity link test requested: ping=8.8.8.8 iperf={}:{} duration={}s",
+  LOG_INFO("connectivity link test requested: ping DNS=[8.8.8.8,223.5.5.5,119.29.29.29] iperf={}:{} duration={}s",
            settings.iperf_host,
            settings.iperf_port,
            settings.iperf_duration_seconds);
 
   LinkTestResult result;
-  result.ping     = run_ping_test("8.8.8.8");
+  result.ping = run_ping_test();
+  LOG_INFO("connectivity ping phase complete: success={} host='{}' latency={:.3f}ms; starting iperf phase",
+           result.ping.success,
+           result.ping.host,
+           result.ping.latency_ms);
   result.wifi     = run_iperf_for_interface(settings, "Wi-Fi", active_link_interface(true));
   result.ethernet = run_iperf_for_interface(settings, "Ethernet", active_link_interface(false));
 
-  LOG_INFO("connectivity link test result: ping={} ttl={} wifi={} {:.3f}Mbps eth={} {:.3f}Mbps",
+  LOG_INFO("connectivity link test result: ping={} host='{}' latency={:.3f}ms ttl={} wifi={} {:.3f}Mbps eth={} {:.3f}Mbps",
            result.ping.success,
+           result.ping.host,
+           result.ping.latency_ms,
            result.ping.ttl,
            result.wifi.success,
            result.wifi.megabits_per_second,

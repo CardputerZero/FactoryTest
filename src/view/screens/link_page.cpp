@@ -53,7 +53,7 @@ const char* link_status_text(model::LinkTestStatus status) {
 
 std::string ping_value_text(const model::LinkTestMetric& metric) {
   if (metric.status == model::LinkTestStatus::SUCCESS) {
-    return "Internet OK";
+    return "TTL " + std::to_string(static_cast<int>(metric.value));
   }
   if (metric.status == model::LinkTestStatus::RUNNING) {
     return "Testing...";
@@ -110,7 +110,7 @@ void add_link_row(lv_obj_t* card,
   if (!metric.detail.empty()) {
     text += " | ";
     text += metric.detail;
-  } else {
+  } else if (metric.status != model::LinkTestStatus::SUCCESS) {
     text += " | ";
     text += app_view_model.tr(link_status_text(metric.status));
   }
@@ -241,7 +241,7 @@ void LinkConnectivityView::show_config_dialog() {
   config.scroll_y       = false;
   config.pad_row        = 2;
   config.title          = "iperf Settings";
-  config.shortcut_text  = "ESC: Cancel  OK: Confirm";
+  config.shortcut_text  = "ESC: Cancel  Enter: OK";
   config.shortcut_width = 154;
 
   view::widgets::DialogCallbacks callbacks;

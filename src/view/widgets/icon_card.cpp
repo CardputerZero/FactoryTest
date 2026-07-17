@@ -15,7 +15,7 @@ constexpr int32_t K_ICON_WIDTH = 22;
 constexpr int32_t K_TITLE_X    = 30;
 constexpr int32_t K_VALUE_PAD  = 8;
 
-int32_t title_width(int32_t card_width) { return card_width >= 220 ? 74 : 56; }
+int32_t default_title_width(int32_t card_width) { return card_width >= 220 ? 74 : 56; }
 
 }  // namespace
 
@@ -29,7 +29,8 @@ IconCard::IconCard(lv_obj_t* parent,
                    const lv_font_t* value_font,
                    int32_t width,
                    int32_t height,
-                   lv_label_long_mode_t value_long_mode)
+                   lv_label_long_mode_t value_long_mode,
+                   int32_t title_width)
     : BaseWidgets(parent),
       view_model_(view_model),
       icon_(icon ? icon : ""),
@@ -40,6 +41,7 @@ IconCard::IconCard(lv_obj_t* parent,
       value_font_(value_font),
       width_(width),
       height_(height),
+      title_width_(title_width > 0 ? title_width : default_title_width(width)),
       value_long_mode_(value_long_mode) {}
 
 void IconCard::build() {
@@ -66,7 +68,7 @@ void IconCard::build() {
   title_label_ = lv_label_create(core_obj_);
   lv_label_set_text(title_label_, title_.c_str());
   lv_label_set_long_mode(title_label_, LV_LABEL_LONG_CLIP);
-  lv_obj_set_width(title_label_, title_width(width_));
+  lv_obj_set_width(title_label_, title_width_);
   if (title_font_) {
     lv_obj_set_style_text_font(title_label_, title_font_, 0);
   }
@@ -75,7 +77,7 @@ void IconCard::build() {
   value_label_ = lv_label_create(core_obj_);
   lv_label_set_text(value_label_, value_.c_str());
   lv_label_set_long_mode(value_label_, value_long_mode_);
-  lv_obj_set_width(value_label_, width_ - K_TITLE_X - title_width(width_) - K_VALUE_PAD);
+  lv_obj_set_width(value_label_, width_ - K_TITLE_X - title_width_ - K_VALUE_PAD);
   lv_obj_set_style_text_align(value_label_, LV_TEXT_ALIGN_RIGHT, 0);
   if (value_font_) {
     lv_obj_set_style_text_font(value_label_, value_font_, 0);

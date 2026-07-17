@@ -6,13 +6,42 @@
 
 #include "wifi_page.h"
 
+#include <cctype>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "io_page_common.h"
 #include "ui_const.h"
 
 namespace screen {
+namespace {
+
+std::string bssid_suffix(std::string_view bssid) {
+  std::string hex_digits;
+  hex_digits.reserve(12);
+  for (const unsigned char ch : bssid) {
+    if (std::isxdigit(ch)) {
+      hex_digits.push_back(static_cast<char>(std::toupper(ch)));
+    }
+  }
+  if (hex_digits.size() != 12) {
+    return {};
+  }
+
+  return hex_digits.substr(8, 2) + ":" + hex_digits.substr(10, 2);
+}
+
+std::string wifi_display_name(const model::ScanItem& item) {
+  std::string name = item.name.empty() ? std::string{"<hidden>"} : item.name;
+  const auto suffix = bssid_suffix(item.bssid);
+  if (!suffix.empty()) {
+    name += " [" + suffix + "]";
+  }
+  return name;
+}
+
+}  // namespace
 
 const char* wifi_icon_for_strength(int32_t strength_percent) {
   if (strength_percent < 0) {
@@ -35,8 +64,7 @@ std::vector<ScanPanelRow> wifi_panel_rows(const std::vector<model::ScanItem>& it
     rows.push_back({view::ICON_INFO, error_message});
   }
   for (const auto& item : items) {
-    rows.push_back({wifi_icon_for_strength(item.strength_percent),
-                    item.name.empty() ? std::string{"<hidden>"} : item.name});
+    rows.push_back({wifi_icon_for_strength(item.strength_percent), wifi_display_name(item)});
   }
   if (items.empty() && error_message.empty()) {
     rows.push_back({view::ICON_INFO, "No Wi-Fi access points found"});

@@ -11,9 +11,14 @@ set(APP_DISPLAY_NAME "FactoryTest" CACHE STRING "Human-readable application name
 set(APP_DEBIAN_REVISION "m5stack1" CACHE STRING "Debian package revision/vendor suffix")
 set(APP_DEBIAN_ARCHITECTURE "arm64" CACHE STRING "Debian package architecture")
 set(APP_MAINTAINER "M5Stack <support@m5stack.com>" CACHE STRING "Debian package maintainer")
-set(APP_PACKAGE_DESCRIPTION "CardputerZero factory test application" CACHE STRING "Debian package summary")
+set(APP_PACKAGE_DESCRIPTION_SUMMARY "CardputerZero factory test suite" CACHE STRING "Debian package summary")
+set(APP_PACKAGE_LONG_DESCRIPTION
+    "This package provides the factory hardware diagnostic tools for the M5Stack CardputerZero."
+    CACHE STRING "Debian package long description"
+)
 set(APP_INSTALL_SYSTEMD_SERVICE ON CACHE BOOL "Install a systemd service file for embedded deployments")
 set(APP_SET_CAP_NET_RAW ON CACHE BOOL "Grant cap_net_raw to the installed app binary for ICMP ping")
+set(APP_PRODUCT_GROUP "factory-test" CACHE STRING "System group authorized to run product factory tests")
 
 set(APP_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/package")
 configure_file(
@@ -30,7 +35,7 @@ if(APP_INSTALL_SYSTEMD_SERVICE)
     )
 endif()
 
-if(APP_USE_LIBNM OR APP_USE_LIBOPING)
+if(APP_USE_LIBNM)
     configure_file(
         "${CMAKE_CURRENT_LIST_DIR}/templates/factory-test-networkmanager.rules.in"
         "${APP_GENERATED_DIR}/50-${PROJECT_NAME}-networkmanager.rules"
@@ -38,21 +43,22 @@ if(APP_USE_LIBNM OR APP_USE_LIBOPING)
     )
 endif()
 
-set(APP_DEBIAN_CONTROL_EXTRA)
-if(APP_SET_CAP_NET_RAW)
-    configure_file(
-        "${CMAKE_CURRENT_LIST_DIR}/templates/factory_test.postinst.in"
-        "${APP_GENERATED_DIR}/postinst"
-        @ONLY
-    )
-    file(CHMOD "${APP_GENERATED_DIR}/postinst"
-        PERMISSIONS
-            OWNER_READ OWNER_WRITE OWNER_EXECUTE
-            GROUP_READ GROUP_EXECUTE
-            WORLD_READ WORLD_EXECUTE
-    )
-    list(APPEND APP_DEBIAN_CONTROL_EXTRA "${APP_GENERATED_DIR}/postinst")
+set(APP_VERIFY_CAP_NET_RAW 0)
+if(APP_SET_CAP_NET_RAW AND APP_USE_LIBOPING)
+    set(APP_VERIFY_CAP_NET_RAW 1)
 endif()
+configure_file(
+    "${CMAKE_CURRENT_LIST_DIR}/templates/factory_test.postinst.in"
+    "${APP_GENERATED_DIR}/postinst"
+    @ONLY
+)
+file(CHMOD "${APP_GENERATED_DIR}/postinst"
+    PERMISSIONS
+        OWNER_READ OWNER_WRITE OWNER_EXECUTE
+        GROUP_READ GROUP_EXECUTE
+        WORLD_READ WORLD_EXECUTE
+)
+set(APP_DEBIAN_CONTROL_EXTRA "${APP_GENERATED_DIR}/postinst")
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
@@ -94,7 +100,7 @@ if(APP_INSTALL_SYSTEMD_SERVICE)
     )
 endif()
 
-if(APP_USE_LIBNM OR APP_USE_LIBOPING)
+if(APP_USE_LIBNM)
     install(
         FILES "${APP_GENERATED_DIR}/50-${PROJECT_NAME}-networkmanager.rules"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/polkit-1/rules.d"
@@ -114,7 +120,7 @@ set(CPACK_OUTPUT_FILE_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/dist")
 set(CPACK_PACKAGE_NAME "${APP_DISPLAY_NAME}")
 set(CPACK_PACKAGE_VENDOR "M5Stack")
 set(CPACK_PACKAGE_CONTACT "${APP_MAINTAINER}")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${APP_PACKAGE_DESCRIPTION}")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${APP_PACKAGE_DESCRIPTION_SUMMARY}")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_FILE_NAME "${APP_DISPLAY_NAME}_${PROJECT_VERSION}_${APP_DEBIAN_REVISION}_${APP_DEBIAN_ARCHITECTURE}")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/License.txt")
@@ -122,71 +128,43 @@ set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/Licens
 string(TOLOWER "${APP_DISPLAY_NAME}" APP_DEBIAN_PACKAGE_NAME)
 string(REGEX REPLACE "[^a-z0-9+.-]" "-" APP_DEBIAN_PACKAGE_NAME "${APP_DEBIAN_PACKAGE_NAME}")
 set(CPACK_DEBIAN_PACKAGE_NAME "${APP_DEBIAN_PACKAGE_NAME}")
-set(CPACK_DEBIAN_PACKAGE_VERSION "${PROJECT_VERSION}-${APP_DEBIAN_REVISION}")
+set(CPACK_DEBIAN_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_DEBIAN_PACKAGE_RELEASE "${APP_DEBIAN_REVISION}")
 set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "${APP_DEBIAN_ARCHITECTURE}")
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${APP_MAINTAINER}")
 set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
 set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
+set(CPACK_DEBIAN_PACKAGE_DESCRIPTION "${APP_PACKAGE_LONG_DESCRIPTION}")
 
 set(APP_DEBIAN_PACKAGE_DEPENDS
-    libc6
-    libstdc++6
-    libgcc-s1
-    libfreetype6
-    libpng16-16
-    libjpeg62-turbo
-    zlib1g
-    libfmt10
+    "libc6 (>= 2.38)"
+    "libcamera0.7 (>= 0.7.1+rpt20260609)"
+    "libcjson1 (>= 1.7.13)"
+    "libfmt10 (>= 10.1.1+ds1)"
+    "libfreetype6 (>= 2.2.1)"
+    "libgcc-s1 (>= 3.0)"
+    "libglib2.0-0t64 (>= 2.32.0)"
+    "libgpiod3 (>= 2.1)"
+    "libiperf0 (>= 3.11)"
+    "libjpeg62-turbo (>= 1.3.1)"
+    "liblirc0t64 (>= 0.10.2)"
+    "libnm0 (>= 1.24.0)"
+    "libpng16-16t64 (>= 1.6.46)"
+    "libsctp1 (>= 1.0.6.dfsg)"
+    "libserialport0 (>= 0.1.1)"
+    "libstdc++6 (>= 14)"
+    "libudev1 (>= 183)"
+    libyaml-0-2
+    "zlib1g (>= 1:1.1.4)"
     util-linux-extra
     sysbench
     stress-ng
     fio
+    network-manager
+    polkitd
+    libcap2-bin
+    bluez
 )
-if(APP_USE_LIBCAMERA)
-    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS
-        "libcamera0.7 | libcamera0.6 | libcamera0.5 | libcamera0.4 | libcamera0.3 | libcamera0.2 | libcamera0"
-    )
-endif()
-if(APP_USE_BLUEZ OR APP_USE_LIBNM)
-    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS "libglib2.0-0t64 | libglib2.0-0")
-endif()
-if(APP_USE_LIBNM)
-    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS libnm0 network-manager polkitd)
-endif()
-if(APP_USE_LIBOPING)
-    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS polkitd)
-endif()
-if(APP_SET_CAP_NET_RAW)
-    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS libcap2-bin)
-endif()
-if(APP_USE_LIBUDEV)
-    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS libudev1)
-endif()
-if(APP_USE_LIBIPERF)
-    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS libiperf0 libsctp1 "libssl3 | libssl3t64")
-endif()
-if(APP_USE_LIBOPING)
-    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS liboping0 iputils-ping pkexec)
-endif()
-if(APP_USE_LIRC)
-    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS "liblirc0t64 | liblirc0")
-endif()
-if(APP_USE_BLUEZ)
-    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS bluez)
-endif()
-if(APP_USE_LIBGPIOD)
-    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS "libgpiod3 | libgpiod2")
-endif()
-if(APP_USE_LIBSERIALPORT)
-    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS libserialport0)
-endif()
-if(APP_USE_LIBYAML)
-    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS libyaml-0-2)
-endif()
-if(APP_USE_LIBCJSON)
-    list(APPEND APP_DEBIAN_PACKAGE_DEPENDS libcjson1)
-endif()
 list(REMOVE_DUPLICATES APP_DEBIAN_PACKAGE_DEPENDS)
 string(REPLACE ";" ", " CPACK_DEBIAN_PACKAGE_DEPENDS "${APP_DEBIAN_PACKAGE_DEPENDS}")
 if(APP_DEBIAN_CONTROL_EXTRA)

@@ -1,6 +1,7 @@
-// Allow the factory test app to bring radios up for production tests and run ping via pkexec.
+// Allow authorized factory-test users to bring radios up for production tests.
 polkit.addRule(function(action, subject) {
     var isFactoryUser = subject.user == "root" ||
+        subject.isInGroup("@APP_PRODUCT_GROUP@") ||
         subject.isInGroup("sudo") ||
         subject.isInGroup("netdev") ||
         (subject.local && subject.active);
@@ -12,16 +13,5 @@ polkit.addRule(function(action, subject) {
     if (action.id == "org.freedesktop.NetworkManager.wifi.scan" ||
         action.id == "org.freedesktop.NetworkManager.enable-disable-wifi") {
         return polkit.Result.YES;
-    }
-
-    if (action.id == "org.freedesktop.policykit.exec") {
-        var program = action.lookup("program");
-        var commandLine = action.lookup("command_line");
-        if (program == "/usr/bin/ping" ||
-            program == "/bin/ping" ||
-            (commandLine && commandLine.indexOf("/usr/bin/ping ") === 0) ||
-            (commandLine && commandLine.indexOf("/bin/ping ") === 0)) {
-            return polkit.Result.YES;
-        }
     }
 });

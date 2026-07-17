@@ -130,6 +130,16 @@ bool i2c_smbus_read_byte(int fd) {
   return i2c_smbus_access(fd, static_cast<char>(I2C_SMBUS_READ), 0, I2C_SMBUS_BYTE, &data) >= 0;
 }
 
+bool i2c_smbus_read_byte_data(int fd, uint8_t command, uint8_t& value) {
+  union i2c_smbus_data data{};
+  if (i2c_smbus_access(fd, static_cast<char>(I2C_SMBUS_READ), command, I2C_SMBUS_BYTE_DATA, &data) <
+      0) {
+    return false;
+  }
+  value = data.byte;
+  return true;
+}
+
 I2cAddressState probe_i2c_address(int fd, uint8_t address) {
   if (ioctl(fd, I2C_SLAVE, address) < 0) {
     return errno == EBUSY ? I2cAddressState::KERNEL_DRIVER : I2cAddressState::ABSENT;
@@ -173,6 +183,44 @@ std::vector<I2cAddressInfo> scan_i2c_bus(int bus_number, std::string& error_mess
   const bool changed = update_i2c_log_snapshot(log_snapshot, addresses, error_message);
   log_i2c_result(bus_number, addresses, error_message, changed);
   return {};
+#endif
+}
+
+bool read_i2c_byte_data(int bus_number,
+                        uint8_t address,
+                        uint8_t command,
+                        uint8_t& value,
+                        std::string& error_message) {
+  error_message.clear();
+  if (bus_number < 0 || address > 0x7F) {
+    error_message = "invalid I2C bus or address";
+    return false;
+  }
+
+#if defined(__linux__)
+  const auto path = i2c_bus_device_path(bus_number);
+  FileDescriptorOwner bus{open(path.c_str(), O_RDWR)};
+  if (bus.fd < 0) {
+    error_message = std::string("failed to open ") + path + ": " + std::strerror(errno);
+    return false;
+  }
+
+  if (ioctl(bus.fd, I2C_SLAVE, address) < 0) {
+    error_message = std::string("failed to select I2C address: ") + std::strerror(errno);
+    return false;
+  }
+  if (!i2c_smbus_read_byte_data(bus.fd, command, value)) {
+    error_message = std::string("failed to read I2C register: ") + std::strerror(errno);
+    return false;
+  }
+  return true;
+#else
+  (void)bus_number;
+  (void)address;
+  (void)command;
+  (void)value;
+  error_message = "Linux I2C backend is not available";
+  return false;
 #endif
 }
 }  // namespace platform::connectivity

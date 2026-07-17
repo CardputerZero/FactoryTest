@@ -46,7 +46,7 @@ namespace {
 
 bool same_wireless_item(const WirelessScanItem& left, const WirelessScanItem& right) {
   return left.name == right.name && left.detail == right.detail &&
-         left.strength_percent == right.strength_percent;
+         left.strength_percent == right.strength_percent && left.bssid == right.bssid;
 }
 
 bool same_wireless_result(const std::vector<WirelessScanItem>& left,
@@ -496,6 +496,7 @@ WirelessScanItem wifi_access_point_item(NMAccessPoint* ap) {
   std::ostringstream detail;
   const char* bssid = nm_access_point_get_bssid(ap);
   if (bssid && bssid[0] != '\0') {
+    item.bssid = bssid;
     detail << bssid << " ";
   }
   detail << nm_access_point_get_frequency(ap) << "MHz";

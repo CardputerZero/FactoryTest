@@ -2,14 +2,55 @@
 set -e
 
 APP_PATH="/usr/@CMAKE_INSTALL_BINDIR@/@PROJECT_NAME@"
+PRODUCT_GROUP="@APP_PRODUCT_GROUP@"
 
 if [ "$1" = "configure" ]; then
-    if [ -f "$APP_PATH" ] && command -v setcap >/dev/null 2>&1; then
-        if ! setcap cap_net_raw+ep "$APP_PATH"; then
-            echo "Warning: failed to grant cap_net_raw to $APP_PATH" >&2
+    if ! getent group "$PRODUCT_GROUP" >/dev/null 2>&1; then
+        if ! groupadd --system "$PRODUCT_GROUP"; then
+            echo "Error: failed to create product group $PRODUCT_GROUP" >&2
+            exit 1
         fi
+    fi
+
+    PRODUCT_USER="${SUDO_USER:-}"
+    if [ -z "$PRODUCT_USER" ] || [ "$PRODUCT_USER" = "root" ]; then
+        PRODUCT_USER="$(getent passwd 1000 | cut -d: -f1)"
+    fi
+    if [ -n "$PRODUCT_USER" ] && [ "$PRODUCT_USER" != "root" ]; then
+        if ! id "$PRODUCT_USER" >/dev/null 2>&1; then
+            echo "Error: product user $PRODUCT_USER does not exist" >&2
+            exit 1
+        fi
+        if ! usermod -a -G "$PRODUCT_GROUP" "$PRODUCT_USER"; then
+            echo "Error: failed to add $PRODUCT_USER to $PRODUCT_GROUP" >&2
+            exit 1
+        fi
+        echo "Added $PRODUCT_USER to $PRODUCT_GROUP; a new login is required for group membership to take effect"
     else
-        echo "Warning: cannot grant cap_net_raw; missing $APP_PATH or setcap" >&2
+        echo "Warning: no product user detected; add the runtime user to $PRODUCT_GROUP manually" >&2
+    fi
+
+    if [ "@APP_VERIFY_CAP_NET_RAW@" = "1" ]; then
+        if [ ! -f "$APP_PATH" ]; then
+            echo "Error: cannot grant cap_net_raw; missing $APP_PATH" >&2
+            exit 1
+        fi
+        if ! command -v setcap >/dev/null 2>&1 || ! command -v getcap >/dev/null 2>&1; then
+            echo "Error: setcap/getcap is required to configure liboping permissions" >&2
+            exit 1
+        fi
+        if ! setcap cap_net_raw+ep "$APP_PATH"; then
+            echo "Error: failed to grant cap_net_raw to $APP_PATH" >&2
+            exit 1
+        fi
+        CAPABILITIES="$(getcap "$APP_PATH")"
+        case "$CAPABILITIES" in
+            *cap_net_raw=ep*) ;;
+            *)
+                echo "Error: cap_net_raw verification failed for $APP_PATH: ${CAPABILITIES:-<none>}" >&2
+                exit 1
+                ;;
+        esac
     fi
 fi
 

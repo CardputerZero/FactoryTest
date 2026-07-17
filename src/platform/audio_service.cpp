@@ -34,6 +34,7 @@ namespace {
 constexpr ma_uint32 K_AUDIO_SAMPLE_RATE = 16000;
 constexpr ma_uint32 K_AUDIO_CHANNELS    = 1;
 constexpr ma_uint32 K_PLAYBACK_CHANNELS = 2;
+constexpr float K_DEFAULT_VOLUME_LEVEL  = 0.5F;
 
 struct WavAudio {
   ma_uint32 sample_rate{0};
@@ -125,6 +126,13 @@ std::mutex& playback_mutex() {
   static std::mutex mutex;
   return mutex;
 }
+
+std::atomic<float>& global_volume_level() {
+  static std::atomic<float> level{K_DEFAULT_VOLUME_LEVEL};
+  return level;
+}
+
+float current_volume_level() { return global_volume_level().load(); }
 
 SelectedAudioDevice& selected_audio_device() {
   static SelectedAudioDevice device;
@@ -434,6 +442,13 @@ bool ensure_key_click_device_locked(KeyClickState& state, const std::shared_ptr<
   }
   state.device_initialized = true;
 
+  result = ma_device_set_master_volume(&state.device, current_volume_level());
+  if (result != MA_SUCCESS) {
+    LOG_ERROR("failed to set key click playback volume: {}", ma_result_description(result));
+    stop_key_click_device_locked(state);
+    return false;
+  }
+
   result = ma_device_start(&state.device);
   if (result != MA_SUCCESS) {
     LOG_ERROR("failed to start key click playback: {}", ma_result_description(result));
@@ -523,8 +538,7 @@ std::shared_ptr<WavAudio> load_wav_audio(const std::string& input_path) {
 }
 
 bool play_audio(const std::shared_ptr<WavAudio>& audio,
-                std::chrono::milliseconds extra_timeout,
-                float volume) {
+                std::chrono::milliseconds extra_timeout) {
   if (!audio || audio->samples.empty() || audio->sample_rate == 0 || audio->channels == 0) {
     return false;
   }
@@ -550,7 +564,7 @@ bool play_audio(const std::shared_ptr<WavAudio>& audio,
   config.dataCallback       = playback_data_callback;
   config.pUserData          = &state;
 
-  const float clamped_volume = std::max(0.0F, std::min(1.0F, volume));
+  const float volume = current_volume_level();
   LOG_INFO("initializing miniaudio playback: backend={} device='{}' rate={} input_channels={} output_channels={} share={} volume={:.2f}",
            ma_get_backend_name(context.context.backend),
            playback.found ? playback.name : "default",
@@ -558,7 +572,7 @@ bool play_audio(const std::shared_ptr<WavAudio>& audio,
            audio->channels,
            K_PLAYBACK_CHANNELS,
            share_mode_name(share_mode),
-           clamped_volume);
+           volume);
 
   ma_device device;
   ma_result result = ma_device_init(&context.context, &config, &device);
@@ -567,7 +581,7 @@ bool play_audio(const std::shared_ptr<WavAudio>& audio,
     return false;
   }
 
-  result = ma_device_set_master_volume(&device, clamped_volume);
+  result = ma_device_set_master_volume(&device, volume);
   if (result != MA_SUCCESS) {
     LOG_ERROR("failed to set miniaudio playback volume: {}", ma_result_description(result));
     ma_device_uninit(&device);
@@ -697,7 +711,23 @@ bool play_wav(const AudioDevice& device, const std::string& input_path) {
     return false;
   }
   normalize_to_full_scale(*audio);
-  return play_audio(audio, std::chrono::seconds(3), 0.8F);
+  return play_audio(audio, std::chrono::seconds(3));
+}
+
+void set_volume_level(float level) {
+  const float clamped_level = std::max(0.0F, std::min(1.0F, level));
+  global_volume_level().store(clamped_level);
+
+  auto& state = key_click_state();
+  std::lock_guard<std::mutex> lock(state.mutex);
+  if (!state.device_initialized) {
+    return;
+  }
+
+  const ma_result result = ma_device_set_master_volume(&state.device, clamped_level);
+  if (result != MA_SUCCESS) {
+    LOG_ERROR("failed to update key click playback volume: {}", ma_result_description(result));
+  }
 }
 
 void set_key_click_sound_path(const std::string& input_path) {

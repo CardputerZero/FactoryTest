@@ -41,6 +41,7 @@ class AudioTestPage : public BaseScreen {
 
   void start_recording_();
   void update_status_();
+  void update_audio_jack_status_();
   static void key_listener(uint32_t key, const char* key_name, void* user_data);
   static void poll_timer_cb(lv_timer_t* timer);
 
@@ -48,9 +49,13 @@ class AudioTestPage : public BaseScreen {
   std::string device_error_{};
   std::shared_ptr<AudioJobState> job_state_{};
   lv_obj_t* status_label_{nullptr};
+  lv_obj_t* audio_jack_icon_label_{nullptr};
+  lv_obj_t* audio_jack_state_label_{nullptr};
   lv_timer_t* poll_timer_{nullptr};
   uint32_t recording_started_at_{0};
+  uint32_t audio_jack_polled_at_{0};
   bool has_audio_device_{false};
+  bool has_polled_audio_jack_{false};
 };
 
 }  // namespace screen

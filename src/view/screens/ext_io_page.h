@@ -48,6 +48,7 @@ class ExtIoConnectivityView {
     const char* icon{nullptr};
     platform::gpio::OutputLineConfig gpio{};
     bool supports_input{true};
+    const char* brightness_path{nullptr};
     lv_obj_t* row{nullptr};
     lv_obj_t* icon_label{nullptr};
     lv_obj_t* title_label{nullptr};
@@ -90,7 +91,7 @@ class ExtIoConnectivityView {
   app::AssetManager* assets_{nullptr};
   lv_obj_t* dialog_parent_{nullptr};
   lv_obj_t* root_{nullptr};
-  std::array<SwitchRow, 4> rows_{};
+  std::array<SwitchRow, 5> rows_{};
   std::unique_ptr<view::widgets::Dialog> dialog_{};
   lv_obj_t* function_dropdown_{nullptr};
   lv_timer_t* input_poll_timer_{nullptr};

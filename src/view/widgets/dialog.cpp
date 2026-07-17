@@ -188,7 +188,10 @@ lv_obj_t* Dialog::add_textarea(const char* text, const DialogTextareaOptions& op
   return textarea;
 }
 
-lv_obj_t* Dialog::add_dropdown(const char* options, uint32_t selected, int32_t width) {
+lv_obj_t* Dialog::add_dropdown(const char* options,
+                               uint32_t selected,
+                               int32_t width,
+                               const char* font_name) {
   if (!content_) {
     return nullptr;
   }
@@ -197,10 +200,18 @@ lv_obj_t* Dialog::add_dropdown(const char* options, uint32_t selected, int32_t w
   lv_dropdown_set_selected(dropdown, selected);
   lv_dropdown_set_symbol(dropdown, view::ICON_CARET_DOWN);
   lv_obj_set_width(dropdown, width);
-  auto* font = assets_.load_font(app_view_model_.ui_font_name("inter-medium.ttf"), 11);
+  const char* resolved_font_name =
+      font_name ? font_name : app_view_model_.ui_font_name("inter-medium.ttf");
+  auto* font = assets_.load_font(resolved_font_name, 11);
   lv_obj_set_style_text_font(dropdown, font ? font : &lv_font_montserrat_12, 0);
+  auto* list = lv_dropdown_get_list(dropdown);
+  if (list) {
+    lv_obj_set_style_text_font(list, font ? font : &lv_font_montserrat_12, 0);
+  }
   auto* icon_font = assets_.load_font("Phosphor-Fill.ttf", 12);
-  lv_obj_set_style_text_font(dropdown, icon_font ? icon_font : &lv_font_montserrat_12, LV_PART_INDICATOR);
+  lv_obj_set_style_text_font(dropdown,
+                             icon_font ? icon_font : &lv_font_montserrat_12,
+                             LV_PART_INDICATOR);
   reactive::bind_theme(dropdown, app_view_model_.dark_mode_subject(), reactive::ThemeRole::BUTTON);
   return dropdown;
 }
@@ -326,7 +337,7 @@ void Dialog::add_title_row_() {
   const int32_t row_width      = config_.width - config_.pad_all * 2;
   const int32_t shortcut_width = config_.shortcut_width > 0
                                      ? std::min(config_.shortcut_width, row_width - 48)
-                                     : (config_.width / 2 - config_.pad_all);
+                                     : std::min(row_width * 3 / 5, row_width - 48);
   lv_obj_set_width(title, config_.show_shortcuts ? row_width - shortcut_width : row_width);
   auto* title_font = assets_.load_font(app_view_model_.ui_font_name("inter-semibold.ttf"), 12);
   lv_obj_set_style_text_font(title, title_font ? title_font : &lv_font_montserrat_12, 0);

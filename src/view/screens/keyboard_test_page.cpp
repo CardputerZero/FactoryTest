@@ -98,6 +98,7 @@ constexpr const char* K_MATCH_FN              = "fn";
 constexpr const char* K_MATCH_G               = "g";
 constexpr const char* K_MATCH_H               = "h";
 constexpr const char* K_MATCH_HOME            = "home";
+constexpr const char* K_MATCH_HELP            = "help";
 constexpr const char* K_MATCH_I               = "i";
 constexpr const char* K_MATCH_INSERT          = "insert";
 constexpr const char* K_MATCH_J               = "j";
@@ -113,6 +114,7 @@ constexpr const char* K_MATCH_PAGE_DOWN       = "pagedown";
 constexpr const char* K_MATCH_PAGE_UP         = "pageup";
 constexpr const char* K_MATCH_PLAY_PAUSE      = "playpause";
 constexpr const char* K_MATCH_PRINTSCREEN     = "printscreen";
+constexpr const char* K_MATCH_QUESTION        = "?";
 constexpr const char* K_MATCH_Q               = "q";
 constexpr const char* K_MATCH_R               = "r";
 constexpr const char* K_MATCH_REWIND          = "rewind";
@@ -292,7 +294,7 @@ constexpr std::array<KeySpec, 138> K_KEYS = {{
     {FN_KEY, K_MATCH_VOLUME_UP, ICON_KB_EXTRA_SPEAKER_HIGH, 3, 3, KeyFont::EXTRA},
     {FN_KEY, K_MATCH_UP, ICON_KB_ARROW_UP, 3, 4, KeyFont::KENNEY},
     {FN_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 3, 5, KeyFont::EXTRA, true},
-    {FN_KEY, "?", ICON_KB_EXTRA_QUESTION, 3, 6, KeyFont::EXTRA},
+    {FN_KEY, K_MATCH_HELP, ICON_KB_EXTRA_QUESTION, 3, 6, KeyFont::EXTRA},
     {FN_KEY, K_MATCH_PRINTSCREEN, ICON_KB_PRINTSCREEN, 3, 7, KeyFont::KENNEY},
     {FN_KEY, K_MATCH_HOME, ICON_KB_HOME, 3, 8, KeyFont::KENNEY},
     {FN_KEY, K_MATCH_PAGE_UP, ICON_KB_PAGE_UP, 3, 9, KeyFont::KENNEY},
@@ -328,25 +330,25 @@ constexpr std::array<KeySpec, 138> K_KEYS = {{
     {SYM_KEY, K_MATCH_SYM, ICON_KB_EXTRA_SYM, 2, 0, KeyFont::EXTRA, true},
     {SYM_KEY, "~", ICON_KB_TILDE, 2, 1, KeyFont::KENNEY},
     {SYM_KEY, "`", ICON_KB_EXTRA_BACKTICK, 2, 2, KeyFont::EXTRA},
-    {SYM_KEY, "+", ICON_KB_PLUS, 2, 3, KeyFont::KENNEY},
+    {SYM_KEY, "_", ICON_KB_UNDERSCORE, 2, 3, KeyFont::KENNEY},
     {SYM_KEY, "-", ICON_KB_MINUS, 2, 4, KeyFont::KENNEY},
-    {SYM_KEY, "/", ICON_KB_SLASH, 2, 5, KeyFont::KENNEY},
-    {SYM_KEY, "\\", ICON_KB_SLASH_BACK, 2, 6, KeyFont::KENNEY},
-    {SYM_KEY, "{", ICON_KB_EXTRA_BRACE_L, 2, 7, KeyFont::EXTRA},
-    {SYM_KEY, "}", ICON_KB_EXTRA_BRACE_R, 2, 8, KeyFont::EXTRA},
-    {SYM_KEY, "[", ICON_KB_BRACKET_L, 2, 9, KeyFont::KENNEY},
-    {SYM_KEY, "]", ICON_KB_BRACKET_R, 2, 10, KeyFont::KENNEY},
+    {SYM_KEY, "+", ICON_KB_PLUS, 2, 5, KeyFont::KENNEY},
+    {SYM_KEY, "=", ICON_KB_EQUALS, 2, 6, KeyFont::KENNEY},
+    {SYM_KEY, "[", ICON_KB_BRACKET_L, 2, 7, KeyFont::KENNEY},
+    {SYM_KEY, "]", ICON_KB_BRACKET_R, 2, 8, KeyFont::KENNEY},
+    {SYM_KEY, "{", ICON_KB_EXTRA_BRACE_L, 2, 9, KeyFont::EXTRA},
+    {SYM_KEY, "}", ICON_KB_EXTRA_BRACE_R, 2, 10, KeyFont::EXTRA},
 
     {SYM_KEY, K_MATCH_SHIFT, ICON_KB_SHIFT_ICON, 3, 0, KeyFont::KENNEY, true},
-    {SYM_KEY, ",", ICON_KB_COMMA, 3, 1, KeyFont::KENNEY},
-    {SYM_KEY, ".", ICON_KB_PERIOD, 3, 2, KeyFont::KENNEY},
-    {SYM_KEY, "|", ICON_KB_EXTRA_PIPE, 3, 3, KeyFont::EXTRA},
+    {SYM_KEY, ";", ICON_KB_SEMICOLON, 3, 1, KeyFont::KENNEY},
+    {SYM_KEY, ":", ICON_KB_COLON, 3, 2, KeyFont::KENNEY},
+    {SYM_KEY, "'", ICON_KB_APOSTROPHE, 3, 3, KeyFont::KENNEY},
     {SYM_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 3, 4, KeyFont::EXTRA, true},
-    {SYM_KEY, "=", ICON_KB_EQUALS, 3, 5, KeyFont::KENNEY},
-    {SYM_KEY, ":", ICON_KB_COLON, 3, 6, KeyFont::KENNEY},
-    {SYM_KEY, ";", ICON_KB_SEMICOLON, 3, 7, KeyFont::KENNEY},
-    {SYM_KEY, "_", ICON_KB_UNDERSCORE, 3, 8, KeyFont::KENNEY},
-    {SYM_KEY, "?", ICON_KB_QUESTION, 3, 9, KeyFont::KENNEY},
+    {SYM_KEY, "\"", ICON_KB_QUOTE, 3, 5, KeyFont::KENNEY},
+    {SYM_KEY, "<", ICON_KB_LESS, 3, 6, KeyFont::KENNEY},
+    {SYM_KEY, ">", ICON_KB_GREATER, 3, 7, KeyFont::KENNEY},
+    {SYM_KEY, "\\", ICON_KB_SLASH_BACK, 3, 8, KeyFont::KENNEY},
+    {SYM_KEY, "|", ICON_KB_EXTRA_PIPE, 3, 9, KeyFont::EXTRA},
     {SYM_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 3, 10, KeyFont::EXTRA, true},
 
     {SYM_KEY, K_MATCH_FN, view::ICON_KB_FN, 4, 0, KeyFont::KENNEY, true},
@@ -355,10 +357,10 @@ constexpr std::array<KeySpec, 138> K_KEYS = {{
     {SYM_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 4, 3, KeyFont::EXTRA, true},
     {SYM_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 4, 4, KeyFont::EXTRA, true},
     {SYM_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 4, 5, KeyFont::EXTRA, true},
-    {SYM_KEY, "<", ICON_KB_LESS, 4, 6, KeyFont::KENNEY},
-    {SYM_KEY, ">", ICON_KB_GREATER, 4, 7, KeyFont::KENNEY},
-    {SYM_KEY, "'", ICON_KB_APOSTROPHE, 4, 8, KeyFont::KENNEY},
-    {SYM_KEY, "\"", ICON_KB_QUOTE, 4, 9, KeyFont::KENNEY},
+    {SYM_KEY, ",", ICON_KB_COMMA, 4, 6, KeyFont::KENNEY},
+    {SYM_KEY, ".", ICON_KB_PERIOD, 4, 7, KeyFont::KENNEY},
+    {SYM_KEY, "/", ICON_KB_SLASH, 4, 8, KeyFont::KENNEY},
+    {SYM_KEY, K_MATCH_QUESTION, ICON_KB_QUESTION, 4, 9, KeyFont::KENNEY},
     {SYM_KEY, K_MATCH_DISABLED, ICON_KB_EXTRA_BLANK, 4, 10, KeyFont::EXTRA, true},
 }};
 

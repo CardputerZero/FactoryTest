@@ -12,6 +12,7 @@
 #include <array>
 #include <cctype>
 #include <cerrno>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
@@ -20,6 +21,8 @@
 #include <sstream>
 #include <string>
 #include <vector>
+
+#include "i2c_service.h"
 
 #if defined(__linux__)
 #include <fcntl.h>
@@ -31,7 +34,25 @@
 namespace platform::device_info {
 namespace {
 
-constexpr const char* K_EMPTY_VALUE = "--";
+constexpr const char* K_EMPTY_VALUE          = "--";
+constexpr const char* K_HW_REVISION_RAW_PATH = "/sys/bus/iio/devices/iio:device0/in_voltage0_raw";
+constexpr double K_ADC_REFERENCE_MV         = 3356.0;
+constexpr double K_ADC_RESOLUTION_STEPS     = 4096.0;
+constexpr double K_HW_REVISION_SCALE_MV     = K_ADC_REFERENCE_MV / K_ADC_RESOLUTION_STEPS;
+constexpr double K_HW_REVISION_TOLERANCE_MV = 100.0;
+constexpr int K_PY32_I2C_BUS                 = 1;
+constexpr uint8_t K_PY32_I2C_ADDRESS         = 0x4F;
+constexpr uint8_t K_CP0_MINOR_VERSION        = 0xBA;
+
+struct HardwareRevisionVoltage {
+  double millivolts;
+  const char* revision;
+};
+
+constexpr std::array<HardwareRevisionVoltage, 2> K_HARDWARE_REVISIONS = {{
+    {2500.0, "0.3"},
+    {2000.0, "0.6"},
+}};
 
 std::string trim(std::string value) {
   const auto not_space = [](unsigned char ch) { return std::isspace(ch) == 0; };
@@ -81,7 +102,42 @@ std::string read_soc_serial_number() {
   return K_EMPTY_VALUE;
 }
 
-std::string read_hardware_revision() { return read_or_empty("/proc/cardputerzero_hw_id"); }
+bool read_number_file(const std::filesystem::path& path, double& value) {
+  std::ifstream file(path);
+  file >> value;
+  return static_cast<bool>(file) && std::isfinite(value);
+}
+
+std::string read_hardware_revision() {
+  double raw = 0.0;
+  if (!read_number_file(K_HW_REVISION_RAW_PATH, raw)) {
+    return K_EMPTY_VALUE;
+  }
+
+  const double millivolts = raw * K_HW_REVISION_SCALE_MV;
+  for (const auto& mapping : K_HARDWARE_REVISIONS) {
+    if (std::abs(millivolts - mapping.millivolts) <= K_HW_REVISION_TOLERANCE_MV) {
+      return mapping.revision;
+    }
+  }
+  return K_EMPTY_VALUE;
+}
+
+std::string read_py32_firmware_version() {
+  uint8_t version = 0;
+  std::string error_message;
+  if (!platform::connectivity::read_i2c_byte_data(K_PY32_I2C_BUS,
+                                                  K_PY32_I2C_ADDRESS,
+                                                  K_CP0_MINOR_VERSION,
+                                                  version,
+                                                  error_message)) {
+    return K_EMPTY_VALUE;
+  }
+
+  char value[5]{};
+  std::snprintf(value, sizeof(value), "0x%02X", static_cast<unsigned int>(version));
+  return value;
+}
 
 std::string format_bytes(double bytes) {
   constexpr const char* units[] = {"B", "KB", "MB", "GB", "TB"};
@@ -398,7 +454,7 @@ std::string read_rtc() {
 std::vector<DeviceInfoField> read_device_info_fields() {
   return {
       {"Model", read_device_model()},
-      {"Hardware Rev", read_hardware_revision()},
+      {"Hardware Revision", read_hardware_revision()},
       {"Serial Number", read_soc_serial_number()},
       {"RAM", read_ram()},
       {"Storage", read_storage()},

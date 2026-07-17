@@ -45,7 +45,7 @@ const std::array<MenuItem, ConnectivityTestModel::K_ITEM_COUNT>& connectivity_it
 
 bool same_scan_info(const ScanItem& left, const ScanItem& right) {
   return left.name == right.name && left.detail == right.detail &&
-         left.strength_percent == right.strength_percent;
+         left.strength_percent == right.strength_percent && left.bssid == right.bssid;
 }
 
 bool same_scan_infos(const std::vector<ScanItem>& left, const std::vector<ScanItem>& right) {
@@ -101,7 +101,8 @@ std::vector<ScanItem> to_scan_infos(std::vector<platform::connectivity::Wireless
   std::vector<ScanItem> result;
   result.reserve(items.size());
   for (auto& item : items) {
-    result.push_back({std::move(item.name), std::move(item.detail), item.strength_percent});
+    result.push_back(
+        {std::move(item.name), std::move(item.detail), item.strength_percent, std::move(item.bssid)});
   }
   return result;
 }
@@ -222,7 +223,7 @@ InfoResult read_hdmi_refresh_result() {
 LinkTestMetric ping_metric(const platform::connectivity::LinkPingResult& result) {
   return {result.success ? LinkTestStatus::SUCCESS : LinkTestStatus::FAILED,
           static_cast<double>(result.ttl),
-          result.message};
+          result.success ? std::string{} : result.message};
 }
 
 LinkTestMetric iperf_metric(const platform::connectivity::LinkIperfResult& result) {
@@ -579,7 +580,7 @@ LinkTestSnapshot LinkConnectivityModel::running_snapshot_() const {
   LinkTestSnapshot snapshot;
   snapshot.settings       = settings_;
   snapshot.running        = true;
-  snapshot.ping           = {LinkTestStatus::RUNNING, 0.0, "Pinging 8.8.8.8..."};
+  snapshot.ping           = {LinkTestStatus::RUNNING, 0.0, "Pinging public DNS..."};
   snapshot.wifi_iperf     = {LinkTestStatus::RUNNING, 0.0, "Waiting for iperf..."};
   snapshot.ethernet_iperf = {LinkTestStatus::RUNNING, 0.0, "Waiting for iperf..."};
   return snapshot;

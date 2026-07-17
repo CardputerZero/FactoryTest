@@ -1,0 +1,31 @@
+/*
+ * SPDX-FileCopyrightText: 2026 M5Stack Technology CO LTD
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
+#pragma once
+
+#define FACTORY_TEST_MAJOR @PROJECT_VERSION_MAJOR@
+#define FACTORY_TEST_MINOR @PROJECT_VERSION_MINOR@
+#define FACTORY_TEST_PATCH @PROJECT_VERSION_PATCH@
+#define FACTORY_TEST_BUILD_TIME "@FACTORY_TEST_BUILD_TIME@"
+
+#define FACTORY_TEST_VERSION_STRINGIFY_IMPL(value) #value
+#define FACTORY_TEST_VERSION_STRINGIFY(value) FACTORY_TEST_VERSION_STRINGIFY_IMPL(value)
+
+namespace factory_test {
+
+inline constexpr char kVersion[] =
+    FACTORY_TEST_VERSION_STRINGIFY(FACTORY_TEST_MAJOR) "."
+    FACTORY_TEST_VERSION_STRINGIFY(FACTORY_TEST_MINOR) "."
+    FACTORY_TEST_VERSION_STRINGIFY(FACTORY_TEST_PATCH);
+inline constexpr char kBuildTime[] = FACTORY_TEST_BUILD_TIME;
+
+constexpr const char* get_version_str() noexcept { return kVersion; }
+constexpr const char* get_build_time_str() noexcept { return kBuildTime; }
+
+}  // namespace factory_test
+
+#undef FACTORY_TEST_VERSION_STRINGIFY
+#undef FACTORY_TEST_VERSION_STRINGIFY_IMPL

@@ -39,6 +39,7 @@ struct ScanItem {
   std::string name;
   std::string detail;
   int32_t strength_percent{-1};
+  std::string bssid;
 };
 
 struct InfoField {

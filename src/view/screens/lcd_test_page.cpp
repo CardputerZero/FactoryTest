@@ -94,6 +94,7 @@ LcdTestPage::LcdTestPage(viewmodel::AppViewModel& app_view_model,
     : BaseScreen(app_view_model, assets),
       lcd_view_model_(lcd_view_model) {
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
+  platform::set_nav_direction_aliases_enabled(false);
   lcd_view_model_.reset_test();
   int32_t current_brightness = 0;
   if (platform::backlight::read_brightness_percent(current_brightness)) {
@@ -110,6 +111,7 @@ LcdTestPage::LcdTestPage(viewmodel::AppViewModel& app_view_model,
 }
 
 LcdTestPage::~LcdTestPage() {
+  platform::set_nav_direction_aliases_enabled(true);
   platform::clear_key_listener(key_listener, this);
   if (color_observer_handle_) {
     lv_observer_remove(color_observer_handle_);
@@ -686,20 +688,6 @@ void LcdTestPage::key_listener(uint32_t key, const char* key_name, void* user_da
   switch (key) {
     case LV_KEY_ENTER:
       page->advance_color_step_();
-      break;
-    case LV_KEY_UP:
-    case LV_KEY_RIGHT:
-    case '7':
-    case 'x':
-    case 'X':
-      page->lcd_view_model_.increase_brightness();
-      break;
-    case LV_KEY_DOWN:
-    case LV_KEY_LEFT:
-    case '5':
-    case 'f':
-    case 'F':
-      page->lcd_view_model_.decrease_brightness();
       break;
     default:
       break;

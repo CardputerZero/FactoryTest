@@ -34,6 +34,7 @@ void clear_long_key_listener(LongKeyListener listener, void* user_data);
 void set_global_key_listener(GlobalKeyListener listener, void* user_data);
 void clear_global_key_listener(GlobalKeyListener listener, void* user_data);
 void set_nav_trigger_mode(NavTriggerMode mode);
+void set_nav_direction_aliases_enabled(bool enabled);
 void set_modal_key_capture(bool enabled);
 void reset_key_router_state();
 const char* describe_key(uint32_t key);

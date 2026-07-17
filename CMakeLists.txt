@@ -6,7 +6,20 @@
 
 cmake_minimum_required(VERSION 3.23)
 
-project(factory_test VERSION 0.2.4 LANGUAGES C CXX)
+project(factory_test VERSION 0.2.5 LANGUAGES C CXX)
+
+string(TIMESTAMP FACTORY_TEST_BUILD_TIME "%Y-%m-%d %H:%M:%S")
+set(FACTORY_TEST_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/version.h.in"
+    "${FACTORY_TEST_GENERATED_INCLUDE_DIR}/version.h"
+    @ONLY
+)
+
+add_library(factory_test_version INTERFACE)
+target_include_directories(factory_test_version INTERFACE
+    "${FACTORY_TEST_GENERATED_INCLUDE_DIR}"
+)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -182,7 +195,7 @@ if(USE_DESKTOP)
         set(APP_USE_LIBOPING 1)
         message(STATUS "liboping ping backend enabled")
     else()
-        message(WARNING "liboping headers/library not found; link ping test will use fallback messages")
+        message(WARNING "liboping headers/library not found; link ping test will be unavailable")
     endif()
 
     find_path(LIRC_INCLUDE_DIR linux/lirc.h)
@@ -489,7 +502,7 @@ else()
         set(APP_USE_LIBOPING 1)
         message(STATUS "liboping ping backend enabled")
     else()
-        message(WARNING "liboping headers/library not found; link ping test will use fallback messages")
+        message(FATAL_ERROR "liboping headers/library not found; embedded Link Ping requires liboping")
     endif()
 
     cm0_find_header(LIRC_INCLUDE_DIR linux/lirc.h "${CM0_SYSROOT}/usr/include")
@@ -644,7 +657,7 @@ target_include_directories(${PROJECT_NAME}_view PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/model
     ${CMAKE_CURRENT_SOURCE_DIR}/src/platform
 )
-target_link_libraries(${PROJECT_NAME}_view PUBLIC lvgl ${PROJECT_NAME}_reactive ${PROJECT_NAME}_platform)
+target_link_libraries(${PROJECT_NAME}_view PUBLIC lvgl ${PROJECT_NAME}_reactive ${PROJECT_NAME}_platform factory_test_version)
 
 # viewmodel src
 file(GLOB_RECURSE VIEWMODEL_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/viewmodel/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/viewmodel/*.cpp")

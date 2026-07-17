@@ -26,7 +26,8 @@ class IconCard : public BaseWidgets {
            const lv_font_t* value_font,
            int32_t width,
            int32_t height,
-           lv_label_long_mode_t value_long_mode = LV_LABEL_LONG_CLIP);
+           lv_label_long_mode_t value_long_mode = LV_LABEL_LONG_CLIP,
+           int32_t title_width = 0);
 
   void build() override;
   void set_icon(const char* icon);
@@ -46,6 +47,7 @@ class IconCard : public BaseWidgets {
   const lv_font_t* value_font_{nullptr};
   int32_t width_{0};
   int32_t height_{0};
+  int32_t title_width_{0};
   lv_label_long_mode_t value_long_mode_{LV_LABEL_LONG_CLIP};
   lv_obj_t* icon_label_{nullptr};
   lv_obj_t* title_label_{nullptr};

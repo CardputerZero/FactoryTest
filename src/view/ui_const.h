@@ -73,6 +73,7 @@ constexpr const char* ICON_KB_Y               = "\uE0E5";
 constexpr const char* ICON_KB_Z               = "\uE0E7";
 constexpr const char* ICON_MONITOR            = "\uE32E";
 constexpr const char* ICON_MICROPHONE         = "\uE326";
+constexpr const char* ICON_SPK_HIFI           = "\uEA08";
 constexpr const char* ICON_CAMERA             = "\uE10E";
 constexpr const char* ICON_PLUGS_CONNECTED    = "\uEB5A";
 constexpr const char* ICON_WIFI               = "\uE4EA";
@@ -88,6 +89,7 @@ constexpr const char* ICON_DEVICE_MOBILE      = "\uE1E0";
 constexpr const char* ICON_WRENCH             = "\uE5D4";
 constexpr const char* ICON_BARCODE            = "\uE0B8";
 constexpr const char* ICON_FINGERPRINT        = "\uE23E";
+constexpr const char* ICON_CIRCUIT            = "\uE9C2";
 constexpr const char* ICON_MEMORY             = "\uE9C4";
 constexpr const char* ICON_HARDDRIVE          = "\uE29E";
 constexpr const char* ICON_GLOBE              = "\uE288";
@@ -118,6 +120,7 @@ constexpr const char* ICON_SIDEBAR            = "\uEAB6";
 constexpr const char* ICON_CHART_BAR_HOR      = "\uE152";
 constexpr const char* ICON_TRANSLATE          = "\uE4A2";
 constexpr const char* ICON_CARET_DOWN         = "\uE136";
+constexpr const char* ICON_GIT_BRANCH          = "\uE278";
 
 // Naive UI 3 Color Scheme
 // ====================

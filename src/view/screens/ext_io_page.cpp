@@ -6,8 +6,10 @@
 
 #include "ext_io_page.h"
 
+#include <cerrno>
 #include <chrono>
 #include <cstring>
+#include <fstream>
 #include <thread>
 #include <utility>
 
@@ -19,19 +21,59 @@
 namespace screen {
 namespace {
 
-constexpr int32_t K_PANEL_WIDTH           = 304;
-constexpr int32_t K_ROW_WIDTH             = 300;
-constexpr int32_t K_ROW_HEIGHT            = 32;
-constexpr int32_t K_ROW_SPACING           = 10;
-constexpr int32_t K_ICON_WIDTH            = 22;
-constexpr int32_t K_TITLE_WIDTH           = 76;
-constexpr int32_t K_DETAIL_WIDTH          = 92;
-constexpr int32_t K_STATE_WIDTH           = 34;
-constexpr int32_t K_LED_SIZE              = 12;
-constexpr int32_t K_SWITCH_WIDTH          = 38;
-constexpr int32_t K_SWITCH_HEIGHT         = 20;
-constexpr uint32_t K_GPIO_ACTION_DELAY_MS = 120;
-constexpr uint32_t K_INPUT_POLL_MS        = 250;
+constexpr int32_t K_PANEL_WIDTH                  = 304;
+constexpr int32_t K_ROW_WIDTH                    = 300;
+constexpr int32_t K_ROW_HEIGHT                   = 32;
+constexpr int32_t K_ROW_SPACING                  = 10;
+constexpr int32_t K_ICON_WIDTH                   = 22;
+constexpr int32_t K_TITLE_WIDTH                  = 76;
+constexpr int32_t K_DETAIL_WIDTH                 = 92;
+constexpr int32_t K_STATE_WIDTH                  = 34;
+constexpr int32_t K_LED_SIZE                     = 12;
+constexpr int32_t K_SWITCH_WIDTH                 = 38;
+constexpr int32_t K_SWITCH_HEIGHT                = 20;
+constexpr uint32_t K_GPIO_ACTION_DELAY_MS        = 120;
+constexpr uint32_t K_INPUT_POLL_MS               = 250;
+constexpr const char* K_EXT_5V_BRIGHTNESS_PATH   = "/sys/class/leds/ext_5v_out/brightness";
+constexpr const char* K_GROVE_5V_BRIGHTNESS_PATH = "/sys/class/leds/grove_5v_out/brightness";
+
+bool read_led_output(const char* path, bool& active, std::string& error) {
+  errno = 0;
+  std::ifstream file(path);
+  if (!file) {
+    error = std::string("Failed to open LED output: ") + std::strerror(errno);
+    return false;
+  }
+
+  int value = 0;
+  file >> value;
+  if (!file) {
+    error = "Failed to read LED output";
+    return false;
+  }
+
+  active = value != 0;
+  error.clear();
+  return true;
+}
+
+bool write_led_output(const char* path, bool active, std::string& error) {
+  errno = 0;
+  std::ofstream file(path);
+  if (!file) {
+    error = std::string("Failed to open LED output: ") + std::strerror(errno);
+    return false;
+  }
+
+  file << (active ? 1 : 0) << '\n';
+  if (!file) {
+    error = std::string("Failed to write LED output: ") + std::strerror(errno);
+    return false;
+  }
+
+  error.clear();
+  return true;
+}
 
 bool key_name_is(const char* key_name, const char* expected) {
   return key_name && expected && std::strcmp(key_name, expected) == 0;
@@ -82,10 +124,17 @@ void ExtIoConnectivityView::build(lv_obj_t* parent,
   dialog_parent_  = dialog_parent;
   rows_           = {{
       {"EXT 5V",
-       "gpiochip1 line 12",
+       K_EXT_5V_BRIGHTNESS_PATH,
        view::ICON_LIGHTNING,
        {"/dev/gpiochip1", 12, "factory-test-extio-5v"},
-       false},
+       false,
+       K_EXT_5V_BRIGHTNESS_PATH},
+      {"Grove 5V",
+       K_GROVE_5V_BRIGHTNESS_PATH,
+       view::ICON_LIGHTNING,
+       {"/dev/gpiochip1", 3, "factory-test-extio-grove-5v"},
+       false,
+       K_GROVE_5V_BRIGHTNESS_PATH},
       {"GPIO26",
        "gpiochip0 line 26",
        view::ICON_PLUGS_CONNECTED,
@@ -254,9 +303,14 @@ void ExtIoConnectivityView::toggle_row_(std::size_t index) {
   auto& row       = rows_[index];
   const bool next = !row.active;
   std::string error;
-  wait_for_gpio_slot_();
-  const bool ok = platform::gpio::set_output_value(row.gpio, next, error);
-  row.error     = !ok;
+  bool ok = false;
+  if (row.brightness_path) {
+    ok = write_led_output(row.brightness_path, next, error);
+  } else {
+    wait_for_gpio_slot_();
+    ok = platform::gpio::set_output_value(row.gpio, next, error);
+  }
+  row.error = !ok;
   if (ok) {
     row.active = next;
     row.error_message.clear();
@@ -268,7 +322,9 @@ void ExtIoConnectivityView::toggle_row_(std::size_t index) {
 
 void ExtIoConnectivityView::release_output_lines_() {
   for (auto& row : rows_) {
-    platform::gpio::release_output_value(row.gpio);
+    if (!row.brightness_path) {
+      platform::gpio::release_output_value(row.gpio);
+    }
     row.active = false;
     row.error  = false;
     row.error_message.clear();
@@ -280,7 +336,8 @@ void ExtIoConnectivityView::read_output_states_() {
   for (auto& row : rows_) {
     bool active = false;
     std::string error;
-    const bool ok = platform::gpio::get_output_value(row.gpio, active, error);
+    const bool ok = row.brightness_path ? read_led_output(row.brightness_path, active, error)
+                                        : platform::gpio::get_output_value(row.gpio, active, error);
     row.error     = !ok;
     if (ok) {
       row.active = active;

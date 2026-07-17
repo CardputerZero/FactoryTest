@@ -54,6 +54,7 @@ constexpr uint32_t K_KEY_PLAY_PAUSE      = K_SPECIAL_KEY_BASE | 15U;
 constexpr uint32_t K_KEY_REWIND          = K_SPECIAL_KEY_BASE | 16U;
 constexpr uint32_t K_KEY_FAST_FORWARD    = K_SPECIAL_KEY_BASE | 17U;
 constexpr uint32_t K_KEY_PRINTSCREEN     = K_SPECIAL_KEY_BASE | 18U;
+constexpr uint32_t K_KEY_HELP            = K_SPECIAL_KEY_BASE | 19U;
 constexpr uint32_t K_KEY_F_BASE          = K_SPECIAL_KEY_BASE | 0x100U;
 constexpr uint32_t K_LONG_PRESS_MS       = 700;
 
@@ -67,6 +68,7 @@ struct KeyRouterState {
   bool long_press_sent{false};
   lv_timer_t* long_press_timer{nullptr};
   NavTriggerMode nav_trigger_mode{NavTriggerMode::CLICK};
+  bool nav_direction_aliases_enabled{true};
   KeyListener key_listener{nullptr};
   void* key_listener_user_data{nullptr};
   KeyReleaseListener key_release_listener{nullptr};
@@ -140,7 +142,7 @@ constexpr std::array<KeyNameEntry, 12> K_LV_KEY_NAMES = {{
     {LV_KEY_END, "End"},
 }};
 
-constexpr std::array<KeyNameEntry, 20> K_SPECIAL_KEY_NAMES = {{
+constexpr std::array<KeyNameEntry, 21> K_SPECIAL_KEY_NAMES = {{
     {' ', "Space"},
     {'\t', "Tab"},
     {K_KEY_CTRL, "Ctrl"},
@@ -161,6 +163,7 @@ constexpr std::array<KeyNameEntry, 20> K_SPECIAL_KEY_NAMES = {{
     {K_KEY_REWIND, "Rewind"},
     {K_KEY_FAST_FORWARD, "FastForward"},
     {K_KEY_PRINTSCREEN, "PrintScreen"},
+    {K_KEY_HELP, "Help"},
 }};
 
 #if !USE_DESKTOP
@@ -215,10 +218,17 @@ const char* key_state_name(bool pressed) { return pressed ? "pressed" : "release
 std::string key_name(uint32_t key) { return describe_key(key); }
 
 size_t nav_key_to_index(uint32_t key) {
+  auto& state = key_router_state();
+  if (!state.nav_direction_aliases_enabled &&
+      (key == 'z' || key == 'Z' || key == 'c' || key == 'C' || key == LV_KEY_LEFT ||
+       key == LV_KEY_RIGHT)) {
+    return K_NAV_KEY_COUNT;
+  }
+
   for (const auto& entry : K_NAV_KEY_MAP) {
     if (entry.key == key) {
-      return key_router_state().nav_trigger_mode == NavTriggerMode::CLICK ? entry.click_index
-                                                                          : entry.long_press_index;
+      return state.nav_trigger_mode == NavTriggerMode::CLICK ? entry.click_index
+                                                              : entry.long_press_index;
     }
   }
   return K_NAV_KEY_COUNT;
@@ -450,11 +460,10 @@ struct EvdevAlphaKeyRange {
 };
 
 constexpr std::array<KeyMapEntry, 32> K_TCA8418_SYMBOL_KEYS = {{
-    {183, '!'}, {184, '@'},  {185, '#'},  {186, '$'}, {187, '%'}, {188, '^'}, {189, '&'},
-    {190, '*'}, {191, '('},  {192, ')'},  {193, '~'}, {194, '`'}, {195, '+'}, {196, '-'},
-    {197, '/'}, {198, '\\'}, {199, '{'},  {200, '}'}, {201, '['}, {202, ']'}, {231, ','},
-    {232, '.'}, {233, '|'},  {209, '='},  {210, ':'}, {211, ';'}, {212, '_'}, {213, '?'},
-    {214, '<'}, {215, '>'},  {216, '\''}, {217, '"'},
+    {26, '!'}, {27, '@'}, {39, '#'}, {40, '$'}, {41, '%'}, {43, '^'}, {51, '&'}, {52, '*'},
+    {53, '('}, {54, ')'}, {55, '~'}, {69, '`'}, {70, '_'}, {71, '-'}, {72, '+'}, {73, '='},
+    {74, '['}, {75, ']'}, {76, '{'}, {77, '}'}, {79, ';'}, {80, ':'}, {81, '\''}, {82, '"'},
+    {83, '<'}, {85, '>'}, {86, '\\'}, {89, '|'}, {90, ','}, {91, '.'}, {92, '/'}, {93, '?'},
 }};
 
 constexpr std::array<EvdevPrintableKeyMapEntry, 22> K_PRINTABLE_SYMBOL_KEYS = {{
@@ -476,7 +485,7 @@ constexpr std::array<KeyMapEntry, 5> K_KEYPAD_SYMBOL_KEYS = {{
     {KEY_KPSLASH, '/'},
 }};
 
-constexpr std::array<KeyMapEntry, 33> K_SPECIAL_EVDEV_KEYS = {{
+constexpr std::array<KeyMapEntry, 37> K_SPECIAL_EVDEV_KEYS = {{
     {KEY_ESC, LV_KEY_ESC},
     {KEY_ENTER, LV_KEY_ENTER},
     {KEY_KPENTER, LV_KEY_ENTER},
@@ -493,6 +502,7 @@ constexpr std::array<KeyMapEntry, 33> K_SPECIAL_EVDEV_KEYS = {{
     {KEY_PAGEDOWN, K_KEY_PAGE_DOWN},
     {KEY_TAB, '\t'},
     {KEY_FN, K_KEY_FN},
+    {KEY_COMPOSE, K_KEY_SYM},
     {KEY_LEFTCTRL, K_KEY_CTRL},
     {KEY_RIGHTCTRL, K_KEY_CTRL},
     {KEY_LEFTSHIFT, K_KEY_SHIFT},
@@ -508,8 +518,11 @@ constexpr std::array<KeyMapEntry, 33> K_SPECIAL_EVDEV_KEYS = {{
     {KEY_BRIGHTNESSUP, K_KEY_BRIGHTNESS_UP},
     {KEY_PLAYPAUSE, K_KEY_PLAY_PAUSE},
     {KEY_REWIND, K_KEY_REWIND},
+    {KEY_PREVIOUSSONG, K_KEY_REWIND},
     {KEY_FASTFORWARD, K_KEY_FAST_FORWARD},
+    {KEY_NEXTSONG, K_KEY_FAST_FORWARD},
     {KEY_SYSRQ, K_KEY_PRINTSCREEN},
+    {KEY_HELP, K_KEY_HELP},
 }};
 
 constexpr std::array<KeyMapEntry, 12> K_FUNCTION_KEYS = {{
@@ -899,6 +912,12 @@ void set_nav_trigger_mode(NavTriggerMode mode) {
               state.nav_trigger_mode == NavTriggerMode::CLICK ? "click" : "long",
               mode == NavTriggerMode::CLICK ? "click" : "long");
   state.nav_trigger_mode = mode;
+  reset_key_router_state();
+}
+
+void set_nav_direction_aliases_enabled(bool enabled) {
+  auto& state = key_router_state();
+  state.nav_direction_aliases_enabled = enabled;
   reset_key_router_state();
 }
 

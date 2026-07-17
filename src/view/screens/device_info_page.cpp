@@ -15,6 +15,7 @@
 #include "device_info_service.h"
 #include "linux_input.h"
 #include "ui_const.h"
+#include "version.h"
 
 namespace screen {
 namespace {
@@ -24,6 +25,7 @@ constexpr int32_t K_VIEWPORT_HEIGHT = 106;
 constexpr int32_t K_GRID_WIDTH      = 300;
 constexpr int32_t K_CARD_WIDTH      = 300;
 constexpr int32_t K_CARD_HEIGHT     = 34;
+constexpr int32_t K_TITLE_WIDTH     = 116;
 constexpr int32_t K_SCROLL_STEP     = 40;
 constexpr int32_t K_BOUNCE_OFFSET   = 14;
 constexpr uint32_t K_REFRESH_MS     = 5000;
@@ -34,6 +36,7 @@ const char* field_icon(std::size_t index) {
   static constexpr const char* ICONS[] = {
       view::ICON_DEVICE_MOBILE,
       view::ICON_WRENCH,
+      view::ICON_CIRCUIT,
       view::ICON_FINGERPRINT,
       view::ICON_MEMORY,
       view::ICON_HARDDRIVE,
@@ -43,6 +46,8 @@ const char* field_icon(std::size_t index) {
       view::ICON_TIMER,
       view::ICON_CLOCK,
       view::ICON_MAPPIN,
+      view::ICON_GIT_BRANCH,
+      view::ICON_WRENCH,
   };
   return index < (sizeof(ICONS) / sizeof(ICONS[0])) ? ICONS[index] : view::ICON_INFO;
 }
@@ -100,7 +105,9 @@ void DeviceInfoPage::build_content(lv_obj_t* content) {
   auto* icon_font   = assets_ref_().load_font("Phosphor-Fill.ttf", 14);
   auto* key_font    = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 11);
   auto* value_font  = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 11);
-  const auto fields = platform::device_info::read_device_info_fields();
+  auto fields = platform::device_info::read_device_info_fields();
+  fields.push_back({"Software Version", factory_test::get_version_str()});
+  fields.push_back({"Build time", factory_test::get_build_time_str()});
   cards_.clear();
   cards_.reserve(fields.size());
 
@@ -117,7 +124,8 @@ void DeviceInfoPage::build_content(lv_obj_t* content) {
         value_font ? value_font : &lv_font_montserrat_12,
         K_CARD_WIDTH,
         K_CARD_HEIGHT,
-        LV_LABEL_LONG_SCROLL);
+        LV_LABEL_LONG_SCROLL,
+        K_TITLE_WIDTH);
     card->build();
     cards_.push_back(std::move(card));
   }

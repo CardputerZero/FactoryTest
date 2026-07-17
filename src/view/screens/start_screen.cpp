@@ -207,7 +207,7 @@ void StartScreen::rebuild_list_() {
   auto* text_font = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"),
                                             14);
   auto* icon_font = assets_ref_().load_font("Phosphor-Fill.ttf", 14);
-  auto items      = current_list_items_();
+  auto items = current_list_items_();
   list_ = std::make_unique<view::widgets::IconList>(list_viewport_,
                                                     app_view_model_ref_(),
                                                     items,
@@ -531,7 +531,7 @@ void StartScreen::show_language_dialog_() {
   config.width                 = 250;
   config.height                = 136;
   config.title                 = "Language";
-  config.shortcut_text         = "ESC: Cancel  OK: Confirm";
+  config.shortcut_text         = "ESC: Cancel  Enter: OK";
   config.ok_button_label       = "OK";
   config.cancel_button_label   = "Cancel";
   config.button_width          = 76;
@@ -556,10 +556,12 @@ void StartScreen::show_language_dialog_() {
                                                              callbacks);
   language_dialog_->build();
 
-  const auto options = app_view_model_ref_().tr("English") + "\n" +
-                       app_view_model_ref_().tr("Chinese");
-  const uint32_t selected = app_view_model_ref_().language() == "zh_CN" ? 1 : 0;
-  language_dropdown_ = language_dialog_->add_dropdown(options.c_str(), selected, 176);
+  constexpr const char* K_LANGUAGE_OPTIONS = "English\n中文";
+  const uint32_t selected                  = app_view_model_ref_().language() == "zh_CN" ? 1 : 0;
+  language_dropdown_ = language_dialog_->add_dropdown(K_LANGUAGE_OPTIONS,
+                                                      selected,
+                                                      176,
+                                                      "alibaba-puhui-regular.ttf");
 }
 
 void StartScreen::close_language_dialog_() {

@@ -273,8 +273,8 @@ void IconList::apply_row_style_(Row& row, bool dark_mode) {
   lv_obj_set_style_border_width(row.button, selected && focused_ ? 1 : 0, 0);
   lv_obj_set_style_border_color(row.button, selected ? colors.primary : colors.border, 0);
 
-  const auto text_color =
-      selected ? (focused_ ? selected_text : unfocused_selected_text) : normal_text;
+  const auto text_color = selected ? (focused_ ? selected_text : unfocused_selected_text)
+                                   : normal_text;
   lv_obj_set_style_text_color(row.text_label, text_color, 0);
   lv_obj_set_style_text_color(row.icon_label, text_color, 0);
   if (row.status_label) {

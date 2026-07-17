@@ -15,6 +15,7 @@ struct WirelessScanItem {
   std::string name;
   std::string detail;
   int32_t strength_percent{-1};
+  std::string bssid;
 };
 
 struct EthernetInfo {
@@ -66,6 +67,8 @@ struct LinkTestSettings {
 struct LinkPingResult {
   bool success{false};
   int ttl{-1};
+  double latency_ms{-1.0};
+  std::string host;
   std::string message;
 };
 

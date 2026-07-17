@@ -36,7 +36,7 @@ struct DialogConfig {
   bool show_title{true};
   std::string title{};
   bool show_shortcuts{true};
-  std::string shortcut_text{"ESC: Cancel  OK: Confirm"};
+  std::string shortcut_text{"ESC: Cancel  Enter: OK"};
   bool show_ok_button{true};
   bool show_cancel_button{true};
   std::string ok_button_label{"OK"};
@@ -91,7 +91,10 @@ class Dialog : public BaseWidgets {
                       int32_t width         = 246,
                       lv_text_align_t align = LV_TEXT_ALIGN_LEFT);
   lv_obj_t* add_textarea(const char* text, const DialogTextareaOptions& options = {});
-  lv_obj_t* add_dropdown(const char* options, uint32_t selected, int32_t width = 196);
+  lv_obj_t* add_dropdown(const char* options,
+                         uint32_t selected,
+                         int32_t width         = 196,
+                         const char* font_name = nullptr);
   lv_obj_t* add_display_field(const char* text, int32_t width = 246, int32_t height = 26);
   lv_obj_t* ok_button() const;
   lv_obj_t* cancel_button() const;
