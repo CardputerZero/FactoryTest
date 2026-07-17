@@ -23,6 +23,13 @@ TODO
 
 ## Changelog
 
+### 0.2.5 - 2026-07-17
+
+- Update I/O port controls and hardware status detection.
+- Replace selected hardware reads with file-based interfaces.
+- Refresh factory test UI and interaction behavior.
+- Complete Debian packaging and installation configuration.
+
 ### 0.2.4 - 2026-07-10
 
 - Use the miniaudio PulseAudio backend so Audio Test and key-click playback share the system-managed audio path.
