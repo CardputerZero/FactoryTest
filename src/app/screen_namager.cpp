@@ -6,6 +6,7 @@
 
 #include "audio_test_page.h"
 #include "camera_test_page.h"
+#include "cap_fixture_test_page.h"
 #include "device_info_page.h"
 #include "imu_test_page.h"
 #include "io_test_page.h"
@@ -86,6 +87,8 @@ const char* placeholder_title(model::AppPage page) {
       return "SD Card Test";
     case model::AppPage::TEST_RESULT:
       return "Test Result";
+    case model::AppPage::CAP_FIXTURE_TEST:
+      return "CAP Fixture Test";
     case model::AppPage::START:
     case model::AppPage::KEYBOARD_TEST:
     case model::AppPage::LCD_TEST:
@@ -225,6 +228,12 @@ void ScreenManager::show_test_result_page() {
   has_loaded_page_ = true;
 }
 
+void ScreenManager::show_cap_fixture_test_page() {
+  load_screen_(std::make_unique<screen::CapFixtureTestPage>(app_view_model_, assets_));
+  loaded_page_     = model::AppPage::CAP_FIXTURE_TEST;
+  has_loaded_page_ = true;
+}
+
 void ScreenManager::show_placeholder_page(model::AppPage page) {
   load_screen_(
       std::make_unique<screen::PlaceholderTestPage>(app_view_model_,
@@ -306,6 +315,9 @@ void ScreenManager::flush_requested_page() {
       return;
     case model::AppPage::TEST_RESULT:
       show_test_result_page();
+      return;
+    case model::AppPage::CAP_FIXTURE_TEST:
+      show_cap_fixture_test_page();
       return;
   }
 }

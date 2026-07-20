@@ -16,6 +16,11 @@ enum class TestResult {
   SKIPPED,
 };
 
+struct NamedTestResult {
+  std::string test_name;
+  TestResult result{TestResult::FAILED};
+};
+
 class TestSession {
  public:
   void start();

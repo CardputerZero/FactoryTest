@@ -7,13 +7,13 @@ This repository holds the factory test application of CardputerZero.
 + Download the debian release
 
 ```
-wget https://github.com/CardputerZero/FactoryTest/releases/download/0.2.5/FactoryTest_0.2.5_m5stack1_arm64.deb
+wget https://github.com/CardputerZero/FactoryTest/releases/download/0.2.6/FactoryTest_0.2.6_m5stack1_arm64.deb
 ```
 
 + Install the package
 
 ```
-sudo apt install ./FactoryTest_0.2.5_m5stack1_arm64.deb
+sudo apt install ./FactoryTest_0.2.6_m5stack1_arm64.deb
 ```
 
 
@@ -22,6 +22,16 @@ sudo apt install ./FactoryTest_0.2.5_m5stack1_arm64.deb
 TODO
 
 ## Changelog
+
+### 0.2.6 - 2026-07-17
+
+- Add the hidden CAP/HAT fixture test sequence for Full Test.
+- Add fixed-delay I2C, power, UART, SPI, USB, and GPIO fixture validation.
+- Add detailed fixture protocol logs and deterministic hardware cleanup states.
+- Report individual CAP fixture checks in Full Test results and verify GPIO output readback.
+- Keep the existing communication pages available for manual diagnostics.
+- Make Debian post-install setup independent of the image-build user.
+- Keep product-group and `cap_net_raw` setup failures non-blocking with explicit warnings.
 
 ### 0.2.5 - 2026-07-17
 

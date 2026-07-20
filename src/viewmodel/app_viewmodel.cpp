@@ -19,7 +19,7 @@ struct TestSequenceItem {
   model::AppPage page;
 };
 
-constexpr std::array<TestSequenceItem, 22> K_TEST_SEQUENCE = {{
+constexpr std::array<TestSequenceItem, 18> K_TEST_SEQUENCE = {{
     {"Input Test", model::AppPage::KEYBOARD_TEST},
     {"Display Test", model::AppPage::LCD_TEST},
     {"Audio Test", model::AppPage::AUDIO_TEST},
@@ -29,13 +29,9 @@ constexpr std::array<TestSequenceItem, 22> K_TEST_SEQUENCE = {{
     {"Wi-Fi", model::AppPage::WIFI_TEST},
     {"Bluetooth", model::AppPage::BT_TEST},
     {"Ethernet", model::AppPage::ETH_TEST},
-    {"USB", model::AppPage::USB_TEST},
-    {"HDMI", model::AppPage::HDMI_TEST},
-    {"I2C", model::AppPage::I2C_TEST},
-    {"SPI", model::AppPage::SPI_TEST},
-    {"UART", model::AppPage::UART_TEST},
-    {"EXT.IO", model::AppPage::EXT_IO_TEST},
     {"Link Test", model::AppPage::LINK_TEST},
+    {"HDMI", model::AppPage::HDMI_TEST},
+    {"CAP Fixture Test", model::AppPage::CAP_FIXTURE_TEST},
     {"Device Information", model::AppPage::DEVICE_INFO},
     {"Power Information", model::AppPage::POWER_INFO},
     {"IMU Test", model::AppPage::IMU_TEST},
@@ -236,6 +232,23 @@ void AppViewModel::complete_current_test(model::TestResult result) {
     test_session_.append_result(current_test_name(), result);
   }
 
+  advance_test_sequence_();
+}
+
+void AppViewModel::complete_current_test_with_details(
+    model::TestResult result,
+    const std::vector<model::NamedTestResult>& detail_results) {
+  if (model_.test_sequence_active()) {
+    test_session_.append_result(current_test_name(), result);
+    for (const auto& detail : detail_results) {
+      test_session_.append_result(detail.test_name.c_str(), detail.result);
+    }
+  }
+
+  advance_test_sequence_();
+}
+
+void AppViewModel::advance_test_sequence_() {
   if (!model_.test_sequence_active()) {
     show_start_page();
     return;
@@ -305,6 +318,8 @@ const char* AppViewModel::current_test_name() const {
       return "Mem Stress Test";
     case model::AppPage::SD_CARD_TEST:
       return "SD Card Test";
+    case model::AppPage::CAP_FIXTURE_TEST:
+      return "CAP Fixture Test";
     case model::AppPage::START:
     case model::AppPage::TEST_RESULT:
     default:

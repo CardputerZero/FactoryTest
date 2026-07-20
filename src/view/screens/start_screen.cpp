@@ -7,8 +7,8 @@
 #include "start_screen.h"
 
 #include <algorithm>
-#include <cstring>
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <utility>
 #include <vector>
@@ -16,6 +16,7 @@
 #include "asset_manager.h"
 #include "bindings.h"
 #include "linux_input.h"
+#include "logger.h"
 #include "theme.h"
 #include "ui_const.h"
 
@@ -204,10 +205,10 @@ void StartScreen::rebuild_list_() {
 
   list_.reset();
 
-  auto* text_font = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"),
-                                            14);
+  auto* text_font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 14);
   auto* icon_font = assets_ref_().load_font("Phosphor-Fill.ttf", 14);
-  auto items = current_list_items_();
+  auto items      = current_list_items_();
   list_ = std::make_unique<view::widgets::IconList>(list_viewport_,
                                                     app_view_model_ref_(),
                                                     items,
@@ -239,8 +240,8 @@ void StartScreen::build_drawer_(lv_obj_t* content) {
       model::StartMenuCategory::COMMS,
   };
 
-  auto* tab_font = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-bold.ttf"),
-                                           12);
+  auto* tab_font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-bold.ttf"), 12);
   for (std::size_t i = 0; i < tabs_.size(); ++i) {
     tabs_[i].category = categories[i];
     tabs_[i].button   = lv_button_create(drawer_);
@@ -262,7 +263,7 @@ void StartScreen::build_drawer_(lv_obj_t* content) {
     lv_obj_clear_flag(tabs_[i].fill, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_center(tabs_[i].fill);
 
-    tabs_[i].label = lv_label_create(tabs_[i].button);
+    tabs_[i].label        = lv_label_create(tabs_[i].button);
     const auto translated = app_view_model_ref_().tr(category_text(categories[i]));
     lv_label_set_text(tabs_[i].label, translated.c_str());
     lv_obj_center(tabs_[i].label);
@@ -528,17 +529,17 @@ void StartScreen::show_language_dialog_() {
 
   platform::set_modal_key_capture(true);
   view::widgets::DialogConfig config;
-  config.width                 = 250;
-  config.height                = 136;
-  config.title                 = "Language";
-  config.shortcut_text         = "ESC: Cancel  Enter: OK";
-  config.ok_button_label       = "OK";
-  config.cancel_button_label   = "Cancel";
-  config.button_width          = 76;
-  config.button_row_width      = 174;
-  config.button_bottom_pad     = 4;
-  config.body_font_size        = 12;
-  config.use_nav_action_keys   = false;
+  config.width               = 250;
+  config.height              = 136;
+  config.title               = "Language";
+  config.shortcut_text       = "ESC: Cancel  Enter: OK";
+  config.ok_button_label     = "OK";
+  config.cancel_button_label = "Cancel";
+  config.button_width        = 76;
+  config.button_row_width    = 174;
+  config.button_bottom_pad   = 4;
+  config.body_font_size      = 12;
+  config.use_nav_action_keys = false;
 
   view::widgets::DialogCallbacks callbacks;
   callbacks.ok_action = [this]() {
@@ -577,9 +578,8 @@ bool StartScreen::handle_language_dialog_key_(uint32_t key, const char* key_name
     return false;
   }
 
-  if (language_dropdown_ &&
-      (key == LV_KEY_UP || key == 'f' || key == 'F' || key == LV_KEY_DOWN || key == 'x' ||
-       key == 'X')) {
+  if (language_dropdown_ && (key == LV_KEY_UP || key == 'f' || key == 'F' || key == LV_KEY_DOWN ||
+                             key == 'x' || key == 'X')) {
     const auto count = lv_dropdown_get_option_count(language_dropdown_);
     if (count > 0) {
       auto selected = lv_dropdown_get_selected(language_dropdown_);
@@ -610,8 +610,8 @@ void StartScreen::refresh_language_() {
     }
     const auto translated = app_view_model_ref_().tr(category_text(tab.category));
     lv_label_set_text(tab.label, translated.c_str());
-    auto* tab_font = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-bold.ttf"),
-                                             12);
+    auto* tab_font =
+        assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-bold.ttf"), 12);
     if (tab_font) {
       lv_obj_set_style_text_font(tab.label, tab_font, 0);
     }
@@ -627,10 +627,10 @@ void StartScreen::show_exit_popup_() {
   if (!exit_popup_) {
     view::widgets::PopupConfig config;
     config.message = app_view_model_ref_().tr("Hold ESC/4 to Exit");
-    config.font    = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"),
-                                             14);
-    config.tone    = view::widgets::PopupTone::ERROR;
-    exit_popup_    = std::make_unique<view::widgets::Popup>(root(), app_view_model_ref_(), config);
+    config.font =
+        assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 14);
+    config.tone = view::widgets::PopupTone::ERROR;
+    exit_popup_ = std::make_unique<view::widgets::Popup>(root(), app_view_model_ref_(), config);
     exit_popup_->build();
   }
   exit_popup_->show();
@@ -649,8 +649,22 @@ void StartScreen::key_listener(uint32_t key, const char* key_name, void* user_da
   }
 
   if (page->handle_language_dialog_key_(key, key_name)) {
+    page->fixture_shortcut_count_ = 0;
     return;
   }
+
+  if (key == 'a' || key == 'A') {
+    ++page->fixture_shortcut_count_;
+    if (page->fixture_shortcut_count_ >= 3) {
+      page->fixture_shortcut_count_ = 0;
+      LOG_INFO("CAP fixture debug shortcut accepted: A,A,A");
+      page->perf_view_model_.clear_direct_subpage();
+      page->connectivity_view_model_.clear_direct_subpage();
+      page->app_view_model_ref_().show_single_test_page(model::AppPage::CAP_FIXTURE_TEST);
+    }
+    return;
+  }
+  page->fixture_shortcut_count_ = 0;
 
   if (is_exit_key(key)) {
     page->show_exit_popup_();

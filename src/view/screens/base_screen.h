@@ -7,7 +7,6 @@
 #pragma once
 
 #include <cstdint>
-
 #include <functional>
 #include <memory>
 
@@ -25,8 +24,7 @@ namespace screen {
 
 class BaseScreen {
  public:
-  BaseScreen(viewmodel::AppViewModel& app_view_model,
-             app::AssetManager& assets);
+  BaseScreen(viewmodel::AppViewModel& app_view_model, app::AssetManager& assets);
   virtual ~BaseScreen();
 
   BaseScreen(const BaseScreen&)            = delete;

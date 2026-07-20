@@ -105,6 +105,7 @@ class StartScreen : public BaseScreen {
   lv_observer_t* category_observer_handle_{nullptr};
   lv_observer_t* theme_observer_handle_{nullptr};
   lv_observer_t* language_observer_handle_{nullptr};
+  uint8_t fixture_shortcut_count_{0};
 };
 
 }  // namespace screen

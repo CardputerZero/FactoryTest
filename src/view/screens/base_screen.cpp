@@ -21,15 +21,13 @@ namespace {
 
 bool is_dialog_cancel_key(uint32_t key, const char* key_name) {
   return key == LV_KEY_ESC || key == 27 || key == '4' ||
-         (key_name &&
-          (std::strcmp(key_name, "Esc") == 0 || std::strcmp(key_name, "Escape") == 0 ||
-           std::strcmp(key_name, "KEY_1") == 0));
+         (key_name && (std::strcmp(key_name, "Esc") == 0 || std::strcmp(key_name, "Escape") == 0 ||
+                       std::strcmp(key_name, "KEY_1") == 0));
 }
 
 }  // namespace
 
-BaseScreen::BaseScreen(viewmodel::AppViewModel& app_view_model,
-                       app::AssetManager& assets)
+BaseScreen::BaseScreen(viewmodel::AppViewModel& app_view_model, app::AssetManager& assets)
     : app_view_model_(app_view_model),
       assets_(assets) {}
 
@@ -88,13 +86,13 @@ void BaseScreen::set_nav_action_(uint32_t keypad,
                                  std::function<void()> press_action,
                                  std::function<void()> release_action) {
   viewmodel::NavAction nav_action;
-  nav_action.icon          = icon ? icon : "";
-  nav_action.action        = std::move(action);
-  nav_action.press_action  = std::move(press_action);
+  nav_action.icon           = icon ? icon : "";
+  nav_action.action         = std::move(action);
+  nav_action.press_action   = std::move(press_action);
   nav_action.release_action = std::move(release_action);
-  nav_action.event_code    = event_code;
-  nav_action.hold_target   = hold_target;
-  nav_action.force_enabled = force_enabled;
+  nav_action.event_code     = event_code;
+  nav_action.hold_target    = hold_target;
+  nav_action.force_enabled  = force_enabled;
   app_view_model_.set_keypad_nav_action(keypad, std::move(nav_action));
 }
 

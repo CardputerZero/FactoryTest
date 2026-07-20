@@ -66,6 +66,12 @@ const char* icon_for_test_name(const std::string& name) {
   if (name == "EXT.IO") {
     return view::ICON_PLUGS_CONNECTED;
   }
+  if (name == "CAP Fixture Test") {
+    return view::ICON_FLASK;
+  }
+  if (name.rfind("CAP Fixture - ", 0) == 0) {
+    return view::ICON_PLUGS_CONNECTED;
+  }
   if (name == "Link Test") {
     return view::ICON_GLOBE;
   }

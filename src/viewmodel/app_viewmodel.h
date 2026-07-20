@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <vector>
 
 #include "app_model.h"
 #include "lvgl.h"
@@ -93,6 +94,9 @@ class AppViewModel {
   void refresh_current_page();
   void complete_current_test();
   void complete_current_test(model::TestResult result);
+  void complete_current_test_with_details(
+      model::TestResult result,
+      const std::vector<model::NamedTestResult>& detail_results);
   const char* current_test_name() const;
   std::size_t current_test_number() const;
   std::size_t test_count() const;
@@ -105,6 +109,7 @@ class AppViewModel {
  protected:
   void publish_all_();
   void show_page_(model::AppPage page);
+  void advance_test_sequence_();
 
  private:
   model::AppModel model_{};

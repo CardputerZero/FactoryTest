@@ -60,6 +60,8 @@ const char* AppModel::app_title() const {
       return "SD Card Test";
     case AppPage::TEST_RESULT:
       return "Test Result";
+    case AppPage::CAP_FIXTURE_TEST:
+      return "CAP Fixture Test";
   }
 
   return "Factory Test";

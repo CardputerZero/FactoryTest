@@ -108,6 +108,12 @@ bool request_line(const OutputLineConfig& config,
 
   int result = gpiod_line_settings_set_direction(settings, direction);
   if (result == 0 && direction == GPIOD_LINE_DIRECTION_OUTPUT) {
+    result = gpiod_line_settings_set_drive(settings, GPIOD_LINE_DRIVE_PUSH_PULL);
+  }
+  if (result == 0) {
+    gpiod_line_settings_set_active_low(settings, false);
+  }
+  if (result == 0 && direction == GPIOD_LINE_DIRECTION_OUTPUT) {
     result = gpiod_line_settings_set_output_value(settings, initial_value);
   }
   if (result == 0) {
@@ -180,12 +186,27 @@ struct OutputLine::Impl {
 
 #if APP_USE_LIBGPIOD
     const auto value = active ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE;
-    if (!request && !request_line_locked(GPIOD_LINE_DIRECTION_OUTPUT, value, error_message)) {
-      return false;
+    if (!request || !output_mode) {
+      release_locked();
+      if (!request_line_locked(GPIOD_LINE_DIRECTION_OUTPUT, value, error_message)) {
+        return false;
+      }
     }
 
     if (gpiod_line_request_set_value(request, config.line_offset, value) == 0) {
-      return true;
+      bool readback = false;
+      if (!read_requested_value(config, request, readback, error_message)) {
+        return false;
+      }
+      if (readback == active) {
+        return true;
+      }
+      error_message = "GPIO output readback mismatch";
+      LOG_WARN("GPIO{} output readback mismatch: requested={} actual={}",
+               config.line_offset,
+               active ? 1 : 0,
+               readback ? 1 : 0);
+      return false;
     }
 
     // If the request became invalid, release and try once more with the requested value.
@@ -195,7 +216,19 @@ struct OutputLine::Impl {
       return false;
     }
     if (gpiod_line_request_set_value(request, config.line_offset, value) == 0) {
-      return true;
+      bool readback = false;
+      if (!read_requested_value(config, request, readback, error_message)) {
+        return false;
+      }
+      if (readback == active) {
+        return true;
+      }
+      error_message = "GPIO output readback mismatch after retry";
+      LOG_WARN("GPIO{} output readback mismatch after retry: requested={} actual={}",
+               config.line_offset,
+               active ? 1 : 0,
+               readback ? 1 : 0);
+      return false;
     }
 
     error_message = errno_message("Failed to set GPIO value");
@@ -205,6 +238,22 @@ struct OutputLine::Impl {
 #else
     (void)active;
     error_message = "libgpiod headers/library not found; cannot control GPIO";
+    LOG_WARN("GPIO{} unavailable: {}", config.line_offset, error_message);
+    return false;
+#endif
+  }
+
+  bool set_input(std::string& error_message) {
+    std::lock_guard<std::mutex> lock(mutex);
+    error_message.clear();
+
+#if APP_USE_LIBGPIOD
+    release_locked();
+    return request_line_locked(GPIOD_LINE_DIRECTION_INPUT,
+                               GPIOD_LINE_VALUE_INACTIVE,
+                               error_message);
+#else
+    error_message = "libgpiod headers/library not found; cannot configure GPIO input";
     LOG_WARN("GPIO{} unavailable: {}", config.line_offset, error_message);
     return false;
 #endif
@@ -243,7 +292,8 @@ struct OutputLine::Impl {
       return false;
     }
 
-    request = owner.release();
+    request     = owner.release();
+    output_mode = direction == GPIOD_LINE_DIRECTION_OUTPUT;
     return true;
   }
 #endif
@@ -254,6 +304,7 @@ struct OutputLine::Impl {
       gpiod_line_request_release(request);
       request = nullptr;
     }
+    output_mode = false;
 #endif
   }
 
@@ -261,6 +312,7 @@ struct OutputLine::Impl {
   std::mutex mutex;
 #if APP_USE_LIBGPIOD
   gpiod_line_request* request{nullptr};
+  bool output_mode{false};
 #endif
 };
 
@@ -271,6 +323,8 @@ OutputLine::~OutputLine() = default;
 bool OutputLine::set_value(bool active, std::string& error_message) {
   return impl_->set_value(active, error_message);
 }
+
+bool OutputLine::set_input(std::string& error_message) { return impl_->set_input(error_message); }
 
 bool OutputLine::get_value(bool& active, std::string& error_message) {
   return impl_->get_value(active, error_message);
@@ -285,6 +339,15 @@ bool set_output_value(const OutputLineConfig& config, bool active, std::string& 
     line = std::make_unique<OutputLine>(config);
   }
   return line->set_value(active, error_message);
+}
+
+bool set_input_mode(const OutputLineConfig& config, std::string& error_message) {
+  std::lock_guard<std::mutex> lock(output_lines_mutex());
+  auto& line = output_lines()[line_key(config)];
+  if (!line) {
+    line = std::make_unique<OutputLine>(config);
+  }
+  return line->set_input(error_message);
 }
 
 bool get_output_value(const OutputLineConfig& config, bool& active, std::string& error_message) {

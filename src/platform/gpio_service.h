@@ -26,6 +26,7 @@ class OutputLine {
   OutputLine& operator=(const OutputLine&) = delete;
 
   bool set_value(bool active, std::string& error_message);
+  bool set_input(std::string& error_message);
   bool get_value(bool& active, std::string& error_message);
   void release();
 
@@ -35,6 +36,7 @@ class OutputLine {
 };
 
 bool set_output_value(const OutputLineConfig& config, bool active, std::string& error_message);
+bool set_input_mode(const OutputLineConfig& config, std::string& error_message);
 bool get_output_value(const OutputLineConfig& config, bool& active, std::string& error_message);
 void release_output_value(const OutputLineConfig& config);
 bool get_input_value(const OutputLineConfig& config, bool& active, std::string& error_message);
