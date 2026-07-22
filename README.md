@@ -21,31 +21,6 @@ sudo apt install ./FactoryTest_0.2.7_m5stack1_arm64.deb
 
 TODO
 
-## CAP-CC1101 runtime requirements
-
-The CAP-CC1101 diagnostic uses `/dev/spidev0.1` for CC1101. ST25R3916 reuses that
-device node only as an SPI bus access point with `SPI_NO_CS`, and drives GPIO22 as
-an active-low software chip select. This avoids requiring a `spidev0.2` device-tree
-node and prevents the controller from asserting CC1101 CS1 during ST25R3916
-transactions. The SPI controller driver must support `SPI_NO_CS`, GPIO22 must be
-available through gpiochip0, and the hardware should provide a pull-up which keeps
-ST25R3916 CS inactive when userspace releases the GPIO line. The test also requires
-exclusive access to SPI0 because userspace GPIO CS assertion and the SPI transfer
-cannot share one atomic kernel bus-lock operation.
-
-CC1101 testing is limited to reset/idle initialization and read-only chip
-information/status checks (`PARTNUM`, `VERSION`, chip status, `MARCSTATE`, and
-`PKTSTATUS`). It does not configure a frequency or enter transmit/receive mode.
-The ST25R3916 check is also read-only and reports IC identity, operation control,
-and FIFO status registers. It does not invoke libnfc tools or enter NFC reader mode.
-
-Linux currently has no ST25R3916 kernel or user-space driver in this image. NFC
-polling and tag read/write are deferred until an ST RFAL-based backend is added;
-the application must not implement ISO14443 or other NFC protocols itself.
-
-The read-only CC1101 check does not use RF_SW0/GDO0, so it leaves the UART driver
-and GPIO14/GPIO15 ownership unchanged. SPI initialization, transmitted command
-bytes, and received response bytes are written to the application log for both ICs.
 
 ## Changelog
 
