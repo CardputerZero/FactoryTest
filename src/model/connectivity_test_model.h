@@ -92,7 +92,7 @@ struct LinkTestSettings {
 };
 
 struct LinkTestSnapshot {
-  LinkTestMetric ping;
+  LinkTestMetric internet;
   LinkTestMetric wifi_iperf;
   LinkTestMetric ethernet_iperf;
   LinkTestSettings settings;

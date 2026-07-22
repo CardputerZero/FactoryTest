@@ -61,6 +61,16 @@ const std::array<StartMenuItem, StartMenuModel::K_ITEM_COUNT>& start_menu_items(
       {"UART", view::ICON_BROADCAST, StartMenuCategory::COMMS, AppPage::UART_TEST, false},
       {"EXT.IO", view::ICON_PLUGS_CONNECTED, StartMenuCategory::COMMS, AppPage::EXT_IO_TEST, false},
       {"Link Test", view::ICON_GLOBE, StartMenuCategory::COMMS, AppPage::LINK_TEST, false},
+      {"CAP LoRa-1262",
+       view::ICON_BROADCAST,
+       StartMenuCategory::COMMS,
+       AppPage::CAP_LORA_1262_TEST,
+       false},
+      {"CAP-CC1101",
+       view::ICON_BROADCAST,
+       StartMenuCategory::COMMS,
+       AppPage::CAP_CC1101_TEST,
+       false},
   }};
   return ITEMS;
 }

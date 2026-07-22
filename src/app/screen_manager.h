@@ -49,6 +49,8 @@ class ScreenManager {
   void show_perf_single_test_page(model::AppPage page);
   void show_test_result_page();
   void show_cap_fixture_test_page();
+  void show_cap_lora_1262_test_page();
+  void show_cap_cc1101_test_page();
   void show_placeholder_page(model::AppPage page);
   void request_page(model::AppPage page);
   void flush_requested_page();

@@ -51,9 +51,11 @@ const char* link_status_text(model::LinkTestStatus status) {
   }
 }
 
-std::string ping_value_text(const model::LinkTestMetric& metric) {
+std::string internet_value_text(const model::LinkTestMetric& metric) {
   if (metric.status == model::LinkTestStatus::SUCCESS) {
-    return "TTL " + std::to_string(static_cast<int>(metric.value));
+    std::ostringstream stream;
+    stream << std::fixed << std::setprecision(0) << metric.value << " ms";
+    return stream.str();
   }
   if (metric.status == model::LinkTestStatus::RUNNING) {
     return "Testing...";
@@ -99,7 +101,7 @@ void add_link_row(lv_obj_t* card,
   lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_clear_flag(row, LV_OBJ_FLAG_CLICKABLE);
 
-  auto* title_label = lv_label_create(row);
+  auto* title_label           = lv_label_create(row);
   const auto translated_title = app_view_model.tr(title ? title : "Link");
   lv_label_set_text(title_label, translated_title.c_str());
   lv_obj_set_width(title_label, 84);
@@ -109,7 +111,7 @@ void add_link_row(lv_obj_t* card,
   std::string text = app_view_model.tr(value.c_str());
   if (!metric.detail.empty()) {
     text += " | ";
-    text += metric.detail;
+    text += app_view_model.tr(metric.detail.c_str());
   } else if (metric.status != model::LinkTestStatus::SUCCESS) {
     text += " | ";
     text += app_view_model.tr(link_status_text(metric.status));
@@ -171,7 +173,12 @@ void rebuild_link_panel(lv_obj_t* panel,
   lv_obj_set_style_border_width(card, 1, 0);
   lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-  add_link_row(card, app_view_model, fonts, "Ping", ping_value_text(snapshot.ping), snapshot.ping);
+  add_link_row(card,
+               app_view_model,
+               fonts,
+               "Internet",
+               internet_value_text(snapshot.internet),
+               snapshot.internet);
   add_link_divider(card, app_view_model);
   add_link_row(card,
                app_view_model,

@@ -62,6 +62,10 @@ const char* AppModel::app_title() const {
       return "Test Result";
     case AppPage::CAP_FIXTURE_TEST:
       return "CAP Fixture Test";
+    case AppPage::CAP_LORA_1262_TEST:
+      return "CAP LoRa-1262";
+    case AppPage::CAP_CC1101_TEST:
+      return "CAP-CC1101";
   }
 
   return "Factory Test";

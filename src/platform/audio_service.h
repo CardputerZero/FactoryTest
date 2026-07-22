@@ -22,6 +22,7 @@ bool record_wav(const AudioDevice& device, const std::string& output_path, int s
 bool play_wav(const AudioDevice& device, const std::string& input_path);
 void set_volume_level(float level);
 void set_key_click_sound_path(const std::string& input_path);
+bool initialize_key_click_sound();
 void play_key_click_sound();
 
 }  // namespace platform::audio

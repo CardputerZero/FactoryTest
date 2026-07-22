@@ -19,7 +19,7 @@ struct TestSequenceItem {
   model::AppPage page;
 };
 
-constexpr std::array<TestSequenceItem, 18> K_TEST_SEQUENCE = {{
+constexpr std::array<TestSequenceItem, 20> K_TEST_SEQUENCE = {{
     {"Input Test", model::AppPage::KEYBOARD_TEST},
     {"Display Test", model::AppPage::LCD_TEST},
     {"Audio Test", model::AppPage::AUDIO_TEST},
@@ -32,6 +32,8 @@ constexpr std::array<TestSequenceItem, 18> K_TEST_SEQUENCE = {{
     {"Link Test", model::AppPage::LINK_TEST},
     {"HDMI", model::AppPage::HDMI_TEST},
     {"CAP Fixture Test", model::AppPage::CAP_FIXTURE_TEST},
+    {"CAP LoRa-1262", model::AppPage::CAP_LORA_1262_TEST},
+    {"CAP-CC1101", model::AppPage::CAP_CC1101_TEST},
     {"Device Information", model::AppPage::DEVICE_INFO},
     {"Power Information", model::AppPage::POWER_INFO},
     {"IMU Test", model::AppPage::IMU_TEST},
@@ -320,6 +322,10 @@ const char* AppViewModel::current_test_name() const {
       return "SD Card Test";
     case model::AppPage::CAP_FIXTURE_TEST:
       return "CAP Fixture Test";
+    case model::AppPage::CAP_LORA_1262_TEST:
+      return "CAP LoRa-1262";
+    case model::AppPage::CAP_CC1101_TEST:
+      return "CAP-CC1101";
     case model::AppPage::START:
     case model::AppPage::TEST_RESULT:
     default:

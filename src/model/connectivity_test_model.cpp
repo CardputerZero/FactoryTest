@@ -80,7 +80,7 @@ bool same_link_settings(const LinkTestSettings& left, const LinkTestSettings& ri
 }
 
 bool same_link_snapshot(const LinkTestSnapshot& left, const LinkTestSnapshot& right) {
-  return same_link_metric(left.ping, right.ping) &&
+  return same_link_metric(left.internet, right.internet) &&
          same_link_metric(left.wifi_iperf, right.wifi_iperf) &&
          same_link_metric(left.ethernet_iperf, right.ethernet_iperf) &&
          same_link_settings(left.settings, right.settings) && left.running == right.running;
@@ -220,10 +220,10 @@ InfoResult read_hdmi_refresh_result() {
   return {std::move(fields), std::move(error)};
 }
 
-LinkTestMetric ping_metric(const platform::connectivity::LinkPingResult& result) {
+LinkTestMetric internet_metric(const platform::connectivity::LinkInternetResult& result) {
   return {result.success ? LinkTestStatus::SUCCESS : LinkTestStatus::FAILED,
-          static_cast<double>(result.ttl),
-          result.success ? std::string{} : result.message};
+          result.latency_ms,
+          result.message};
 }
 
 LinkTestMetric iperf_metric(const platform::connectivity::LinkIperfResult& result) {
@@ -244,7 +244,7 @@ LinkTestSnapshot read_link_test_result(LinkTestSettings settings) {
   const auto result = platform::connectivity::run_link_test(platform_settings);
   LinkTestSnapshot snapshot;
   snapshot.settings       = std::move(settings);
-  snapshot.ping           = ping_metric(result.ping);
+  snapshot.internet       = internet_metric(result.internet);
   snapshot.wifi_iperf     = iperf_metric(result.wifi);
   snapshot.ethernet_iperf = iperf_metric(result.ethernet);
   snapshot.running        = false;
@@ -545,7 +545,8 @@ bool LinkConnectivityModel::refresh(bool force_refresh) {
     changed |= set_snapshot_(std::move(result));
   }
 
-  if (!refresh_task_.valid() && (force_refresh || snapshot_.ping.status == LinkTestStatus::IDLE)) {
+  if (!refresh_task_.valid() &&
+      (force_refresh || snapshot_.internet.status == LinkTestStatus::IDLE)) {
     refresh_task_ = std::async(std::launch::async, read_link_test_result, settings_);
     changed |= set_snapshot_(running_snapshot_());
   }
@@ -580,7 +581,7 @@ LinkTestSnapshot LinkConnectivityModel::running_snapshot_() const {
   LinkTestSnapshot snapshot;
   snapshot.settings       = settings_;
   snapshot.running        = true;
-  snapshot.ping           = {LinkTestStatus::RUNNING, 0.0, "Pinging public DNS..."};
+  snapshot.internet       = {LinkTestStatus::RUNNING, 0.0, "Checking public DNS..."};
   snapshot.wifi_iperf     = {LinkTestStatus::RUNNING, 0.0, "Waiting for iperf..."};
   snapshot.ethernet_iperf = {LinkTestStatus::RUNNING, 0.0, "Waiting for iperf..."};
   return snapshot;

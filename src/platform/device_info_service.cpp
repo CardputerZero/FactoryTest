@@ -12,6 +12,7 @@
 #include <array>
 #include <cctype>
 #include <cerrno>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -20,6 +21,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "i2c_service.h"
@@ -36,13 +38,16 @@ namespace {
 
 constexpr const char* K_EMPTY_VALUE          = "--";
 constexpr const char* K_HW_REVISION_RAW_PATH = "/sys/bus/iio/devices/iio:device0/in_voltage0_raw";
-constexpr double K_ADC_REFERENCE_MV         = 3356.0;
-constexpr double K_ADC_RESOLUTION_STEPS     = 4096.0;
-constexpr double K_HW_REVISION_SCALE_MV     = K_ADC_REFERENCE_MV / K_ADC_RESOLUTION_STEPS;
-constexpr double K_HW_REVISION_TOLERANCE_MV = 100.0;
-constexpr int K_PY32_I2C_BUS                 = 1;
-constexpr uint8_t K_PY32_I2C_ADDRESS         = 0x4F;
-constexpr uint8_t K_CP0_MINOR_VERSION        = 0xBA;
+constexpr double K_ADC_REFERENCE_MV          = 3356.0;
+constexpr double K_ADC_RESOLUTION_STEPS      = 4096.0;
+constexpr double K_HW_REVISION_SCALE_MV      = K_ADC_REFERENCE_MV / K_ADC_RESOLUTION_STEPS;
+constexpr double K_HW_REVISION_TOLERANCE_MV  = 100.0;
+constexpr std::size_t K_HW_REVISION_SAMPLE_COUNT     = 5;
+constexpr std::size_t K_HW_REVISION_MIN_SAMPLE_COUNT = 3;
+constexpr uint32_t K_HW_REVISION_SAMPLE_INTERVAL_MS  = 10;
+constexpr int K_PY32_I2C_BUS                         = 1;
+constexpr uint8_t K_PY32_I2C_ADDRESS                 = 0x4F;
+constexpr uint8_t K_CP0_MINOR_VERSION                = 0xBA;
 
 struct HardwareRevisionVoltage {
   double millivolts;
@@ -108,9 +113,34 @@ bool read_number_file(const std::filesystem::path& path, double& value) {
   return static_cast<bool>(file) && std::isfinite(value);
 }
 
+bool read_median_number_file(const std::filesystem::path& path, double& value) {
+  std::array<double, K_HW_REVISION_SAMPLE_COUNT> samples{};
+  std::size_t sample_count = 0;
+
+  for (std::size_t i = 0; i < K_HW_REVISION_SAMPLE_COUNT; ++i) {
+    double sample = 0.0;
+    if (read_number_file(path, sample)) {
+      samples[sample_count++] = sample;
+    }
+
+    if (i + 1 < K_HW_REVISION_SAMPLE_COUNT) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(K_HW_REVISION_SAMPLE_INTERVAL_MS));
+    }
+  }
+
+  if (sample_count < K_HW_REVISION_MIN_SAMPLE_COUNT) {
+    return false;
+  }
+
+  std::sort(samples.begin(), samples.begin() + sample_count);
+  const std::size_t middle = sample_count / 2;
+  value = sample_count % 2 == 0 ? (samples[middle - 1] + samples[middle]) / 2.0 : samples[middle];
+  return true;
+}
+
 std::string read_hardware_revision() {
   double raw = 0.0;
-  if (!read_number_file(K_HW_REVISION_RAW_PATH, raw)) {
+  if (!read_median_number_file(K_HW_REVISION_RAW_PATH, raw)) {
     return K_EMPTY_VALUE;
   }
 

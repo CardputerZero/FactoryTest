@@ -6,7 +6,7 @@
 
 cmake_minimum_required(VERSION 3.23)
 
-project(factory_test VERSION 0.2.6 LANGUAGES C CXX)
+project(factory_test VERSION 0.2.7 LANGUAGES C CXX)
 
 string(TIMESTAMP FACTORY_TEST_BUILD_TIME "%Y-%m-%d %H:%M:%S")
 set(FACTORY_TEST_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
@@ -41,7 +41,6 @@ set(APP_USE_BLUEZ 0)
 set(APP_USE_LIBUDEV 0)
 set(APP_USE_MINIAUDIO 0)
 set(APP_USE_LIBIPERF 0)
-set(APP_USE_LIBOPING 0)
 set(APP_USE_LIRC 0)
 set(APP_USE_LIBGPIOD 0)
 set(APP_USE_LIBSERIALPORT 0)
@@ -185,17 +184,6 @@ if(USE_DESKTOP)
         message(STATUS "libiperf link throughput backend enabled")
     else()
         message(WARNING "libiperf headers/library or libsctp dependency not found; link throughput test will use fallback messages")
-    endif()
-
-    find_path(LIBOPING_INCLUDE_DIR oping.h)
-    find_library(LIBOPING_LIBRARY oping)
-    if(LIBOPING_INCLUDE_DIR AND LIBOPING_LIBRARY)
-        list(APPEND PLATFORM_INCLUDE_DIR "${LIBOPING_INCLUDE_DIR}")
-        list(APPEND PLATFORM_LIBS "${LIBOPING_LIBRARY}")
-        set(APP_USE_LIBOPING 1)
-        message(STATUS "liboping ping backend enabled")
-    else()
-        message(WARNING "liboping headers/library not found; link ping test will be unavailable")
     endif()
 
     find_path(LIRC_INCLUDE_DIR linux/lirc.h)
@@ -493,18 +481,6 @@ else()
         message(WARNING "libiperf headers/library or libsctp dependency not found; link throughput test will use fallback messages")
     endif()
 
-    cm0_find_header(LIBOPING_INCLUDE_DIR oping.h "${CM0_SYSROOT}/usr/include")
-    cm0_find_library(LIBOPING_LIBRARY oping liboping.so liboping.a)
-    if(LIBOPING_INCLUDE_DIR AND LIBOPING_LIBRARY)
-        cm0_add_imported_library(CM0::Liboping "${LIBOPING_LIBRARY}" "${LIBOPING_INCLUDE_DIR}")
-        list(APPEND PLATFORM_INCLUDE_DIR "${LIBOPING_INCLUDE_DIR}")
-        list(APPEND PLATFORM_LIBS CM0::Liboping)
-        set(APP_USE_LIBOPING 1)
-        message(STATUS "liboping ping backend enabled")
-    else()
-        message(FATAL_ERROR "liboping headers/library not found; embedded Link Ping requires liboping")
-    endif()
-
     cm0_find_header(LIRC_INCLUDE_DIR linux/lirc.h "${CM0_SYSROOT}/usr/include")
     cm0_find_library(LIRC_LIBRARY lirc liblirc.so liblirc.a)
     if(LIRC_INCLUDE_DIR AND LIRC_LIBRARY)
@@ -621,7 +597,6 @@ target_compile_definitions(${PROJECT_NAME}_platform PUBLIC
     APP_USE_MINIAUDIO=${APP_USE_MINIAUDIO}
     APP_MINIAUDIO_HEADER="${MINIAUDIO_INCLUDE_DIR}/miniaudio.h"
     APP_USE_LIBIPERF=${APP_USE_LIBIPERF}
-    APP_USE_LIBOPING=${APP_USE_LIBOPING}
     APP_USE_LIRC=${APP_USE_LIRC}
     APP_USE_LIBGPIOD=${APP_USE_LIBGPIOD}
     APP_USE_LIBSERIALPORT=${APP_USE_LIBSERIALPORT}

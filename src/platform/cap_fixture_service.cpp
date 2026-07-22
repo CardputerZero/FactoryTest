@@ -467,6 +467,9 @@ bool set_gpio_test_inputs(std::string& error_message) {
       }
     }
   }
+  for (const auto& line : K_GPIO_TEST_LINES) {
+    platform::gpio::release_output_value(line);
+  }
   error_message = first_error;
   return all_configured;
 }

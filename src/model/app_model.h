@@ -35,6 +35,8 @@ enum class AppPage {
   SD_CARD_TEST     = 23,
   TEST_RESULT      = 24,
   CAP_FIXTURE_TEST = 25,
+  CAP_LORA_1262_TEST = 26,
+  CAP_CC1101_TEST  = 27,
 };
 
 class AppModel {

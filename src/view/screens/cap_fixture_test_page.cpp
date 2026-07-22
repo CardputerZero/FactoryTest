@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <array>
-#include <vector>
 
 #include "asset_manager.h"
 #include "bindings.h"
@@ -48,10 +47,10 @@ CapFixtureTestPage::CapFixtureTestPage(viewmodel::AppViewModel& app_view_model,
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
   app_view_model_ref_().clear_nav_actions();
   set_nav_action_('4', view::ICON_ARROW_U_UP_LEFT, [this]() { cancel_and_leave_(); });
+  set_nav_action_('8', view::ICON_CHECK_SQUARE, [this]() { show_test_result_dialog_(); });
   init();
   refresh_timer_ = lv_timer_create(refresh_timer_cb, 100, this);
   platform::set_key_listener(key_listener, this);
-  model_.start();
 }
 
 CapFixtureTestPage::~CapFixtureTestPage() {
@@ -94,8 +93,9 @@ void CapFixtureTestPage::build_content(lv_obj_t* content) {
   lv_obj_clear_flag(grid_, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_align(grid_, LV_ALIGN_TOP_MID, 0, 0);
 
-  headline_label_ = lv_label_create(grid_);
-  lv_label_set_text(headline_label_, "Preparing fixture test");
+  headline_label_             = lv_label_create(grid_);
+  const auto initial_headline = app_view_model_ref_().tr("Install CAP fixture, then press Enter");
+  lv_label_set_text(headline_label_, initial_headline.c_str());
   lv_obj_set_width(headline_label_, K_LIST_WIDTH);
   lv_obj_set_style_text_align(headline_label_, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_style_text_font(headline_label_,
@@ -123,23 +123,26 @@ void CapFixtureTestPage::build_content(lv_obj_t* content) {
                          app_view_model_ref_().dark_mode_subject(),
                          reactive::ThemeRole::BUTTON);
 
-    auto* name = lv_label_create(row);
-    lv_label_set_text(name, initial.items[i].name);
+    auto* name                 = lv_label_create(row);
+    const auto translated_name = app_view_model_ref_().tr(initial.items[i].name);
+    lv_label_set_text(name, translated_name.c_str());
     lv_obj_set_width(name, 52);
     lv_obj_set_style_text_font(name, text_font ? text_font : &lv_font_montserrat_12, 0);
     reactive::bind_theme(name,
                          app_view_model_ref_().dark_mode_subject(),
                          reactive::ThemeRole::TEXT);
 
-    status_labels_[i] = lv_label_create(row);
-    lv_label_set_text(status_labels_[i], "WAIT");
+    status_labels_[i]        = lv_label_create(row);
+    const auto waiting_state = app_view_model_ref_().tr("WAIT");
+    lv_label_set_text(status_labels_[i], waiting_state.c_str());
     lv_obj_set_width(status_labels_[i], 40);
     lv_obj_set_style_text_font(status_labels_[i],
                                text_font ? text_font : &lv_font_montserrat_12,
                                0);
 
-    detail_labels_[i] = lv_label_create(row);
-    lv_label_set_text(detail_labels_[i], "Waiting");
+    detail_labels_[i]         = lv_label_create(row);
+    const auto waiting_detail = app_view_model_ref_().tr("Waiting");
+    lv_label_set_text(detail_labels_[i], waiting_detail.c_str());
     lv_obj_set_width(detail_labels_[i], 164);
     lv_label_set_long_mode(detail_labels_[i], LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_font(detail_labels_[i],
@@ -151,7 +154,9 @@ void CapFixtureTestPage::build_content(lv_obj_t* content) {
   }
 
   error_label_ = lv_label_create(grid_);
-  lv_label_set_text(error_label_, "Fixed-delay sequence; see terminal for protocol logs");
+  const auto protocol_hint =
+      app_view_model_ref_().tr("Fixed-delay sequence; see terminal for protocol logs");
+  lv_label_set_text(error_label_, protocol_hint.c_str());
   lv_obj_set_width(error_label_, K_LIST_WIDTH - 8);
   lv_label_set_long_mode(error_label_, LV_LABEL_LONG_WRAP);
   lv_obj_set_style_text_align(error_label_, LV_TEXT_ALIGN_LEFT, 0);
@@ -173,6 +178,13 @@ void CapFixtureTestPage::key_listener(uint32_t key, const char* key_name, void* 
   if (!page) {
     return;
   }
+  if (page->handle_test_result_dialog_key_(key, key_name)) {
+    return;
+  }
+  if (key == LV_KEY_ENTER || key == '\n' || key == '\r') {
+    page->start_();
+    return;
+  }
   switch (key) {
     case LV_KEY_UP:
     case 'f':
@@ -189,37 +201,41 @@ void CapFixtureTestPage::key_listener(uint32_t key, const char* key_name, void* 
   }
 }
 
+void CapFixtureTestPage::start_() {
+  if (model_.snapshot().state == model::CapFixtureRunState::IDLE) {
+    model_.start();
+  }
+}
+
 void CapFixtureTestPage::refresh_() {
   const auto snapshot = model_.snapshot();
   const bool terminal = snapshot.state == model::CapFixtureRunState::PASSED ||
                         snapshot.state == model::CapFixtureRunState::FAILED;
   if (snapshot.revision != displayed_revision_) {
-    displayed_revision_ = snapshot.revision;
-    lv_label_set_text(headline_label_, snapshot.headline.c_str());
+    displayed_revision_            = snapshot.revision;
+    const auto translated_headline = app_view_model_ref_().tr(snapshot.headline.c_str());
+    lv_label_set_text(headline_label_, translated_headline.c_str());
     for (std::size_t i = 0; i < snapshot.items.size(); ++i) {
-      lv_label_set_text(status_labels_[i],
-                        model::cap_fixture_item_state_text(snapshot.items[i].state));
-      lv_label_set_text(detail_labels_[i], snapshot.items[i].detail.c_str());
+      const auto translated_state =
+          app_view_model_ref_().tr(model::cap_fixture_item_state_text(snapshot.items[i].state));
+      const auto translated_detail = app_view_model_ref_().tr(snapshot.items[i].detail.c_str());
+      lv_label_set_text(status_labels_[i], translated_state.c_str());
+      lv_label_set_text(detail_labels_[i], translated_detail.c_str());
       lv_obj_set_style_text_color(
           status_labels_[i],
           state_color(snapshot.items[i].state, app_view_model_ref_().is_dark_mode()),
           0);
     }
-    lv_label_set_text(error_label_,
-                      snapshot.error_message.empty()
-                          ? "Fixed-delay sequence; see terminal for protocol logs"
-                          : snapshot.error_message.c_str());
+    const auto error_text = app_view_model_ref_().tr(
+        snapshot.error_message.empty() ? "Fixed-delay sequence; see terminal for protocol logs"
+                                       : snapshot.error_message.c_str());
+    lv_label_set_text(error_label_, error_text.c_str());
     if (terminal) {
       lv_obj_scroll_to_view_recursive(error_label_, LV_ANIM_ON);
     } else if (snapshot.state == model::CapFixtureRunState::RUNNING &&
                snapshot.active_index < row_objects_.size()) {
       lv_obj_scroll_to_view_recursive(row_objects_[snapshot.active_index], LV_ANIM_ON);
     }
-  }
-
-  if (terminal && app_view_model_ref_().is_test_sequence_active() && !completion_sent_) {
-    completion_sent_ = true;
-    submit_automated_result_(snapshot);
   }
 }
 
@@ -237,32 +253,6 @@ void CapFixtureTestPage::scroll_(int32_t direction) {
 void CapFixtureTestPage::cancel_and_leave_() {
   model_.cancel();
   app_view_model_ref_().show_start_page();
-}
-
-void CapFixtureTestPage::submit_automated_result_(const model::CapFixtureSnapshot& snapshot) {
-  std::vector<model::NamedTestResult> details;
-  details.reserve(snapshot.items.size());
-  for (const auto& item : snapshot.items) {
-    model::TestResult item_result = model::TestResult::SKIPPED;
-    switch (item.state) {
-      case model::CapFixtureItemState::PASSED:
-        item_result = model::TestResult::PASS;
-        break;
-      case model::CapFixtureItemState::FAILED:
-      case model::CapFixtureItemState::RUNNING:
-        item_result = model::TestResult::FAILED;
-        break;
-      case model::CapFixtureItemState::PENDING:
-      default:
-        item_result = model::TestResult::SKIPPED;
-        break;
-    }
-    details.push_back({std::string("CAP Fixture - ") + item.name, item_result});
-  }
-  const auto overall = snapshot.state == model::CapFixtureRunState::PASSED
-                           ? model::TestResult::PASS
-                           : model::TestResult::FAILED;
-  app_view_model_ref_().complete_current_test_with_details(overall, details);
 }
 
 }  // namespace screen

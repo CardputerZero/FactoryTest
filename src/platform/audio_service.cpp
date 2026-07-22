@@ -711,7 +711,9 @@ bool play_wav(const AudioDevice& device, const std::string& input_path) {
     return false;
   }
   normalize_to_full_scale(*audio);
-  return play_audio(audio, std::chrono::seconds(3));
+  const bool played = play_audio(audio, std::chrono::seconds(3));
+  initialize_key_click_sound();
+  return played;
 }
 
 void set_volume_level(float level) {
@@ -736,7 +738,7 @@ void set_key_click_sound_path(const std::string& input_path) {
   auto& state = key_click_state();
   {
     std::lock_guard<std::mutex> lock(state.mutex);
-    state.path  = audio ? input_path : std::string{};
+    state.path = audio ? input_path : std::string{};
     std::atomic_store(&state.audio, audio);
     if (!audio) {
       stop_key_click_device_locked(state);
@@ -744,8 +746,19 @@ void set_key_click_sound_path(const std::string& input_path) {
   }
 }
 
+bool initialize_key_click_sound() {
+  auto& state                     = key_click_state();
+  std::shared_ptr<WavAudio> audio = std::atomic_load(&state.audio);
+  if (!audio) {
+    return false;
+  }
+
+  std::lock_guard<std::mutex> lock(state.mutex);
+  return ensure_key_click_device_locked(state, audio);
+}
+
 void play_key_click_sound() {
-  auto& state = key_click_state();
+  auto& state                     = key_click_state();
   std::shared_ptr<WavAudio> audio = std::atomic_load(&state.audio);
   if (!audio) {
     return;

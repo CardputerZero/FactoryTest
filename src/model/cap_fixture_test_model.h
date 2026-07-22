@@ -40,7 +40,7 @@ struct CapFixtureSnapshot {
   CapFixtureRunState state{CapFixtureRunState::IDLE};
   std::array<CapFixtureItemSnapshot, 6> items{};
   std::size_t active_index{0};
-  std::string headline{"Preparing fixture test"};
+  std::string headline{"Install CAP fixture, then press Enter"};
   std::string error_message{};
   unsigned int revision{0};
 };

@@ -72,6 +72,9 @@ const char* icon_for_test_name(const std::string& name) {
   if (name.rfind("CAP Fixture - ", 0) == 0) {
     return view::ICON_PLUGS_CONNECTED;
   }
+  if (name == "CAP LoRa-1262" || name == "CAP-CC1101") {
+    return view::ICON_BROADCAST;
+  }
   if (name == "Link Test") {
     return view::ICON_GLOBE;
   }

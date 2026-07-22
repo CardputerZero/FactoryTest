@@ -1,7 +1,6 @@
 #!/bin/sh
 set -e
 
-APP_PATH="/usr/@CMAKE_INSTALL_BINDIR@/@PROJECT_NAME@"
 PRODUCT_GROUP="@APP_PRODUCT_GROUP@"
 
 if [ "$1" = "configure" ]; then
@@ -14,25 +13,6 @@ if [ "$1" = "configure" ]; then
     # Runtime account membership belongs to image provisioning or first-boot setup.
     # Package installation may run in a chroot with an unrelated SUDO_USER.
 
-    if [ "@APP_VERIFY_CAP_NET_RAW@" = "1" ]; then
-        if [ ! -f "$APP_PATH" ]; then
-            echo "Warning: cannot grant cap_net_raw; missing $APP_PATH; ICMP ping may be unavailable" >&2
-        elif ! command -v setcap >/dev/null 2>&1 || ! command -v getcap >/dev/null 2>&1; then
-            echo "Warning: setcap/getcap is unavailable; ICMP ping may be unavailable" >&2
-        elif ! setcap cap_net_raw+ep "$APP_PATH"; then
-            echo "Warning: failed to grant cap_net_raw to $APP_PATH; ICMP ping may be unavailable" >&2
-        else
-            CAPABILITIES="$(getcap "$APP_PATH" 2>/dev/null || true)"
-            case "$CAPABILITIES" in
-                *cap_net_raw=ep*)
-                    echo "Configured raw ICMP permission: $CAPABILITIES"
-                    ;;
-                *)
-                    echo "Warning: cap_net_raw verification failed for $APP_PATH: ${CAPABILITIES:-<none>}; ICMP ping may be unavailable" >&2
-                    ;;
-            esac
-        fi
-    fi
 fi
 
 exit 0

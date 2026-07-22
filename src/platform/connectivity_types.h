@@ -64,9 +64,8 @@ struct LinkTestSettings {
   int iperf_duration_seconds{3};
 };
 
-struct LinkPingResult {
+struct LinkInternetResult {
   bool success{false};
-  int ttl{-1};
   double latency_ms{-1.0};
   std::string host;
   std::string message;
@@ -80,7 +79,7 @@ struct LinkIperfResult {
 };
 
 struct LinkTestResult {
-  LinkPingResult ping;
+  LinkInternetResult internet;
   LinkIperfResult wifi;
   LinkIperfResult ethernet;
 };

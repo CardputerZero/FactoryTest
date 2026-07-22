@@ -16,10 +16,8 @@
 #include <cerrno>
 #include <cmath>
 #include <cstdlib>
-#include <cstring>
 #include <filesystem>
 #include <fstream>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <sstream>
@@ -27,15 +25,13 @@
 #include <vector>
 
 #include "logger.h"
+#include "process_service.h"
 
 #if APP_USE_LIBNM
 #include <NetworkManager.h>
 #endif
 #if APP_USE_LIBIPERF
 #include <iperf_api.h>
-#endif
-#if APP_USE_LIBOPING
-#include <oping.h>
 #endif
 #if defined(__linux__)
 #include <fcntl.h>
@@ -682,106 +678,82 @@ LinkInterfaceSelection active_link_interface(bool wireless) {
   return {{}, wireless ? "No AP connected" : "Ethernet interface not enabled"};
 }
 
-LinkPingResult run_ping_test() {
-  LinkPingResult result;
-#if APP_USE_LIBOPING
-  static constexpr std::array<const char*, 3> K_PUBLIC_DNS_HOSTS = {
-      "8.8.8.8",
-      "223.5.5.5",
-      "119.29.29.29",
+LinkInternetResult run_internet_test() {
+  LinkInternetResult result;
+  struct PublicDnsEndpoint {
+    const char* name;
+    const char* url;
   };
+  static constexpr std::array<PublicDnsEndpoint, 3> K_PUBLIC_DNS_ENDPOINTS = {{
+      {"Google DNS", "https://dns.google/resolve?name=example.com&type=A"},
+      {"AliDNS", "https://dns.alidns.com/resolve?name=example.com&type=A"},
+      {"DNSPod", "https://doh.pub/dns-query?name=example.com&type=A"},
+  }};
 
-  pingobj_t* ping = ping_construct();
-  if (!ping) {
-    result.message = "failed to create ping object";
-    LOG_ERROR("connectivity ping failed: {}", result.message);
-    return result;
-  }
+  process::ProcessOptions options;
+  options.timeout_ms       = 6000;
+  options.max_output_bytes = 8192;
 
-  double timeout = 1.0;
-  if (ping_setopt(ping, PING_OPT_TIMEOUT, &timeout) < 0) {
-    result.message = ping_get_error(ping) ? ping_get_error(ping) : "failed to set ping timeout";
-    LOG_ERROR("connectivity public DNS ping setup failed: {}", result.message);
-    ping_destroy(ping);
-    return result;
-  }
-
-  std::size_t host_count = 0;
-  for (const char* host : K_PUBLIC_DNS_HOSTS) {
-    if (ping_host_add(ping, host) < 0) {
-      const char* error = ping_get_error(ping);
-      LOG_ERROR("connectivity failed to add public DNS ping host '{}': {}",
-                host,
-                error ? error : "unknown liboping error");
-      continue;
-    }
-    ++host_count;
-  }
-  if (host_count == 0) {
-    result.message = "failed to add public DNS hosts";
-    LOG_ERROR("connectivity ping failed: {}", result.message);
-    ping_destroy(ping);
-    return result;
-  }
-
-  if (ping_send(ping) < 0) {
-    result.message = ping_get_error(ping) ? ping_get_error(ping) : "ping send failed";
-    LOG_ERROR("connectivity public DNS liboping send failed: {}. Verify the installed factory_test binary has cap_net_raw=ep",
-              result.message);
-    ping_destroy(ping);
-    return result;
-  }
-
-  double best_latency = std::numeric_limits<double>::infinity();
-  for (auto* iter = ping_iterator_get(ping); iter; iter = ping_iterator_next(iter)) {
-    std::array<char, 64> hostname{};
-    size_t hostname_size = hostname.size();
-    if (ping_iterator_get_info(iter, PING_INFO_HOSTNAME, hostname.data(), &hostname_size) != 0 ||
-        hostname[0] == '\0') {
-      std::strncpy(hostname.data(), "<unknown>", hostname.size() - 1);
-    }
-
-    double latency      = -1.0;
-    size_t latency_size = sizeof(latency);
-    if (ping_iterator_get_info(iter, PING_INFO_LATENCY, &latency, &latency_size) != 0 ||
-        !std::isfinite(latency) || latency < 0.0) {
-      LOG_WARN("connectivity public DNS '{}' did not reply", hostname.data());
-      continue;
-    }
-
-    int ttl         = -1;
-    size_t ttl_size = sizeof(ttl);
-    if (ping_iterator_get_info(iter, PING_INFO_RECV_TTL, &ttl, &ttl_size) != 0) {
-      ttl = -1;
-    }
-    LOG_INFO("connectivity public DNS '{}' replied in {:.3f} ms with TTL {}",
-             hostname.data(),
-             latency,
-             ttl);
-
-    if (latency < best_latency) {
-      best_latency      = latency;
-      result.success    = true;
-      result.host       = hostname.data();
-      result.latency_ms = latency;
-      result.ttl        = ttl;
-    }
-  }
-
-  if (result.success) {
-    result.message = result.host;
-    if (result.ttl > 0) {
-      result.message += ", TTL " + std::to_string(result.ttl);
-    }
-  } else {
-    result.message = "No public DNS replied";
-    LOG_WARN("connectivity ping failed: none of the public DNS hosts replied");
-  }
-  ping_destroy(ping);
+  for (const auto& endpoint : K_PUBLIC_DNS_ENDPOINTS) {
+    const auto process_result = process::run_command("curl",
+                                                     {"--silent",
+                                                      "--show-error",
+                                                      "--fail",
+                                                      "--location",
+                                                      "--output",
+#if defined(_WIN32)
+                                                      "NUL",
 #else
-  result.message = "liboping backend is not enabled";
-  LOG_ERROR("connectivity ping unavailable: {}", result.message);
+                                                      "/dev/null",
 #endif
+                                                      "--connect-timeout",
+                                                      "3",
+                                                      "--max-time",
+                                                      "5",
+                                                      "--header",
+                                                      "Accept: application/dns-json",
+                                                      "--write-out",
+                                                      "%{time_total}",
+                                                      endpoint.url},
+                                                     options);
+
+    const auto elapsed_text      = trim(process_result.stdout_text);
+    char* parse_end              = nullptr;
+    errno                        = 0;
+    const double elapsed_seconds = std::strtod(elapsed_text.c_str(), &parse_end);
+    const bool valid_elapsed     = !elapsed_text.empty() && parse_end != elapsed_text.c_str() &&
+                                   parse_end == elapsed_text.c_str() + elapsed_text.size() &&
+                                   errno != ERANGE && std::isfinite(elapsed_seconds) &&
+                                   elapsed_seconds >= 0.0;
+
+    if (process_result.success() && valid_elapsed) {
+      result.success    = true;
+      result.host       = endpoint.name;
+      result.latency_ms = elapsed_seconds * 1000.0;
+      result.message    = endpoint.name;
+      LOG_INFO("connectivity public DNS endpoint '{}' responded in {:.3f} ms",
+               endpoint.name,
+               result.latency_ms);
+      return result;
+    }
+
+    auto error_message = trim(process_result.stderr_text);
+    if (error_message.empty()) {
+      error_message = process_result.error_message;
+    }
+    if (error_message.empty() && process_result.timed_out) {
+      error_message = "process timed out";
+    }
+    if (error_message.empty()) {
+      error_message = valid_elapsed
+                          ? "curl exited with code " + std::to_string(process_result.exit_code)
+                          : "invalid curl timing output";
+    }
+    LOG_WARN("connectivity public DNS endpoint '{}' failed: {}", endpoint.name, error_message);
+  }
+
+  result.message = "Public DNS connectivity failed";
+  LOG_ERROR("connectivity internet test failed: {}", result.message);
   return result;
 }
 
@@ -899,29 +871,34 @@ LinkIperfResult run_iperf_for_interface(const LinkTestSettings& settings,
 }  // namespace
 
 LinkTestResult run_link_test(const LinkTestSettings& settings) {
-  LOG_INFO("connectivity link test requested: ping DNS=[8.8.8.8,223.5.5.5,119.29.29.29] iperf={}:{} duration={}s",
-           settings.iperf_host,
-           settings.iperf_port,
-           settings.iperf_duration_seconds);
+  LOG_INFO(
+      "connectivity link test requested: internet DNS=[Google,AliDNS,DNSPod] iperf={}:{} "
+      "duration={}s",
+      settings.iperf_host,
+      settings.iperf_port,
+      settings.iperf_duration_seconds);
 
   LinkTestResult result;
-  result.ping = run_ping_test();
-  LOG_INFO("connectivity ping phase complete: success={} host='{}' latency={:.3f}ms; starting iperf phase",
-           result.ping.success,
-           result.ping.host,
-           result.ping.latency_ms);
+  result.internet = run_internet_test();
+  LOG_INFO(
+      "connectivity internet phase complete: success={} host='{}' latency={:.3f}ms; starting iperf "
+      "phase",
+      result.internet.success,
+      result.internet.host,
+      result.internet.latency_ms);
   result.wifi     = run_iperf_for_interface(settings, "Wi-Fi", active_link_interface(true));
   result.ethernet = run_iperf_for_interface(settings, "Ethernet", active_link_interface(false));
 
-  LOG_INFO("connectivity link test result: ping={} host='{}' latency={:.3f}ms ttl={} wifi={} {:.3f}Mbps eth={} {:.3f}Mbps",
-           result.ping.success,
-           result.ping.host,
-           result.ping.latency_ms,
-           result.ping.ttl,
-           result.wifi.success,
-           result.wifi.megabits_per_second,
-           result.ethernet.success,
-           result.ethernet.megabits_per_second);
+  LOG_INFO(
+      "connectivity link test result: internet={} host='{}' latency={:.3f}ms wifi={} {:.3f}Mbps "
+      "eth={} {:.3f}Mbps",
+      result.internet.success,
+      result.internet.host,
+      result.internet.latency_ms,
+      result.wifi.success,
+      result.wifi.megabits_per_second,
+      result.ethernet.success,
+      result.ethernet.megabits_per_second);
   return result;
 }
 }  // namespace platform::connectivity

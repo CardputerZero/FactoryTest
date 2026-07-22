@@ -228,6 +228,9 @@ int Application::run() {
   const auto click_sound_path = assets.resolve("audio/click.wav");
   if (!click_sound_path.empty()) {
     platform::audio::set_key_click_sound_path(click_sound_path.string());
+    if (!platform::audio::initialize_key_click_sound()) {
+      LOG_WARN("failed to initialize global key click playback");
+    }
   } else {
     LOG_WARN("key click sound asset not found: audio/click.wav");
   }

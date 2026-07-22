@@ -45,10 +45,6 @@ config FACTORY_TEST_USE_APP_USE_LIBIPERF_FGF_libiperf_FGF_libiperf_FGF_libsctp
     bool "Enable libiperf throughput tests"
     default n
 
-config FACTORY_TEST_USE_APP_USE_LIBOPING_FGF_liboping_FGF_liboping
-    bool "Enable liboping ping tests"
-    default n
-
 config FACTORY_TEST_USE_APP_USE_LIRC_FGF_liblirc_FGF_liblirc
     bool "Enable LIRC infrared support"
     default n

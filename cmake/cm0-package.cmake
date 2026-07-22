@@ -17,7 +17,6 @@ set(APP_PACKAGE_LONG_DESCRIPTION
     CACHE STRING "Debian package long description"
 )
 set(APP_INSTALL_SYSTEMD_SERVICE ON CACHE BOOL "Install a systemd service file for embedded deployments")
-set(APP_SET_CAP_NET_RAW ON CACHE BOOL "Grant cap_net_raw to the installed app binary for ICMP ping")
 set(APP_PRODUCT_GROUP "factory-test" CACHE STRING "System group authorized to run product factory tests")
 
 set(APP_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/package")
@@ -43,10 +42,6 @@ if(APP_USE_LIBNM)
     )
 endif()
 
-set(APP_VERIFY_CAP_NET_RAW 0)
-if(APP_SET_CAP_NET_RAW AND APP_USE_LIBOPING)
-    set(APP_VERIFY_CAP_NET_RAW 1)
-endif()
 configure_file(
     "${CMAKE_CURRENT_LIST_DIR}/templates/factory_test.postinst.in"
     "${APP_GENERATED_DIR}/postinst"
@@ -162,7 +157,8 @@ set(APP_DEBIAN_PACKAGE_DEPENDS
     fio
     network-manager
     polkitd
-    libcap2-bin
+    ca-certificates
+    curl
     bluez
 )
 list(REMOVE_DUPLICATES APP_DEBIAN_PACKAGE_DEPENDS)
