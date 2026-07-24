@@ -42,6 +42,12 @@ const char* icon_for_test_name(const std::string& name) {
   if (name == "IR Receiver") {
     return view::ICON_ENVELOPE_OPEN;
   }
+  if (name == "IR Fixture Test") {
+    return view::ICON_FLASK;
+  }
+  if (name.rfind("IR Fixture - ", 0) == 0) {
+    return view::ICON_BROADCAST;
+  }
   if (name == "Wi-Fi") {
     return view::ICON_WIFI;
   }

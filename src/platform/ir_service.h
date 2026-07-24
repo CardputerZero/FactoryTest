@@ -51,6 +51,7 @@ struct IrReceiveSnapshot {
 IrDeviceInfo read_receiver_info();
 IrDeviceInfo read_sender_info();
 IrSendResult send_nec_packet(uint16_t address);
+IrSendResult send_nec_packet(uint16_t address, uint16_t command);
 std::string format_hex_bytes(const std::vector<uint8_t>& data);
 std::string format_nec_address(uint16_t address);
 std::string format_nec_command(uint16_t command);
@@ -64,6 +65,7 @@ class IrReceiverSession {
   IrReceiverSession& operator=(const IrReceiverSession&) = delete;
 
   bool start(uint16_t expected_address, bool filter_address = true);
+  bool start(const IrDeviceInfo& info, uint16_t expected_address, bool filter_address = true);
   void stop();
   IrReceiveSnapshot poll();
   const IrReceiveSnapshot& snapshot() const;

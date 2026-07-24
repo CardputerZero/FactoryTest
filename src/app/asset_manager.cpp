@@ -130,7 +130,7 @@ lv_font_t* AssetManager::load_font(const std::filesystem::path& file_name, uint3
   }
 
   loaded_fonts_.push_back(std::make_unique<LoadedFont>(LoadedFont{path, size, font}));
-  LOG_INFO("loaded freetype font: {} ({})", path.string(), size);
+  LOG_DEBUG("loaded freetype font: {} ({})", path.string(), size);
   return font;
 #else
   LV_UNUSED(file_name);

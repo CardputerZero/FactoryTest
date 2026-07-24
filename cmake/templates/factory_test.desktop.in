@@ -2,7 +2,7 @@
 Type=Application
 Name=@APP_DISPLAY_NAME@
 Comment=@APP_PACKAGE_DESCRIPTION@
-Exec=/usr/bin/@PROJECT_NAME@
+Exec=/usr/bin/env FACTORY_TEST_IPERF_HOST=@APP_IPERF_HOST@ /usr/bin/@PROJECT_NAME@
 Icon=share/images/factory_test_100.png
 Terminal=false
 Categories=Utility;

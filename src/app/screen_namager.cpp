@@ -13,6 +13,7 @@
 #include "imu_test_page.h"
 #include "io_test_page.h"
 #include "ir_test_page.h"
+#include "ir_fixture_test_page.h"
 #include "keyboard_test_page.h"
 #include "lcd_test_page.h"
 #include "linux_input.h"
@@ -53,6 +54,8 @@ const char* placeholder_title(model::AppPage page) {
       return "IR Sender";
     case model::AppPage::IR_RECEIVE_TEST:
       return "IR Receiver";
+    case model::AppPage::IR_FIXTURE_TEST:
+      return "IR Fixture Test";
     case model::AppPage::IMU_TEST:
       return "IMU Test";
     case model::AppPage::POWER_INFO:
@@ -186,6 +189,12 @@ void ScreenManager::show_ir_test_page(model::AppPage page) {
   has_loaded_page_ = true;
 }
 
+void ScreenManager::show_ir_fixture_test_page() {
+  load_screen_(std::make_unique<screen::IrFixtureTestPage>(app_view_model_, assets_));
+  loaded_page_     = model::AppPage::IR_FIXTURE_TEST;
+  has_loaded_page_ = true;
+}
+
 void ScreenManager::show_imu_test_page() {
   load_screen_(std::make_unique<screen::ImuTestPage>(app_view_model_, assets_));
   loaded_page_     = model::AppPage::IMU_TEST;
@@ -301,6 +310,9 @@ void ScreenManager::flush_requested_page() {
     case model::AppPage::IR_SEND_TEST:
     case model::AppPage::IR_RECEIVE_TEST:
       show_ir_test_page(requested_page_);
+      return;
+    case model::AppPage::IR_FIXTURE_TEST:
+      show_ir_fixture_test_page();
       return;
     case model::AppPage::IMU_TEST:
       show_imu_test_page();

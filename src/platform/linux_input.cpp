@@ -753,7 +753,7 @@ lv_indev_t* try_create_keypad(const char* path) {
     return nullptr;
   }
 
-  LOG_INFO("using evdev key input device: {}", path);
+  LOG_DEBUG("using evdev key input device: {}", path);
   LV_LOG_INFO("using evdev key input %s", path);
   return create_keypad_from_fd(fd);
 }

@@ -6,7 +6,7 @@
 
 cmake_minimum_required(VERSION 3.23)
 
-project(factory_test VERSION 0.2.7 LANGUAGES C CXX)
+project(factory_test VERSION 0.2.8 LANGUAGES C CXX)
 
 string(TIMESTAMP FACTORY_TEST_BUILD_TIME "%Y-%m-%d %H:%M:%S")
 set(FACTORY_TEST_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
@@ -29,6 +29,7 @@ set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 set(USE_DESKTOP ON CACHE BOOL "Build the desktop emulator target with LVGL SDL support")
 set(APP_NAME "${PROJECT_NAME}" CACHE STRING "Application name used for installed asset lookup")
 set(APP_ASSETS_ROOT "" CACHE PATH "Optional runtime assets root. Expected subdirectories include fonts/")
+set(APP_IPERF_HOST "192.168.10.187" CACHE STRING "Default iperf server hostname or IP address")
 set(APP_KEY_INPUT_DEVICE "" CACHE STRING "Optional Linux evdev keyboard/keypad device path, e.g. /dev/input/event0")
 set(APP_FRAMEBUFFER_DEVICE "/dev/fb0" CACHE STRING "Linux framebuffer device path used by embedded builds")
 set(APP_DRM_DEVICE "/dev/dri/card1" CACHE STRING "Linux DRM device path used when APP_USE_DRM=ON")
@@ -638,7 +639,10 @@ target_link_libraries(${PROJECT_NAME}_view PUBLIC lvgl ${PROJECT_NAME}_reactive 
 file(GLOB_RECURSE VIEWMODEL_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/viewmodel/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/viewmodel/*.cpp")
 add_library(${PROJECT_NAME}_viewmodel STATIC ${VIEWMODEL_SOURCES})
 target_include_directories(${PROJECT_NAME}_viewmodel PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src/viewmodel" "${CMAKE_CURRENT_SOURCE_DIR}/src/model" ${LVGL_INCLUDE_DIR})
-target_link_libraries(${PROJECT_NAME}_viewmodel PUBLIC lvgl ${PROJECT_NAME}_reactive ${PROJECT_NAME}_model)
+target_link_libraries(${PROJECT_NAME}_viewmodel
+    PUBLIC lvgl ${PROJECT_NAME}_reactive ${PROJECT_NAME}_model
+    PRIVATE ${PROJECT_NAME}_platform
+)
 
 # app src
 file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/app/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/app/*.cpp")

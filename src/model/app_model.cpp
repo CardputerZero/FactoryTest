@@ -24,6 +24,8 @@ const char* AppModel::app_title() const {
       return "IR Sender";
     case AppPage::IR_RECEIVE_TEST:
       return "IR Receiver";
+    case AppPage::IR_FIXTURE_TEST:
+      return "IR Fixture Test";
     case AppPage::POWER_INFO:
       return "Power Information";
     case AppPage::IMU_TEST:

@@ -7,13 +7,13 @@ This repository holds the factory test application of CardputerZero.
 + Download the debian release
 
 ```
-wget https://github.com/CardputerZero/FactoryTest/releases/download/0.2.7/FactoryTest_0.2.7_m5stack1_arm64.deb
+wget https://github.com/CardputerZero/FactoryTest/releases/download/0.2.8/FactoryTest_0.2.8_m5stack1_arm64.deb
 ```
 
 + Install the package
 
 ```
-sudo apt install ./FactoryTest_0.2.7_m5stack1_arm64.deb
+sudo apt install ./FactoryTest_0.2.8_m5stack1_arm64.deb
 ```
 
 
@@ -23,6 +23,15 @@ TODO
 
 
 ## Changelog
+
+### 0.2.8 - 2026-07-24
+
+- Add an IR fixture test to Full Test with randomized NEC32 transmissions and ordered fixture-response validation.
+- Detect CardputerZero and CardputerZero Lite from enabled camera and IMU device-tree nodes, and skip unsupported Camera and IMU tests on Lite models.
+- Improve hardware revision detection with the runtime ADC scale, cached IOE1 register reads, forced access for driver-owned I2C addresses, and an IOE1 version field.
+- Make the default iperf server configurable at build time and pass it to desktop and systemd launches through `FACTORY_TEST_IPERF_HOST`.
+- Release EXT.IO GPIO output requests when leaving the page so later fixture and manual tests can reacquire the lines.
+- Complete Chinese translations for the IR fixture workflow and reduce routine font and input-device logs to debug level.
 
 ### 0.2.7 - 2026-07-22
 

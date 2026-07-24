@@ -11,7 +11,9 @@
 #endif
 
 #include <cstddef>
+#include <cstdlib>
 #include <cstring>
+#include <utility>
 
 #include "app_viewmodel.h"
 #include "asset_manager.h"
@@ -253,6 +255,13 @@ int Application::run() {
   viewmodel::KeyboardTestViewModel keyboard_view_model;
   viewmodel::LcdTestViewModel lcd_view_model;
   viewmodel::ConnectivityTestViewModel connectivity_view_model;
+  if (const char* iperf_host = std::getenv("FACTORY_TEST_IPERF_HOST");
+      iperf_host && iperf_host[0] != '\0') {
+    auto settings       = connectivity_view_model.link_view_model().settings();
+    settings.iperf_host = iperf_host;
+    connectivity_view_model.link_view_model().set_settings(std::move(settings));
+    LOG_INFO("iperf server overridden by FACTORY_TEST_IPERF_HOST: {}", iperf_host);
+  }
   viewmodel::PerfTestViewModel perf_view_model;
   view::apply_lvgl_theme(display, app_view_model.is_dark_mode());
   platform::set_global_key_listener(global_key_listener, &app_view_model);

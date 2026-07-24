@@ -190,7 +190,8 @@ bool read_i2c_byte_data(int bus_number,
                         uint8_t address,
                         uint8_t command,
                         uint8_t& value,
-                        std::string& error_message) {
+                        std::string& error_message,
+                        I2cAddressAccess access) {
   error_message.clear();
   if (bus_number < 0 || address > 0x7F) {
     error_message = "invalid I2C bus or address";
@@ -206,8 +207,16 @@ bool read_i2c_byte_data(int bus_number,
   }
 
   if (ioctl(bus.fd, I2C_SLAVE, address) < 0) {
-    error_message = std::string("failed to select I2C address: ") + std::strerror(errno);
-    return false;
+    const int select_error = errno;
+    if (select_error != EBUSY || access != I2cAddressAccess::FORCE_IF_BUSY) {
+      error_message = std::string("failed to select I2C address: ") + std::strerror(select_error);
+      return false;
+    }
+    if (ioctl(bus.fd, I2C_SLAVE_FORCE, address) < 0) {
+      error_message =
+          std::string("failed to force-select busy I2C address: ") + std::strerror(errno);
+      return false;
+    }
   }
   if (!i2c_smbus_read_byte_data(bus.fd, command, value)) {
     error_message = std::string("failed to read I2C register: ") + std::strerror(errno);
@@ -219,6 +228,7 @@ bool read_i2c_byte_data(int bus_number,
   (void)address;
   (void)command;
   (void)value;
+  (void)access;
   error_message = "Linux I2C backend is not available";
   return false;
 #endif

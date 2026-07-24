@@ -105,6 +105,7 @@ std::string compact_error(const std::string& error) {
 }  // namespace
 
 ExtIoConnectivityView::~ExtIoConnectivityView() {
+  release_output_lines_();
   if (theme_observer_handle_) {
     lv_observer_remove(theme_observer_handle_);
     theme_observer_handle_ = nullptr;

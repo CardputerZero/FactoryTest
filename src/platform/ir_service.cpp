@@ -554,9 +554,13 @@ IrDeviceInfo read_receiver_info() { return find_ir_device(false); }
 IrDeviceInfo read_sender_info() { return find_ir_device(true); }
 
 IrSendResult send_nec_packet(uint16_t address) {
+  return send_nec_packet(address, random_command());
+}
+
+IrSendResult send_nec_packet(uint16_t address, uint16_t command) {
   IrSendResult result;
   result.address  = address;
-  result.command  = random_command();
+  result.command  = command;
   result.data     = make_nec_bytes(address, result.command);
   result.protocol = K_PROTOCOL_NEC32;
   const auto encoded = encode_nec_packet(result.data);
@@ -658,16 +662,26 @@ IrReceiverSession::~IrReceiverSession() { stop(); }
 
 bool IrReceiverSession::start(uint16_t expected_address, bool filter_address) {
   if (fd_ >= 0) {
-    snapshot_.expected_address        = expected_address;
-    snapshot_.address_filter_enabled  = filter_address;
+    snapshot_.expected_address       = expected_address;
+    snapshot_.address_filter_enabled = filter_address;
+    return true;
+  }
+  return start(read_receiver_info(), expected_address, filter_address);
+}
+
+bool IrReceiverSession::start(const IrDeviceInfo& info,
+                              uint16_t expected_address,
+                              bool filter_address) {
+  if (fd_ >= 0) {
+    snapshot_.expected_address       = expected_address;
+    snapshot_.address_filter_enabled = filter_address;
     return true;
   }
 
-  snapshot_                         = {};
-  snapshot_.expected_address        = expected_address;
-  snapshot_.address_filter_enabled  = filter_address;
-  auto info                         = read_receiver_info();
-  snapshot_.device_path             = info.lirc_path;
+  snapshot_                        = {};
+  snapshot_.expected_address       = expected_address;
+  snapshot_.address_filter_enabled = filter_address;
+  snapshot_.device_path            = info.lirc_path;
   if (!info.available) {
     snapshot_.message = info.error_message.empty() ? "IR receiver unavailable" : info.error_message;
     LOG_WARN("IR receiver unavailable: {}", snapshot_.message);

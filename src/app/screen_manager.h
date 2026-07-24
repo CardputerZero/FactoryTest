@@ -42,6 +42,7 @@ class ScreenManager {
   void show_camera_test_page();
   void show_io_test_page(model::AppPage page);
   void show_ir_test_page(model::AppPage page);
+  void show_ir_fixture_test_page();
   void show_imu_test_page();
   void show_power_info_page();
   void show_device_info_page();

@@ -6,8 +6,11 @@
 
 #include "app_viewmodel.h"
 
+#include <algorithm>
 #include <array>
 #include <utility>
+
+#include "device_info_service.h"
 
 namespace viewmodel {
 namespace {
@@ -19,13 +22,12 @@ struct TestSequenceItem {
   model::AppPage page;
 };
 
-constexpr std::array<TestSequenceItem, 20> K_TEST_SEQUENCE = {{
+constexpr std::array<TestSequenceItem, 19> K_TEST_SEQUENCE = {{
     {"Input Test", model::AppPage::KEYBOARD_TEST},
     {"Display Test", model::AppPage::LCD_TEST},
     {"Audio Test", model::AppPage::AUDIO_TEST},
     {"Camera Test", model::AppPage::CAMERA_TEST},
-    {"IR Sender", model::AppPage::IR_SEND_TEST},
-    {"IR Receiver", model::AppPage::IR_RECEIVE_TEST},
+    {"IR Fixture Test", model::AppPage::IR_FIXTURE_TEST},
     {"Wi-Fi", model::AppPage::WIFI_TEST},
     {"Bluetooth", model::AppPage::BT_TEST},
     {"Ethernet", model::AppPage::ETH_TEST},
@@ -42,11 +44,31 @@ constexpr std::array<TestSequenceItem, 20> K_TEST_SEQUENCE = {{
     {"SD Card Test", model::AppPage::SD_CARD_TEST},
 }};
 
-const TestSequenceItem* sequence_item(std::size_t index) {
-  if (index >= K_TEST_SEQUENCE.size()) {
-    return nullptr;
+bool sequence_item_enabled(const TestSequenceItem& item) {
+  if (platform::device_info::product_model() ==
+      platform::device_info::ProductModel::CARDPUTER_ZERO) {
+    return true;
   }
-  return &K_TEST_SEQUENCE[index];
+  return item.page != model::AppPage::CAMERA_TEST && item.page != model::AppPage::IMU_TEST;
+}
+
+const TestSequenceItem* sequence_item(std::size_t index) {
+  std::size_t enabled_index = 0;
+  for (const auto& item : K_TEST_SEQUENCE) {
+    if (!sequence_item_enabled(item)) {
+      continue;
+    }
+    if (enabled_index == index) {
+      return &item;
+    }
+    ++enabled_index;
+  }
+  return nullptr;
+}
+
+std::size_t test_sequence_size() {
+  return static_cast<std::size_t>(
+      std::count_if(K_TEST_SEQUENCE.begin(), K_TEST_SEQUENCE.end(), sequence_item_enabled));
 }
 
 }  // namespace
@@ -286,6 +308,8 @@ const char* AppViewModel::current_test_name() const {
       return "IR Sender";
     case model::AppPage::IR_RECEIVE_TEST:
       return "IR Receiver";
+    case model::AppPage::IR_FIXTURE_TEST:
+      return "IR Fixture Test";
     case model::AppPage::WIFI_TEST:
       return "Wi-Fi";
     case model::AppPage::BT_TEST:
@@ -334,13 +358,13 @@ const char* AppViewModel::current_test_name() const {
 }
 
 std::size_t AppViewModel::current_test_number() const {
-  if (!model_.test_sequence_active() || test_sequence_index_ >= K_TEST_SEQUENCE.size()) {
+  if (!model_.test_sequence_active() || test_sequence_index_ >= test_sequence_size()) {
     return 0;
   }
   return test_sequence_index_ + 1;
 }
 
-std::size_t AppViewModel::test_count() const { return K_TEST_SEQUENCE.size(); }
+std::size_t AppViewModel::test_count() const { return test_sequence_size(); }
 
 const std::string& AppViewModel::test_result_path() const { return test_session_.output_path(); }
 

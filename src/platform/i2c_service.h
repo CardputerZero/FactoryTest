@@ -14,11 +14,17 @@
 
 namespace platform::connectivity {
 
+enum class I2cAddressAccess {
+  NORMAL,
+  FORCE_IF_BUSY,
+};
+
 std::vector<I2cAddressInfo> scan_i2c_bus(int bus_number, std::string& error_message);
 bool read_i2c_byte_data(int bus_number,
                         uint8_t address,
                         uint8_t command,
                         uint8_t& value,
-                        std::string& error_message);
+                        std::string& error_message,
+                        I2cAddressAccess access = I2cAddressAccess::NORMAL);
 
 }  // namespace platform::connectivity

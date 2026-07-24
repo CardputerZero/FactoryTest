@@ -19,12 +19,15 @@
 #include <ctime>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include "i2c_service.h"
+#include "logger.h"
 
 #if defined(__linux__)
 #include <fcntl.h>
@@ -37,27 +40,38 @@ namespace platform::device_info {
 namespace {
 
 constexpr const char* K_EMPTY_VALUE          = "--";
+constexpr const char* K_DEVICE_TREE_ROOT     = "/sys/firmware/devicetree/base";
+constexpr const char* K_IMX219_COMPATIBLE    = "sony,imx219";
+constexpr const char* K_BMI270_COMPATIBLE    = "bosch,bmi270";
 constexpr const char* K_HW_REVISION_RAW_PATH = "/sys/bus/iio/devices/iio:device0/in_voltage0_raw";
-constexpr double K_ADC_REFERENCE_MV          = 3356.0;
-constexpr double K_ADC_RESOLUTION_STEPS      = 4096.0;
-constexpr double K_HW_REVISION_SCALE_MV      = K_ADC_REFERENCE_MV / K_ADC_RESOLUTION_STEPS;
-constexpr double K_HW_REVISION_TOLERANCE_MV  = 100.0;
+constexpr const char* K_HW_REVISION_SCALE_PATH =
+    "/sys/bus/iio/devices/iio:device0/in_voltage0_scale";
+constexpr double K_HW_REVISION_TOLERANCE_MV          = 100.0;
 constexpr std::size_t K_HW_REVISION_SAMPLE_COUNT     = 5;
 constexpr std::size_t K_HW_REVISION_MIN_SAMPLE_COUNT = 3;
 constexpr uint32_t K_HW_REVISION_SAMPLE_INTERVAL_MS  = 10;
 constexpr int K_PY32_I2C_BUS                         = 1;
 constexpr uint8_t K_PY32_I2C_ADDRESS                 = 0x4F;
+constexpr uint8_t K_CP0_HARDWARE_VERSION             = 0xB8;
 constexpr uint8_t K_CP0_MINOR_VERSION                = 0xBA;
+constexpr auto K_IOE1_REFRESH_INTERVAL               = std::chrono::seconds(60);
 
 struct HardwareRevisionVoltage {
   double millivolts;
+  uint8_t ioe1_value;
   const char* revision;
 };
 
 constexpr std::array<HardwareRevisionVoltage, 2> K_HARDWARE_REVISIONS = {{
-    {2500.0, "0.3"},
-    {2000.0, "0.6"},
+    {2500.0, 0x03, "0.3"},
+    {2000.0, 0x06, "0.6"},
 }};
+
+struct Ioe1RegisterCache {
+  std::mutex mutex;
+  std::optional<uint8_t> value;
+  std::chrono::steady_clock::time_point last_attempt{};
+};
 
 std::string trim(std::string value) {
   const auto not_space = [](unsigned char ch) { return std::isspace(ch) == 0; };
@@ -97,7 +111,81 @@ std::string read_or_empty(const std::filesystem::path& path) {
   return read_text_file(path, value) ? value : K_EMPTY_VALUE;
 }
 
-std::string read_device_model() { return "CardputerZero"; }
+bool devicetree_string_list_contains(const std::filesystem::path& path, const char* expected) {
+  std::ifstream file(path, std::ios::binary);
+  if (!file || !expected || expected[0] == '\0') {
+    return false;
+  }
+
+  std::ostringstream buffer;
+  buffer << file.rdbuf();
+  const auto values = buffer.str();
+  std::size_t start = 0;
+  while (start < values.size()) {
+    const auto separator = values.find('\0', start);
+    const auto length    = (separator == std::string::npos ? values.size() : separator) - start;
+    if (values.compare(start, length, expected) == 0) {
+      return true;
+    }
+    if (separator == std::string::npos) {
+      break;
+    }
+    start = separator + 1;
+  }
+  return false;
+}
+
+bool devicetree_node_enabled(const std::filesystem::path& node, const std::filesystem::path& root) {
+  for (auto current = node;; current = current.parent_path()) {
+    std::string status;
+    if (read_devicetree_string(current / "status", status) && status != "okay" && status != "ok") {
+      return false;
+    }
+    if (current == root || current.empty()) {
+      return true;
+    }
+  }
+}
+
+bool has_enabled_devicetree_compatible(const std::filesystem::path& root, const char* compatible) {
+  std::error_code ec;
+  std::filesystem::recursive_directory_iterator entry(
+      root,
+      std::filesystem::directory_options::skip_permission_denied,
+      ec);
+  const std::filesystem::recursive_directory_iterator end;
+  while (entry != end) {
+    if (!ec && entry->path().filename() == "compatible" &&
+        devicetree_string_list_contains(entry->path(), compatible) &&
+        devicetree_node_enabled(entry->path().parent_path(), root)) {
+      return true;
+    }
+    ec.clear();
+    entry.increment(ec);
+  }
+  return false;
+}
+
+ProductModel detect_product_model() {
+  const std::filesystem::path root(K_DEVICE_TREE_ROOT);
+  std::error_code ec;
+  if (!std::filesystem::is_directory(root, ec)) {
+    LOG_WARN("device tree is unavailable; defaulting model to CardputerZero Lite");
+    return ProductModel::CARDPUTER_ZERO_LITE;
+  }
+
+  const bool has_imx219 = has_enabled_devicetree_compatible(root, K_IMX219_COMPATIBLE);
+  const bool has_bmi270 = has_enabled_devicetree_compatible(root, K_BMI270_COMPATIBLE);
+  const auto model =
+      has_imx219 && has_bmi270 ? ProductModel::CARDPUTER_ZERO : ProductModel::CARDPUTER_ZERO_LITE;
+  LOG_INFO("detected model {} from device tree: imx219={}, bmi270={}",
+           product_model_name(model),
+           has_imx219,
+           has_bmi270);
+  return model;
+}
+
+std::string read_device_model() { return product_model_name(product_model()); }
 
 std::string read_soc_serial_number() {
   std::string value;
@@ -138,13 +226,56 @@ bool read_median_number_file(const std::filesystem::path& path, double& value) {
   return true;
 }
 
-std::string read_hardware_revision() {
-  double raw = 0.0;
-  if (!read_median_number_file(K_HW_REVISION_RAW_PATH, raw)) {
+bool read_cached_ioe1_register(uint8_t command,
+                               Ioe1RegisterCache& cache,
+                               uint8_t& value,
+                               bool* value_changed = nullptr) {
+  if (value_changed) {
+    *value_changed = false;
+  }
+  const auto now = std::chrono::steady_clock::now();
+  std::lock_guard<std::mutex> lock(cache.mutex);
+  if (cache.last_attempt != std::chrono::steady_clock::time_point{} &&
+      now - cache.last_attempt < K_IOE1_REFRESH_INTERVAL) {
+    if (!cache.value) {
+      return false;
+    }
+    value = *cache.value;
+    return true;
+  }
+
+  cache.last_attempt      = now;
+  uint8_t refreshed_value = 0;
+  std::string error_message;
+  if (platform::connectivity::read_i2c_byte_data(
+          K_PY32_I2C_BUS,
+          K_PY32_I2C_ADDRESS,
+          command,
+          refreshed_value,
+          error_message,
+          platform::connectivity::I2cAddressAccess::FORCE_IF_BUSY)) {
+    if (value_changed) {
+      *value_changed = !cache.value || *cache.value != refreshed_value;
+    }
+    cache.value = refreshed_value;
+  }
+
+  if (!cache.value) {
+    return false;
+  }
+  value = *cache.value;
+  return true;
+}
+
+std::string read_adc_hardware_revision() {
+  double raw   = 0.0;
+  double scale = 0.0;
+  if (!read_median_number_file(K_HW_REVISION_RAW_PATH, raw) ||
+      !read_number_file(K_HW_REVISION_SCALE_PATH, scale)) {
     return K_EMPTY_VALUE;
   }
 
-  const double millivolts = raw * K_HW_REVISION_SCALE_MV;
+  const double millivolts = raw * scale;
   for (const auto& mapping : K_HARDWARE_REVISIONS) {
     if (std::abs(millivolts - mapping.millivolts) <= K_HW_REVISION_TOLERANCE_MV) {
       return mapping.revision;
@@ -153,14 +284,41 @@ std::string read_hardware_revision() {
   return K_EMPTY_VALUE;
 }
 
-std::string read_py32_firmware_version() {
+std::string read_ioe1_hardware_revision(bool& value_changed) {
+  static Ioe1RegisterCache cache;
   uint8_t version = 0;
-  std::string error_message;
-  if (!platform::connectivity::read_i2c_byte_data(K_PY32_I2C_BUS,
-                                                  K_PY32_I2C_ADDRESS,
-                                                  K_CP0_MINOR_VERSION,
-                                                  version,
-                                                  error_message)) {
+  if (!read_cached_ioe1_register(K_CP0_HARDWARE_VERSION, cache, version, &value_changed)) {
+    return K_EMPTY_VALUE;
+  }
+
+  for (const auto& mapping : K_HARDWARE_REVISIONS) {
+    if (version == mapping.ioe1_value) {
+      return mapping.revision;
+    }
+  }
+  return K_EMPTY_VALUE;
+}
+
+std::string read_hardware_revision() {
+  bool ioe1_value_changed  = false;
+  const auto adc_revision  = read_adc_hardware_revision();
+  const auto ioe1_revision = read_ioe1_hardware_revision(ioe1_value_changed);
+  if (ioe1_revision != K_EMPTY_VALUE && ioe1_revision != adc_revision) {
+    if (ioe1_value_changed) {
+      LOG_DEBUG(
+          "read valid IOE1 Firmware version from i2c-1 addr=0x4F reg=0xB8: {}; ADC revision={}",
+          ioe1_revision,
+          adc_revision);
+    }
+    return ioe1_revision;
+  }
+  return adc_revision;
+}
+
+std::string read_py32_firmware_version() {
+  static Ioe1RegisterCache cache;
+  uint8_t version = 0;
+  if (!read_cached_ioe1_register(K_CP0_MINOR_VERSION, cache, version)) {
     return K_EMPTY_VALUE;
   }
 
@@ -481,10 +639,26 @@ std::string read_rtc() {
 
 }  // namespace
 
+ProductModel product_model() {
+  static const ProductModel model = detect_product_model();
+  return model;
+}
+
+const char* product_model_name(ProductModel model) {
+  switch (model) {
+    case ProductModel::CARDPUTER_ZERO:
+      return "CardputerZero";
+    case ProductModel::CARDPUTER_ZERO_LITE:
+    default:
+      return "CardputerZero Lite";
+  }
+}
+
 std::vector<DeviceInfoField> read_device_info_fields() {
   return {
       {"Model", read_device_model()},
       {"Hardware Revision", read_hardware_revision()},
+      {"IOE1 Version", read_py32_firmware_version()},
       {"Serial Number", read_soc_serial_number()},
       {"RAM", read_ram()},
       {"Storage", read_storage()},
