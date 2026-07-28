@@ -7,13 +7,13 @@ This repository holds the factory test application of CardputerZero.
 + Download the debian release
 
 ```
-wget https://github.com/CardputerZero/FactoryTest/releases/download/0.2.8/FactoryTest_0.2.8_m5stack1_arm64.deb
+wget https://github.com/CardputerZero/FactoryTest/releases/download/0.2.9/FactoryTest_0.2.9_m5stack1_arm64.deb
 ```
 
 + Install the package
 
 ```
-sudo apt install ./FactoryTest_0.2.8_m5stack1_arm64.deb
+sudo apt install ./FactoryTest_0.2.9_m5stack1_arm64.deb
 ```
 
 
@@ -24,7 +24,7 @@ TODO
 
 ## Changelog
 
-### Unreleased - 2026-07-28
+### 0.2.9 - 2026-07-28
 
 - Add a PY32/IOE1 firmware upgrade page with packaged 0xF8 firmware, archive and extracted-file checksum verification, a preflight dry run, live progress reporting, and post-upgrade version validation.
 - Package the PY32 upgrade assets and required `coreutils`, `python3`, and `tar` runtime dependencies, with complete Chinese localization for the upgrade workflow.
