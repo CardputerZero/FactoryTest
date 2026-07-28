@@ -1,0 +1,24 @@
+// Allow authorized factory-test users to safely power off or reboot the device.
+polkit.addRule(function(action, subject) {
+    var isFactoryUser = subject.user == "root" ||
+        subject.isInGroup("@APP_PRODUCT_GROUP@") ||
+        subject.isInGroup("sudo") ||
+        (subject.local && subject.active);
+
+    if (!isFactoryUser) {
+        return;
+    }
+
+    var powerActions = [
+        "org.freedesktop.login1.power-off",
+        "org.freedesktop.login1.power-off-multiple-sessions",
+        "org.freedesktop.login1.power-off-ignore-inhibit",
+        "org.freedesktop.login1.reboot",
+        "org.freedesktop.login1.reboot-multiple-sessions",
+        "org.freedesktop.login1.reboot-ignore-inhibit"
+    ];
+
+    if (powerActions.indexOf(action.id) >= 0) {
+        return polkit.Result.YES;
+    }
+});
