@@ -14,6 +14,11 @@
 #include <utility>
 
 #include "logger.h"
+#include "process_service.h"
+
+#if defined(__linux__)
+#include <unistd.h>
+#endif
 
 #ifndef APP_POWER_SUPPLY_ROOT
 #define APP_POWER_SUPPLY_ROOT "/sys/class/power_supply"
@@ -100,6 +105,38 @@ std::filesystem::path find_battery_path(std::string& error_message) {
   return fallback;
 }
 
+bool request_power_action(const char* action, std::string& error_message) {
+#if defined(USE_DESKTOP) && USE_DESKTOP
+  error_message = "Power operations are disabled in desktop builds.";
+  LOG_WARN("refusing {} request in desktop build", action);
+  return false;
+#elif defined(__linux__)
+  LOG_INFO("requesting safe system {}", action);
+  ::sync();
+
+  process::ProcessOptions options;
+  options.timeout_ms       = 5000;
+  options.max_output_bytes = 4096;
+  const auto result =
+      process::run_command("systemctl", {"--no-block", "--no-ask-password", action}, options);
+  if (result.success()) {
+    error_message.clear();
+    return true;
+  }
+
+  error_message = !result.error_message.empty()
+                      ? result.error_message
+                      : (!result.stderr_text.empty() ? result.stderr_text
+                                                     : "systemctl request failed");
+  LOG_ERROR("safe system {} request failed: {}", action, error_message);
+  return false;
+#else
+  error_message = "Power operations are not supported on this platform.";
+  LOG_WARN("unsupported safe system {} request", action);
+  return false;
+#endif
+}
+
 }  // namespace
 
 bool read_battery_info(PowerSupplyInfo& info, std::string& error_message) {
@@ -143,6 +180,14 @@ bool read_battery_info(PowerSupplyInfo& info, std::string& error_message) {
   info = std::move(next);
   error_message.clear();
   return true;
+}
+
+bool safe_shutdown(std::string& error_message) {
+  return request_power_action("poweroff", error_message);
+}
+
+bool safe_reboot(std::string& error_message) {
+  return request_power_action("reboot", error_message);
 }
 
 }  // namespace platform::power

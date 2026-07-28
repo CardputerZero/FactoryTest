@@ -6,10 +6,8 @@
 
 #include "ext_io_page.h"
 
-#include <cerrno>
 #include <chrono>
 #include <cstring>
-#include <fstream>
 #include <thread>
 #include <utility>
 
@@ -36,44 +34,6 @@ constexpr uint32_t K_GPIO_ACTION_DELAY_MS        = 120;
 constexpr uint32_t K_INPUT_POLL_MS               = 250;
 constexpr const char* K_EXT_5V_BRIGHTNESS_PATH   = "/sys/class/leds/ext_5v_out/brightness";
 constexpr const char* K_GROVE_5V_BRIGHTNESS_PATH = "/sys/class/leds/grove_5v_out/brightness";
-
-bool read_led_output(const char* path, bool& active, std::string& error) {
-  errno = 0;
-  std::ifstream file(path);
-  if (!file) {
-    error = std::string("Failed to open LED output: ") + std::strerror(errno);
-    return false;
-  }
-
-  int value = 0;
-  file >> value;
-  if (!file) {
-    error = "Failed to read LED output";
-    return false;
-  }
-
-  active = value != 0;
-  error.clear();
-  return true;
-}
-
-bool write_led_output(const char* path, bool active, std::string& error) {
-  errno = 0;
-  std::ofstream file(path);
-  if (!file) {
-    error = std::string("Failed to open LED output: ") + std::strerror(errno);
-    return false;
-  }
-
-  file << (active ? 1 : 0) << '\n';
-  if (!file) {
-    error = std::string("Failed to write LED output: ") + std::strerror(errno);
-    return false;
-  }
-
-  error.clear();
-  return true;
-}
 
 bool key_name_is(const char* key_name, const char* expected) {
   return key_name && expected && std::strcmp(key_name, expected) == 0;
@@ -106,6 +66,7 @@ std::string compact_error(const std::string& error) {
 
 ExtIoConnectivityView::~ExtIoConnectivityView() {
   release_output_lines_();
+  release_input_lines_();
   if (theme_observer_handle_) {
     lv_observer_remove(theme_observer_handle_);
     theme_observer_handle_ = nullptr;
@@ -127,27 +88,27 @@ void ExtIoConnectivityView::build(lv_obj_t* parent,
       {"EXT 5V",
        K_EXT_5V_BRIGHTNESS_PATH,
        view::ICON_LIGHTNING,
-       {"/dev/gpiochip1", 12, "factory-test-extio-5v"},
+       std::nullopt,
        false,
        K_EXT_5V_BRIGHTNESS_PATH},
       {"Grove 5V",
        K_GROVE_5V_BRIGHTNESS_PATH,
        view::ICON_LIGHTNING,
-       {"/dev/gpiochip1", 3, "factory-test-extio-grove-5v"},
+       std::nullopt,
        false,
        K_GROVE_5V_BRIGHTNESS_PATH},
       {"GPIO26",
        "gpiochip0 line 26",
        view::ICON_PLUGS_CONNECTED,
-       {"/dev/gpiochip0", 26, "factory-test-extio-gpio26"}},
+       platform::gpio::OutputLineConfig{"/dev/gpiochip0", 26, "factory-test-extio-gpio26"}},
       {"GPIO23",
        "gpiochip0 line 23",
        view::ICON_PLUGS_CONNECTED,
-       {"/dev/gpiochip0", 23, "factory-test-extio-gpio23"}},
+       platform::gpio::OutputLineConfig{"/dev/gpiochip0", 23, "factory-test-extio-gpio23"}},
       {"GPIO22",
        "gpiochip0 line 22",
        view::ICON_PLUGS_CONNECTED,
-       {"/dev/gpiochip0", 22, "factory-test-extio-gpio22"}},
+       platform::gpio::OutputLineConfig{"/dev/gpiochip0", 22, "factory-test-extio-gpio22"}},
   }};
 
   root_ = lv_obj_create(parent);
@@ -306,10 +267,12 @@ void ExtIoConnectivityView::toggle_row_(std::size_t index) {
   std::string error;
   bool ok = false;
   if (row.brightness_path) {
-    ok = write_led_output(row.brightness_path, next, error);
-  } else {
+    ok = platform::gpio::write_sysfs_binary_value(row.brightness_path, next, error);
+  } else if (row.gpio) {
     wait_for_gpio_slot_();
-    ok = platform::gpio::set_output_value(row.gpio, next, error);
+    ok = platform::gpio::set_output_value(*row.gpio, next, error);
+  } else {
+    error = "Output backend is not configured";
   }
   row.error = !ok;
   if (ok) {
@@ -323,8 +286,8 @@ void ExtIoConnectivityView::toggle_row_(std::size_t index) {
 
 void ExtIoConnectivityView::release_output_lines_() {
   for (auto& row : rows_) {
-    if (!row.brightness_path) {
-      platform::gpio::release_output_value(row.gpio);
+    if (row.gpio) {
+      platform::gpio::release_output_value(*row.gpio);
     }
     row.active = false;
     row.error  = false;
@@ -333,13 +296,26 @@ void ExtIoConnectivityView::release_output_lines_() {
   has_gpio_action_ = false;
 }
 
+void ExtIoConnectivityView::release_input_lines_() {
+  for (auto& row : rows_) {
+    row.input_line.reset();
+    row.input_ready = false;
+  }
+}
+
 void ExtIoConnectivityView::read_output_states_() {
   for (auto& row : rows_) {
     bool active = false;
     std::string error;
-    const bool ok = row.brightness_path ? read_led_output(row.brightness_path, active, error)
-                                        : platform::gpio::get_output_value(row.gpio, active, error);
-    row.error     = !ok;
+    bool ok = false;
+    if (row.brightness_path) {
+      ok = platform::gpio::read_sysfs_binary_value(row.brightness_path, active, error);
+    } else if (row.gpio) {
+      ok = platform::gpio::get_output_value(*row.gpio, active, error);
+    } else {
+      error = "Output backend is not configured";
+    }
+    row.error = !ok;
     if (ok) {
       row.active = active;
       row.error_message.clear();
@@ -350,7 +326,7 @@ void ExtIoConnectivityView::read_output_states_() {
   }
 }
 
-void ExtIoConnectivityView::read_input_states_() {
+void ExtIoConnectivityView::read_input_states_(bool refresh_changed_rows) {
   for (auto& row : rows_) {
     if (!row.supports_input) {
       continue;
@@ -358,14 +334,35 @@ void ExtIoConnectivityView::read_input_states_() {
 
     bool active = false;
     std::string error;
-    const bool ok = platform::gpio::get_input_value(row.gpio, active, error);
-    row.error     = !ok;
-    if (ok) {
-      row.active = active;
-      row.error_message.clear();
+    bool ok = false;
+    if (!row.gpio) {
+      error = "Input backend is not configured";
     } else {
-      row.active        = false;
-      row.error_message = compact_error(error);
+      if (!row.input_line) {
+        row.input_line = std::make_unique<platform::gpio::OutputLine>(*row.gpio);
+      }
+      if (!row.input_ready) {
+        row.input_ready = row.input_line->set_input(error);
+      }
+      if (row.input_ready) {
+        ok = row.input_line->get_value(active, error);
+        if (!ok) {
+          row.input_line->release();
+          row.input_ready = false;
+        }
+      }
+    }
+
+    const bool next_active  = ok && active;
+    const bool next_error   = !ok;
+    auto next_error_message = ok ? std::string{} : compact_error(error);
+    const bool changed      = row.active != next_active || row.error != next_error ||
+                              row.error_message != next_error_message;
+    row.active              = next_active;
+    row.error               = next_error;
+    row.error_message       = std::move(next_error_message);
+    if (refresh_changed_rows && changed) {
+      apply_row_style_(row);
     }
   }
 }
@@ -544,10 +541,14 @@ void ExtIoConnectivityView::apply_config_dialog_() {
     return;
   }
 
-  release_output_lines_();
+  if (io_function_ == IoFunction::INPUT) {
+    release_input_lines_();
+  } else {
+    release_output_lines_();
+  }
   io_function_ = next_function;
   if (io_function_ == IoFunction::INPUT) {
-    read_input_states_();
+    read_input_states_(false);
   } else {
     read_output_states_();
   }
@@ -660,8 +661,7 @@ void ExtIoConnectivityView::input_poll_timer_cb(lv_timer_t* timer) {
   if (!view || view->io_function_ != IoFunction::INPUT) {
     return;
   }
-  view->read_input_states_();
-  view->apply_theme_();
+  view->read_input_states_(true);
 }
 
 void ExtIoConnectivityView::theme_observer(lv_observer_t* observer, lv_subject_t* subject) {

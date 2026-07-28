@@ -34,5 +34,7 @@ struct PowerSupplyInfo {
 };
 
 bool read_battery_info(PowerSupplyInfo& info, std::string& error_message);
+bool safe_shutdown(std::string& error_message);
+bool safe_reboot(std::string& error_message);
 
 }  // namespace platform::power

@@ -122,15 +122,13 @@ void CameraTestPage::update_preview_frame_() {
     return;
   }
 
-  std::vector<uint16_t> frame;
   int width  = 0;
   int height = 0;
-  if (!preview_.copy_frame_rgb565(frame, width, height) || width != K_PREVIEW_WIDTH ||
-      height != K_PREVIEW_HEIGHT || frame.size() != preview_buffer_.size()) {
+  if (!preview_.copy_frame_rgb565(preview_buffer_, width, height) || width != K_PREVIEW_WIDTH ||
+      height != K_PREVIEW_HEIGHT) {
     return;
   }
 
-  std::copy(frame.begin(), frame.end(), preview_buffer_.begin());
   preview_image_dsc_.data = reinterpret_cast<const uint8_t*>(preview_buffer_.data());
   lv_obj_invalidate(preview_image_);
 }

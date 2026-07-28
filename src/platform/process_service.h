@@ -24,6 +24,10 @@ struct ProcessOptions {
   // Non-zero values kill the child process if it runs longer than the limit.
   int timeout_ms{0};
   std::size_t max_output_bytes{1024U * 1024U};
+  // Excess bytes in a single unterminated line are discarded until a delimiter is received.
+  std::size_t max_line_bytes{64U * 1024U};
+  // Written to the child process before its stdin is closed.
+  std::string stdin_text{};
   OutputHandler stdout_handler{};
   OutputHandler stderr_handler{};
   OutputLineHandler stdout_line_handler{};

@@ -229,13 +229,14 @@ bool read_median_number_file(const std::filesystem::path& path, double& value) {
 bool read_cached_ioe1_register(uint8_t command,
                                Ioe1RegisterCache& cache,
                                uint8_t& value,
-                               bool* value_changed = nullptr) {
+                               bool* value_changed = nullptr,
+                               bool force_refresh  = false) {
   if (value_changed) {
     *value_changed = false;
   }
   const auto now = std::chrono::steady_clock::now();
   std::lock_guard<std::mutex> lock(cache.mutex);
-  if (cache.last_attempt != std::chrono::steady_clock::time_point{} &&
+  if (!force_refresh && cache.last_attempt != std::chrono::steady_clock::time_point{} &&
       now - cache.last_attempt < K_IOE1_REFRESH_INTERVAL) {
     if (!cache.value) {
       return false;
@@ -247,17 +248,23 @@ bool read_cached_ioe1_register(uint8_t command,
   cache.last_attempt      = now;
   uint8_t refreshed_value = 0;
   std::string error_message;
-  if (platform::connectivity::read_i2c_byte_data(
-          K_PY32_I2C_BUS,
-          K_PY32_I2C_ADDRESS,
-          command,
-          refreshed_value,
-          error_message,
-          platform::connectivity::I2cAddressAccess::FORCE_IF_BUSY)) {
+  const bool refreshed = platform::connectivity::read_i2c_byte_data(
+      K_PY32_I2C_BUS,
+      K_PY32_I2C_ADDRESS,
+      command,
+      refreshed_value,
+      error_message,
+      platform::connectivity::I2cAddressAccess::FORCE_IF_BUSY);
+  if (refreshed) {
     if (value_changed) {
       *value_changed = !cache.value || *cache.value != refreshed_value;
     }
     cache.value = refreshed_value;
+  }
+
+  if (force_refresh && !refreshed) {
+    cache.value.reset();
+    return false;
   }
 
   if (!cache.value) {
@@ -315,10 +322,10 @@ std::string read_hardware_revision() {
   return adc_revision;
 }
 
-std::string read_py32_firmware_version() {
+std::string read_py32_firmware_version_impl(bool force_refresh) {
   static Ioe1RegisterCache cache;
   uint8_t version = 0;
-  if (!read_cached_ioe1_register(K_CP0_MINOR_VERSION, cache, version)) {
+  if (!read_cached_ioe1_register(K_CP0_MINOR_VERSION, cache, version, nullptr, force_refresh)) {
     return K_EMPTY_VALUE;
   }
 
@@ -654,11 +661,15 @@ const char* product_model_name(ProductModel model) {
   }
 }
 
+std::string read_py32_firmware_version(bool force_refresh) {
+  return read_py32_firmware_version_impl(force_refresh);
+}
+
 std::vector<DeviceInfoField> read_device_info_fields() {
   return {
       {"Model", read_device_model()},
       {"Hardware Revision", read_hardware_revision()},
-      {"IOE1 Version", read_py32_firmware_version()},
+      {"IOE1 Version", read_py32_firmware_version(false)},
       {"Serial Number", read_soc_serial_number()},
       {"RAM", read_ram()},
       {"Storage", read_storage()},

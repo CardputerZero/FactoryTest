@@ -52,6 +52,7 @@ AudioTestPage::~AudioTestPage() {
     lv_timer_delete(poll_timer_);
     poll_timer_ = nullptr;
   }
+  platform::input_switch::release_headphone_device();
 }
 
 void AudioTestPage::build_content(lv_obj_t* content) {

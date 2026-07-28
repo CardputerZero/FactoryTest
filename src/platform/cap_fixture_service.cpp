@@ -13,7 +13,6 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
-#include <fstream>
 #include <thread>
 
 #include "gpio_service.h"
@@ -44,40 +43,6 @@ const std::array<platform::gpio::OutputLineConfig, 3> K_GPIO_TEST_LINES = {{
 
 std::string errno_error(const char* operation) {
   return std::string(operation ? operation : "operation") + ": " + std::strerror(errno);
-}
-
-bool write_switch_file(const char* path, bool enabled, std::string& error_message) {
-  error_message.clear();
-  errno = 0;
-  std::ofstream output(path);
-  if (!output) {
-    error_message = errno_error((std::string("open ") + path).c_str());
-    return false;
-  }
-  output << (enabled ? 1 : 0) << '\n';
-  if (!output) {
-    error_message = errno_error((std::string("write ") + path).c_str());
-    return false;
-  }
-  output.close();
-
-  int actual = -1;
-  for (int attempt = 1; attempt <= 6; ++attempt) {
-    std::ifstream input(path);
-    input >> actual;
-    if (input && ((actual != 0) == enabled)) {
-      return true;
-    }
-    if (attempt < 6) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    }
-  }
-  LOG_WARN("[CAP-FIXTURE][SYSFS] write accepted but readback stayed at {}: path={} requested={}",
-           actual,
-           path,
-           enabled ? 1 : 0);
-  error_message.clear();
-  return true;
 }
 
 bool target_usb_present(uint16_t vendor_id,
@@ -354,11 +319,13 @@ bool read_register(uint8_t reg, uint8_t* data, std::size_t size, std::string& er
 }
 
 bool set_ext_5v_enabled(bool enabled, std::string& error_message) {
-  return write_switch_file(K_EXT_5V_PATH, enabled, error_message);
+  return platform::gpio::write_sysfs_binary_value(K_EXT_5V_PATH, enabled, error_message);
 }
 
 bool set_usb_gpio_function(bool usb_enabled, std::string& error_message) {
-  return write_switch_file(K_USB_GPIO_FUNCTION_PATH, usb_enabled, error_message);
+  return platform::gpio::write_sysfs_binary_value(K_USB_GPIO_FUNCTION_PATH,
+                                                  usb_enabled,
+                                                  error_message);
 }
 
 bool read_charge_report(uint8_t& report, std::string& detail, std::string& error_message) {

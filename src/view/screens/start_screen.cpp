@@ -17,6 +17,7 @@
 #include "bindings.h"
 #include "linux_input.h"
 #include "logger.h"
+#include "power_service.h"
 #include "theme.h"
 #include "ui_const.h"
 
@@ -116,6 +117,7 @@ StartScreen::StartScreen(viewmodel::AppViewModel& app_view_model,
 }
 
 StartScreen::~StartScreen() {
+  lv_async_call_cancel(power_action_async_cb, this);
   platform::clear_long_key_listener(long_key_listener, this);
   platform::clear_key_release_listener(key_release_listener, this);
   platform::clear_key_listener(key_listener, this);
@@ -145,6 +147,8 @@ StartScreen::~StartScreen() {
     language_observer_handle_ = nullptr;
   }
   language_dialog_.reset();
+  power_dialog_.reset();
+  platform::set_modal_key_capture(false);
   exit_popup_.reset();
   list_.reset();
 }
@@ -506,6 +510,14 @@ void StartScreen::activate_selected_item_() {
     show_language_dialog_();
     return;
   }
+  if (std::strcmp(item.title, "Poweroff") == 0) {
+    show_power_dialog_(false);
+    return;
+  }
+  if (std::strcmp(item.title, "Reboot") == 0) {
+    show_power_dialog_(true);
+    return;
+  }
 
   if (item.starts_sequence) {
     perf_view_model_.clear_direct_subpage();
@@ -597,6 +609,105 @@ bool StartScreen::handle_language_dialog_key_(uint32_t key, const char* key_name
   return true;
 }
 
+void StartScreen::show_power_dialog_(bool reboot) {
+  if (!root() || (power_dialog_ && power_dialog_->visible())) {
+    return;
+  }
+
+  power_dialog_reboot_ = reboot;
+  platform::set_modal_key_capture(true);
+
+  view::widgets::DialogConfig config;
+  config.width               = 270;
+  config.height              = 136;
+  config.title               = reboot ? "Reboot" : "Poweroff";
+  config.shortcut_text       = "ESC: Cancel  Enter: OK";
+  config.ok_button_label     = reboot ? "Reboot" : "Poweroff";
+  config.cancel_button_label = "Cancel";
+  config.button_width        = 92;
+  config.button_row_width    = 206;
+  config.button_bottom_pad   = 4;
+  config.body_font_size      = 13;
+  config.ok_button_tone      = reboot ? view::widgets::DialogButtonTone::WARNING
+                                      : view::widgets::DialogButtonTone::ERROR;
+
+  view::widgets::DialogCallbacks callbacks;
+  callbacks.ok_action = [this]() {
+    close_power_dialog_();
+    if (lv_async_call(power_action_async_cb, this) != LV_RESULT_OK) {
+      LOG_ERROR("failed to schedule power action");
+    }
+  };
+  callbacks.cancel_action = [this]() { close_power_dialog_(); };
+
+  power_dialog_ = std::make_unique<view::widgets::Dialog>(
+      root(), app_view_model_ref_(), assets_ref_(), config, callbacks);
+  power_dialog_->build();
+  power_dialog_->add_label(reboot ? "Are you sure you want to reboot?"
+                                  : "Are you sure you want to power off?",
+                           246,
+                           LV_TEXT_ALIGN_CENTER);
+}
+
+void StartScreen::close_power_dialog_() {
+  if (power_dialog_) {
+    power_dialog_->close();
+  }
+  platform::set_modal_key_capture(false);
+}
+
+bool StartScreen::handle_power_dialog_key_(uint32_t key, const char* key_name) {
+  if (!power_dialog_ || !power_dialog_->visible()) {
+    return false;
+  }
+  power_dialog_->handle_key(key, key_name);
+  return true;
+}
+
+void StartScreen::execute_power_action_() {
+  const bool reboot = power_dialog_reboot_;
+  std::string error_message;
+  const bool requested = reboot ? platform::power::safe_reboot(error_message)
+                                : platform::power::safe_shutdown(error_message);
+  if (!requested) {
+    LOG_ERROR("{} request failed: {}", reboot ? "reboot" : "shutdown", error_message);
+    show_power_error_dialog_();
+  }
+}
+
+void StartScreen::power_action_async_cb(void* user_data) {
+  auto* page = static_cast<StartScreen*>(user_data);
+  if (page) {
+    page->execute_power_action_();
+  }
+}
+
+void StartScreen::show_power_error_dialog_() {
+  if (!root()) {
+    return;
+  }
+
+  platform::set_modal_key_capture(true);
+  view::widgets::DialogConfig config;
+  config.width               = 270;
+  config.height              = 136;
+  config.title               = "Power operation failed";
+  config.show_cancel_button  = false;
+  config.ok_button_label     = "OK";
+  config.button_width        = 92;
+  config.button_row_width    = 92;
+  config.ok_button_tone      = view::widgets::DialogButtonTone::ERROR;
+
+  view::widgets::DialogCallbacks callbacks;
+  callbacks.ok_action = [this]() { close_power_dialog_(); };
+  power_dialog_ = std::make_unique<view::widgets::Dialog>(
+      root(), app_view_model_ref_(), assets_ref_(), config, callbacks);
+  power_dialog_->build();
+  power_dialog_->add_label("Unable to complete the power operation.",
+                           246,
+                           LV_TEXT_ALIGN_CENTER);
+}
+
 void StartScreen::refresh_language_() {
   exit_popup_.reset();
 
@@ -649,6 +760,10 @@ void StartScreen::key_listener(uint32_t key, const char* key_name, void* user_da
   }
 
   if (page->handle_language_dialog_key_(key, key_name)) {
+    page->fixture_shortcut_count_ = 0;
+    return;
+  }
+  if (page->handle_power_dialog_key_(key, key_name)) {
     page->fixture_shortcut_count_ = 0;
     return;
   }

@@ -40,6 +40,11 @@ class StartScreen : public BaseScreen {
   void show_language_dialog_();
   void close_language_dialog_();
   bool handle_language_dialog_key_(uint32_t key, const char* key_name);
+  void show_power_dialog_(bool reboot);
+  void close_power_dialog_();
+  bool handle_power_dialog_key_(uint32_t key, const char* key_name);
+  void execute_power_action_();
+  void show_power_error_dialog_();
   void refresh_language_();
   void show_exit_popup_();
   void hide_exit_popup_();
@@ -52,6 +57,7 @@ class StartScreen : public BaseScreen {
   static void category_observer(lv_observer_t* observer, lv_subject_t* subject);
   static void theme_observer(lv_observer_t* observer, lv_subject_t* subject);
   static void language_observer(lv_observer_t* observer, lv_subject_t* subject);
+  static void power_action_async_cb(void* user_data);
   static void width_anim_cb(void* obj, int32_t value);
   static void x_anim_cb(void* obj, int32_t value);
   static void list_width_anim_cb(void* obj, int32_t value);
@@ -94,6 +100,7 @@ class StartScreen : public BaseScreen {
   std::unique_ptr<view::widgets::IconList> list_{};
   std::unique_ptr<view::widgets::Popup> exit_popup_{};
   std::unique_ptr<view::widgets::Dialog> language_dialog_{};
+  std::unique_ptr<view::widgets::Dialog> power_dialog_{};
   lv_obj_t* language_dropdown_{nullptr};
   lv_obj_t* drawer_{nullptr};
   lv_obj_t* list_viewport_{nullptr};
@@ -106,6 +113,7 @@ class StartScreen : public BaseScreen {
   lv_observer_t* theme_observer_handle_{nullptr};
   lv_observer_t* language_observer_handle_{nullptr};
   uint8_t fixture_shortcut_count_{0};
+  bool power_dialog_reboot_{false};
 };
 
 }  // namespace screen

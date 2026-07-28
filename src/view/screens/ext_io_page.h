@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "app_viewmodel.h"
@@ -46,7 +47,7 @@ class ExtIoConnectivityView {
     const char* title{nullptr};
     const char* detail{nullptr};
     const char* icon{nullptr};
-    platform::gpio::OutputLineConfig gpio{};
+    std::optional<platform::gpio::OutputLineConfig> gpio{};
     bool supports_input{true};
     const char* brightness_path{nullptr};
     lv_obj_t* row{nullptr};
@@ -59,6 +60,8 @@ class ExtIoConnectivityView {
     bool active{false};
     bool error{false};
     std::string error_message{};
+    std::unique_ptr<platform::gpio::OutputLine> input_line{};
+    bool input_ready{false};
   };
 
   void select_previous_();
@@ -67,8 +70,9 @@ class ExtIoConnectivityView {
   void toggle_selected_();
   void toggle_row_(std::size_t index);
   void release_output_lines_();
+  void release_input_lines_();
   void read_output_states_();
-  void read_input_states_();
+  void read_input_states_(bool refresh_changed_rows);
   void wait_for_gpio_slot_();
   void apply_theme_();
   void apply_row_style_(SwitchRow& row);

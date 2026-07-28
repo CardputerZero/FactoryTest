@@ -10,7 +10,6 @@
 #include <cctype>
 #include <cerrno>
 #include <cstring>
-#include <fstream>
 #include <iomanip>
 #include <memory>
 #include <sstream>
@@ -145,37 +144,13 @@ bool ensure_hat_power_enabled(const HatPowerConfig& config, std::string& error) 
 
   LOG_INFO("[CAP-LORA-1262][POWER] ensuring EXT 5V enabled path={} write=1",
            config.brightness_path);
-  errno = 0;
-  std::ofstream output(config.brightness_path);
-  if (!output) {
-    error = "open " + config.brightness_path + ": " + std::strerror(errno);
-    return false;
-  }
-  output << 1 << '\n';
-  output.close();
-  if (!output) {
-    error = "write " + config.brightness_path + ": " + std::strerror(errno);
+  if (!platform::gpio::write_sysfs_binary_value(config.brightness_path, true, error)) {
     return false;
   }
 
-  int actual = 0;
-  for (int attempt = 1; attempt <= 6; ++attempt) {
-    std::ifstream input(config.brightness_path);
-    input >> actual;
-    if (input && actual != 0) {
-      LOG_INFO("[CAP-LORA-1262][POWER] EXT 5V enabled readback={} settle={}ms",
-               actual,
-               config.settle_time_ms);
-      std::this_thread::sleep_for(std::chrono::milliseconds(config.settle_time_ms));
-      return true;
-    }
-    if (attempt < 6) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    }
-  }
-
-  error = "EXT 5V enable readback is zero or unavailable at " + config.brightness_path;
-  return false;
+  LOG_INFO("[CAP-LORA-1262][POWER] EXT 5V enabled readback=1 settle={}ms", config.settle_time_ms);
+  std::this_thread::sleep_for(std::chrono::milliseconds(config.settle_time_ms));
+  return true;
 }
 
 class Sx1262StatusProbe {

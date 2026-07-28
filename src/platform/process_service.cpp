@@ -57,14 +57,22 @@ void append_output(std::string& output,
     std::size_t newline = 0;
     while ((newline = pending_line.find_first_of("\r\n")) != std::string::npos) {
       const auto delimiter    = pending_line[newline];
-      auto line               = pending_line.substr(0, newline);
+      const auto line_size    = std::min(newline, options.max_line_bytes);
+      auto line               = pending_line.substr(0, line_size);
       std::size_t erase_count = 1;
       if (delimiter == '\r' && newline + 1 < pending_line.size() &&
           pending_line[newline + 1] == '\n') {
         erase_count = 2;
       }
       pending_line.erase(0, newline + erase_count);
+      if (line_size < newline) {
+        result.output_truncated = true;
+      }
       line_handler(line);
+    }
+    if (pending_line.size() > options.max_line_bytes) {
+      pending_line.resize(options.max_line_bytes);
+      result.output_truncated = true;
     }
   }
 
@@ -191,12 +199,16 @@ ProcessResult run_spawned_command(const std::string& executable,
 
   int stdout_pipe[2] = {-1, -1};
   int stderr_pipe[2] = {-1, -1};
+  int stdin_pipe[2]  = {-1, -1};
   if (!make_pipe(stdout_pipe, result.error_message) ||
-      !make_pipe(stderr_pipe, result.error_message)) {
+      !make_pipe(stderr_pipe, result.error_message) ||
+      (!options.stdin_text.empty() && !make_pipe(stdin_pipe, result.error_message))) {
     close_fd(stdout_pipe[0]);
     close_fd(stdout_pipe[1]);
     close_fd(stderr_pipe[0]);
     close_fd(stderr_pipe[1]);
+    close_fd(stdin_pipe[0]);
+    close_fd(stdin_pipe[1]);
     return result;
   }
 
@@ -207,6 +219,8 @@ ProcessResult run_spawned_command(const std::string& executable,
     close_fd(stdout_pipe[1]);
     close_fd(stderr_pipe[0]);
     close_fd(stderr_pipe[1]);
+    close_fd(stdin_pipe[0]);
+    close_fd(stdin_pipe[1]);
     return result;
   }
 
@@ -216,6 +230,11 @@ ProcessResult run_spawned_command(const std::string& executable,
   posix_spawn_file_actions_addclose(&file_actions.actions, stderr_pipe[0]);
   posix_spawn_file_actions_addclose(&file_actions.actions, stdout_pipe[1]);
   posix_spawn_file_actions_addclose(&file_actions.actions, stderr_pipe[1]);
+  if (stdin_pipe[0] >= 0) {
+    posix_spawn_file_actions_adddup2(&file_actions.actions, stdin_pipe[0], STDIN_FILENO);
+    posix_spawn_file_actions_addclose(&file_actions.actions, stdin_pipe[0]);
+    posix_spawn_file_actions_addclose(&file_actions.actions, stdin_pipe[1]);
+  }
 
   std::vector<std::string> argv_storage;
   argv_storage.reserve(args.size() + 1);
@@ -239,11 +258,31 @@ ProcessResult run_spawned_command(const std::string& executable,
 
   close_fd(stdout_pipe[1]);
   close_fd(stderr_pipe[1]);
+  close_fd(stdin_pipe[0]);
   if (spawned != 0) {
     result.error_message = std::strerror(spawned);
     close_fd(stdout_pipe[0]);
     close_fd(stderr_pipe[0]);
+    close_fd(stdin_pipe[1]);
     return result;
+  }
+
+  if (stdin_pipe[1] >= 0) {
+    std::size_t written = 0;
+    while (written < options.stdin_text.size()) {
+      const auto count = write(stdin_pipe[1],
+                               options.stdin_text.data() + written,
+                               options.stdin_text.size() - written);
+      if (count > 0) {
+        written += static_cast<std::size_t>(count);
+        continue;
+      }
+      if (count < 0 && errno == EINTR) {
+        continue;
+      }
+      break;
+    }
+    close_fd(stdin_pipe[1]);
   }
 
   LOG_TRACE("process spawned: executable='{}' pid={}", executable, static_cast<int>(pid));
@@ -396,20 +435,26 @@ ProcessResult run_spawned_command(const std::string& executable,
   HANDLE stdout_write = nullptr;
   HANDLE stderr_read  = nullptr;
   HANDLE stderr_write = nullptr;
+  HANDLE stdin_read   = nullptr;
+  HANDLE stdin_write  = nullptr;
   if (!CreatePipe(&stdout_read, &stdout_write, &attributes, 0) ||
-      !CreatePipe(&stderr_read, &stderr_write, &attributes, 0)) {
+      !CreatePipe(&stderr_read, &stderr_write, &attributes, 0) ||
+      (!options.stdin_text.empty() && !CreatePipe(&stdin_read, &stdin_write, &attributes, 0))) {
     result.error_message = "failed to create process pipes";
     return result;
   }
   SetHandleInformation(stdout_read, HANDLE_FLAG_INHERIT, 0);
   SetHandleInformation(stderr_read, HANDLE_FLAG_INHERIT, 0);
+  if (stdin_write) {
+    SetHandleInformation(stdin_write, HANDLE_FLAG_INHERIT, 0);
+  }
 
   STARTUPINFOA startup{};
   startup.cb         = sizeof(startup);
   startup.dwFlags    = STARTF_USESTDHANDLES;
   startup.hStdOutput = stdout_write;
   startup.hStdError  = stderr_write;
-  startup.hStdInput  = GetStdHandle(STD_INPUT_HANDLE);
+  startup.hStdInput  = stdin_read ? stdin_read : GetStdHandle(STD_INPUT_HANDLE);
 
   PROCESS_INFORMATION process{};
   std::vector<char> command_line(command.begin(), command.end());
@@ -426,12 +471,28 @@ ProcessResult run_spawned_command(const std::string& executable,
                                       &process);
   CloseHandle(stdout_write);
   CloseHandle(stderr_write);
+  if (stdin_read) {
+    CloseHandle(stdin_read);
+  }
 
   if (!created) {
     result.error_message = "failed to create process";
     CloseHandle(stdout_read);
     CloseHandle(stderr_read);
+    if (stdin_write) {
+      CloseHandle(stdin_write);
+    }
     return result;
+  }
+
+  if (stdin_write) {
+    DWORD written = 0;
+    WriteFile(stdin_write,
+              options.stdin_text.data(),
+              static_cast<DWORD>(options.stdin_text.size()),
+              &written,
+              nullptr);
+    CloseHandle(stdin_write);
   }
 
   std::mutex output_mutex;

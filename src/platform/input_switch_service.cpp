@@ -153,4 +153,15 @@ bool read_headphone_inserted(bool& inserted, std::string& error_message) {
 #endif
 }
 
+void release_headphone_device() {
+#if defined(__linux__)
+  auto& state = headphone_input_state();
+  std::lock_guard<std::mutex> lock(state.mutex);
+  if (state.fd >= 0) {
+    LOG_DEBUG("closing headphone switch input device: {}", state.path);
+  }
+  close_device(state);
+#endif
+}
+
 }  // namespace platform::input_switch

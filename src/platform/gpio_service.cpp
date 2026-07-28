@@ -11,9 +11,12 @@
 #endif
 
 #include <cerrno>
+#include <chrono>
 #include <cstring>
+#include <fstream>
 #include <map>
 #include <mutex>
+#include <thread>
 #include <utility>
 
 #include "logger.h"
@@ -25,9 +28,7 @@
 namespace platform::gpio {
 namespace {
 
-constexpr const char* K_EXTERNAL_BUS_GPIO_CHIP     = "/dev/gpiochip0";
-constexpr unsigned int K_EXTERNAL_BUS_GPIO_LINE    = 4;
-constexpr const char* K_EXTERNAL_BUS_GPIO_CONSUMER = "factory-test-ext-bus";
+constexpr const char* K_EXTERNAL_BUS_BRIGHTNESS_PATH = "/sys/class/leds/grove_fun/brightness";
 
 std::string errno_message(const char* prefix) {
   return std::string(prefix) + ": " + std::strerror(errno);
@@ -45,6 +46,75 @@ std::mutex& output_lines_mutex() {
 std::map<std::string, std::unique_ptr<OutputLine>>& output_lines() {
   static std::map<std::string, std::unique_ptr<OutputLine>> lines;
   return lines;
+}
+
+std::mutex& sysfs_binary_mutex() {
+  static std::mutex mutex;
+  return mutex;
+}
+
+bool read_sysfs_binary_value_unlocked(const std::string& path,
+                                      bool& active,
+                                      std::string& error_message) {
+  errno = 0;
+  std::ifstream input(path);
+  if (!input) {
+    const int open_error = errno != 0 ? errno : EIO;
+    error_message        = "Failed to open " + path + ": " + std::strerror(open_error);
+    return false;
+  }
+
+  int actual = -1;
+  input >> actual;
+  if (!input) {
+    const int read_error = errno != 0 ? errno : EIO;
+    error_message        = "Failed to read " + path + ": " + std::strerror(read_error);
+    return false;
+  }
+
+  active = actual != 0;
+  error_message.clear();
+  return true;
+}
+
+bool write_sysfs_binary_value_unlocked(const std::string& path,
+                                       bool active,
+                                       std::string& error_message) {
+  errno = 0;
+  std::ofstream output(path);
+  if (!output) {
+    const int open_error = errno != 0 ? errno : EIO;
+    error_message        = "Failed to open " + path + ": " + std::strerror(open_error);
+    return false;
+  }
+
+  output << (active ? 1 : 0) << '\n';
+  output.close();
+  if (!output) {
+    const int write_error = errno != 0 ? errno : EIO;
+    error_message         = "Failed to write " + path + ": " + std::strerror(write_error);
+    return false;
+  }
+
+  bool actual = false;
+  std::string read_error;
+  for (int attempt = 1; attempt <= 6; ++attempt) {
+    if (read_sysfs_binary_value_unlocked(path, actual, read_error) && actual == active) {
+      error_message.clear();
+      return true;
+    }
+    if (attempt < 6) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+  }
+
+  if (!read_error.empty()) {
+    error_message = read_error;
+  } else {
+    error_message = "Sysfs value readback mismatch at " + path +
+                    ": requested=" + (active ? "1" : "0") + " actual=" + (actual ? "1" : "0");
+  }
+  return false;
 }
 
 #if APP_USE_LIBGPIOD
@@ -416,14 +486,27 @@ bool get_input_value(const OutputLineConfig& config, bool& active, std::string& 
 #endif
 }
 
+bool read_sysfs_binary_value(const std::string& path, bool& active, std::string& error_message) {
+  std::lock_guard<std::mutex> lock(sysfs_binary_mutex());
+  return read_sysfs_binary_value_unlocked(path, active, error_message);
+}
+
+bool write_sysfs_binary_value(const std::string& path, bool active, std::string& error_message) {
+  std::lock_guard<std::mutex> lock(sysfs_binary_mutex());
+  return write_sysfs_binary_value_unlocked(path, active, error_message);
+}
+
 bool set_external_bus_i2c_mode(bool enabled, std::string& error_message) {
-  static OutputLine external_bus_line(
-      {K_EXTERNAL_BUS_GPIO_CHIP, K_EXTERNAL_BUS_GPIO_LINE, K_EXTERNAL_BUS_GPIO_CONSUMER});
-  const bool ok = external_bus_line.set_value(enabled, error_message);
+  const bool ok = write_sysfs_binary_value(K_EXTERNAL_BUS_BRIGHTNESS_PATH, enabled, error_message);
   if (ok) {
-    LOG_INFO("external bus switched to {} via GPIO4={}", enabled ? "I2C" : "UART", enabled ? 1 : 0);
+    LOG_DEBUG("external bus switched to {} via {}={}",
+              enabled ? "I2C" : "UART",
+              K_EXTERNAL_BUS_BRIGHTNESS_PATH,
+              enabled ? 1 : 0);
   } else {
-    LOG_WARN("external bus switch failed: {}", error_message);
+    LOG_WARN("external bus switch failed via {}: {}",
+             K_EXTERNAL_BUS_BRIGHTNESS_PATH,
+             error_message);
   }
   return ok;
 }

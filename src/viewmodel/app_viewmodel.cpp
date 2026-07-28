@@ -336,6 +336,8 @@ const char* AppViewModel::current_test_name() const {
       return "IMU Test";
     case model::AppPage::DEVICE_INFO:
       return "Device Information";
+    case model::AppPage::PY32_UPGRADE:
+      return "PY32 Upgrade";
     case model::AppPage::PERF_TEST:
       return "Performance Test";
     case model::AppPage::CPU_BENCHMARK:

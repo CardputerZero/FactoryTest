@@ -32,6 +32,8 @@ const char* AppModel::app_title() const {
       return "IMU Test";
     case AppPage::DEVICE_INFO:
       return "Device Information";
+    case AppPage::PY32_UPGRADE:
+      return "PY32 Upgrade";
     case AppPage::PERF_TEST:
       return "Performance Test";
     case AppPage::WIFI_TEST:

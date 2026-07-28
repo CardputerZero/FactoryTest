@@ -158,10 +158,7 @@ void IoTestPage::build_content(lv_obj_t* content) {
       spi_view_ = std::make_unique<SpiConnectivityView>(conn_vm_.spi_view_model());
       spi_view_->build(viewport_, app_view_model_ref_(), assets_ref_());
       break;
-    case model::AppPage::UART_TEST: {
-      std::string error;
-      platform::gpio::set_external_bus_uart_mode(error);
-    }
+    case model::AppPage::UART_TEST:
       uart_view_ = std::make_unique<UartConnectivityView>();
       uart_view_->build(viewport_, root(), app_view_model_ref_(), assets_ref_());
       break;

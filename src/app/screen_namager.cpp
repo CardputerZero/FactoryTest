@@ -21,6 +21,7 @@
 #include "perf_test_page.h"
 #include "placeholder_test_page.h"
 #include "power_info_page.h"
+#include "py32_upgrade_page.h"
 #include "screen_manager.h"
 #include "start_screen.h"
 #include "test_result_page.h"
@@ -62,6 +63,8 @@ const char* placeholder_title(model::AppPage page) {
       return "Power Information";
     case model::AppPage::DEVICE_INFO:
       return "Device Information";
+    case model::AppPage::PY32_UPGRADE:
+      return "PY32 Upgrade";
     case model::AppPage::PERF_TEST:
       return "Performance Test";
     case model::AppPage::WIFI_TEST:
@@ -213,6 +216,12 @@ void ScreenManager::show_device_info_page() {
   has_loaded_page_ = true;
 }
 
+void ScreenManager::show_py32_upgrade_page() {
+  load_screen_(std::make_unique<screen::Py32UpgradePage>(app_view_model_, assets_));
+  loaded_page_     = model::AppPage::PY32_UPGRADE;
+  has_loaded_page_ = true;
+}
+
 void ScreenManager::show_perf_test_page() {
   if (app_view_model_.is_test_sequence_active()) {
     perf_view_model_.show_menu();
@@ -322,6 +331,9 @@ void ScreenManager::flush_requested_page() {
       return;
     case model::AppPage::DEVICE_INFO:
       show_device_info_page();
+      return;
+    case model::AppPage::PY32_UPGRADE:
+      show_py32_upgrade_page();
       return;
     case model::AppPage::PERF_TEST:
       show_perf_test_page();
