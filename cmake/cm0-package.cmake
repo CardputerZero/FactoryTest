@@ -43,6 +43,12 @@ if(APP_USE_LIBNM)
 endif()
 
 configure_file(
+    "${CMAKE_CURRENT_LIST_DIR}/templates/factory-test-power.rules.in"
+    "${APP_GENERATED_DIR}/50-${PROJECT_NAME}-power.rules"
+    @ONLY
+)
+
+configure_file(
     "${CMAKE_CURRENT_LIST_DIR}/templates/factory_test.postinst.in"
     "${APP_GENERATED_DIR}/postinst"
     @ONLY
@@ -78,6 +84,11 @@ install(
     PATTERN ".DS_Store" EXCLUDE
 )
 install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/assets/py32_firmware/"
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/${APP_NAME}/py32_firmware"
+    PATTERN ".DS_Store" EXCLUDE
+)
+install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/assets/images/"
     DESTINATION "${CMAKE_INSTALL_DATADIR}/APPLaunch/share/images"
     FILES_MATCHING PATTERN "factory_test*.png"
@@ -101,6 +112,11 @@ if(APP_USE_LIBNM)
         DESTINATION "${CMAKE_INSTALL_DATADIR}/polkit-1/rules.d"
     )
 endif()
+
+install(
+    FILES "${APP_GENERATED_DIR}/50-${PROJECT_NAME}-power.rules"
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/polkit-1/rules.d"
+)
 
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/README.md" DESTINATION "${CMAKE_INSTALL_DOCDIR}")
 install(
@@ -160,6 +176,9 @@ set(APP_DEBIAN_PACKAGE_DEPENDS
     ca-certificates
     curl
     bluez
+    coreutils
+    python3
+    tar
 )
 list(REMOVE_DUPLICATES APP_DEBIAN_PACKAGE_DEPENDS)
 string(REPLACE ";" ", " CPACK_DEBIAN_PACKAGE_DEPENDS "${APP_DEBIAN_PACKAGE_DEPENDS}")

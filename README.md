@@ -24,6 +24,16 @@ TODO
 
 ## Changelog
 
+### Unreleased - 2026-07-28
+
+- Add a PY32/IOE1 firmware upgrade page with packaged 0xF8 firmware, archive and extracted-file checksum verification, a preflight dry run, live progress reporting, and post-upgrade version validation.
+- Package the PY32 upgrade assets and required `coreutils`, `python3`, and `tar` runtime dependencies, with complete Chinese localization for the upgrade workflow.
+- Rework the libcamera preview around 640x480 YUV420 capture, CMA DMA-heap allocation with a libcamera allocator fallback, deterministic request cleanup, and reusable RGB565 conversion buffers.
+- Route external-bus selection and shared binary sysfs controls through the GPIO service, including verified readback for EXT.IO and CAP power switching.
+- Keep EXT.IO input GPIO requests alive across polls, retry only after read failures, and refresh only rows whose input state changed.
+- Extend the process service with child-stdin input and bounded line-handler buffers, and release retained headphone and page-owned GPIO resources when their screens close or change modes.
+- Add confirmed safe poweroff and reboot actions to the start menu, offer reboot after a successful PY32 upgrade, and package the required `systemctl` polkit authorization.
+
 ### 0.2.8 - 2026-07-24
 
 - Add an IR fixture test to Full Test with randomized NEC32 transmissions and ordered fixture-response validation.
