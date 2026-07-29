@@ -128,9 +128,28 @@ void close_fd(int& fd) {
 bool make_pipe(int fds[2], std::string& error_message) {
   fds[0] = -1;
   fds[1] = -1;
+#if defined(__linux__)
+  if (pipe2(fds, O_CLOEXEC) == 0) {
+    return true;
+  }
+  if (errno != ENOSYS && errno != EINVAL) {
+    error_message = std::strerror(errno);
+    return false;
+  }
+#endif
   if (pipe(fds) != 0) {
     error_message = std::strerror(errno);
     return false;
+  }
+  for (int index = 0; index < 2; ++index) {
+    const int fd    = fds[index];
+    const int flags = fcntl(fd, F_GETFD, 0);
+    if (flags < 0 || fcntl(fd, F_SETFD, flags | FD_CLOEXEC) != 0) {
+      error_message = std::strerror(errno);
+      close_fd(fds[0]);
+      close_fd(fds[1]);
+      return false;
+    }
   }
   return true;
 }
@@ -305,15 +324,37 @@ ProcessResult run_spawned_command(const std::string& executable,
       }
     }
 
-    if (!child_done && options.timeout_ms > 0) {
+    if (options.timeout_ms > 0) {
       const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                                std::chrono::steady_clock::now() - start)
                                .count();
       if (elapsed >= options.timeout_ms) {
         result.timed_out = true;
-        kill(pid, SIGKILL);
-        waitpid(pid, &child_status, 0);
-        child_done = true;
+        if (!child_done) {
+          kill(pid, SIGKILL);
+          waitpid(pid, &child_status, 0);
+          child_done = true;
+        }
+
+        // A descendant or an unrelated concurrently spawned process may have inherited a pipe
+        // writer. The command deadline must not turn into an unbounded wait for pipe EOF.
+        read_available(stdout_pipe[0],
+                       stdout_open,
+                       result.stdout_text,
+                       options.stdout_handler,
+                       options.stdout_line_handler,
+                       stdout_pending_line,
+                       options,
+                       result);
+        read_available(stderr_pipe[0],
+                       stderr_open,
+                       result.stderr_text,
+                       options.stderr_handler,
+                       options.stderr_line_handler,
+                       stderr_pending_line,
+                       options,
+                       result);
+        break;
       }
     }
 

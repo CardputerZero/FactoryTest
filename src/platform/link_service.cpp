@@ -45,6 +45,8 @@
 namespace platform::connectivity {
 namespace {
 
+constexpr int K_IPERF_CONNECT_TIMEOUT_MS = 3000;
+
 std::string lower_copy(std::string value) {
   std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
     return static_cast<char>(std::tolower(ch));
@@ -835,6 +837,7 @@ LinkIperfResult run_iperf_for_interface(const LinkTestSettings& settings,
   iperf_set_test_role(test, 'c');
   iperf_set_test_server_hostname(test, settings.iperf_host.c_str());
   iperf_set_test_server_port(test, settings.iperf_port);
+  iperf_set_test_connect_timeout(test, K_IPERF_CONNECT_TIMEOUT_MS);
   iperf_set_test_duration(test, settings.iperf_duration_seconds);
   iperf_set_test_json_output(test, 1);
   iperf_set_test_bind_dev(test, interface_selection.name->c_str());
