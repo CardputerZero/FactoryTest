@@ -45,7 +45,9 @@
 namespace platform::connectivity {
 namespace {
 
-constexpr int K_IPERF_CONNECT_TIMEOUT_MS = 3000;
+constexpr int K_IPERF_CONNECT_TIMEOUT_MS            = 3000;
+constexpr double K_WIFI_MIN_MEGABITS_PER_SECOND     = 10.0;
+constexpr double K_ETHERNET_MIN_MEGABITS_PER_SECOND = 50.0;
 
 std::string lower_copy(std::string value) {
   std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
@@ -814,7 +816,8 @@ std::optional<double> parse_iperf_json_bps(const char* json_text) {
 
 LinkIperfResult run_iperf_for_interface(const LinkTestSettings& settings,
                                         const char* label,
-                                        LinkInterfaceSelection interface_selection) {
+                                        LinkInterfaceSelection interface_selection,
+                                        double minimum_megabits_per_second) {
   LinkIperfResult result;
   result.interface_name = interface_selection.name.value_or("");
   if (!interface_selection.name || interface_selection.name->empty()) {
@@ -861,10 +864,20 @@ LinkIperfResult run_iperf_for_interface(const LinkTestSettings& settings,
     result.message = "iperf completed without throughput data";
     return result;
   }
-
-  result.success             = true;
   result.megabits_per_second = *bps / 1000000.0;
-  result.message             = "OK";
+  if (result.megabits_per_second <= 0.0) {
+    result.message = "iperf completed with zero throughput";
+    return result;
+  }
+  if (result.megabits_per_second < minimum_megabits_per_second) {
+    std::ostringstream message;
+    message << "iperf throughput below " << minimum_megabits_per_second << " Mbps minimum";
+    result.message = message.str();
+    return result;
+  }
+
+  result.success = true;
+  result.message = "OK";
 #else
   result.message = "libiperf backend is not enabled";
 #endif
@@ -889,8 +902,14 @@ LinkTestResult run_link_test(const LinkTestSettings& settings) {
       result.internet.success,
       result.internet.host,
       result.internet.latency_ms);
-  result.wifi     = run_iperf_for_interface(settings, "Wi-Fi", active_link_interface(true));
-  result.ethernet = run_iperf_for_interface(settings, "Ethernet", active_link_interface(false));
+  result.wifi     = run_iperf_for_interface(settings,
+                                            "Wi-Fi",
+                                            active_link_interface(true),
+                                            K_WIFI_MIN_MEGABITS_PER_SECOND);
+  result.ethernet = run_iperf_for_interface(settings,
+                                            "Ethernet",
+                                            active_link_interface(false),
+                                            K_ETHERNET_MIN_MEGABITS_PER_SECOND);
 
   LOG_INFO(
       "connectivity link test result: internet={} host='{}' latency={:.3f}ms wifi={} {:.3f}Mbps "
