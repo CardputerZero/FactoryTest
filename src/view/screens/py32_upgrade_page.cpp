@@ -26,6 +26,8 @@ constexpr int32_t K_CONTENT_WIDTH        = 280;
 constexpr int32_t K_PROGRESS_WIDTH       = 220;
 constexpr int32_t K_PROGRESS_HEIGHT      = 8;
 constexpr int32_t K_UPLOAD_ICON_SIZE     = 38;
+constexpr int32_t K_CONTENT_Y_OFFSET     = -4;
+constexpr int32_t K_CONTENT_ROW_GAP      = 4;
 constexpr int32_t K_STATUS_FONT_SIZE     = 12;
 constexpr uint32_t K_REFRESH_INTERVAL_MS = 100;
 
@@ -63,7 +65,7 @@ void Py32UpgradePage::build_content(lv_obj_t* content) {
   lv_obj_set_size(layout, K_CONTENT_WIDTH, LV_PCT(100));
   lv_obj_set_flex_flow(layout, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(layout, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_row(layout, 9, 0);
+  lv_obj_set_style_pad_row(layout, K_CONTENT_ROW_GAP, 0);
   lv_obj_clear_flag(layout, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_center(layout);
 
@@ -89,7 +91,7 @@ void Py32UpgradePage::build_content(lv_obj_t* content) {
                         theme_observer,
                         this);
 
-  version_label_       = lv_label_create(layout);
+  info_label_          = lv_label_create(layout);
   auto current_version = platform::device_info::read_py32_firmware_version(false);
   if (current_version.empty() || current_version == "--") {
     current_version = "0x----";
@@ -97,27 +99,21 @@ void Py32UpgradePage::build_content(lv_obj_t* content) {
   const auto version_text = app_view_model_ref_().tr("Current version") + " " + current_version +
                             "\n" + app_view_model_ref_().tr("Available version") + " " +
                             platform::py32_upgrade::target_version();
-  lv_label_set_text(version_label_, version_text.c_str());
-  lv_obj_set_width(version_label_, K_CONTENT_WIDTH);
-  lv_label_set_long_mode(version_label_, LV_LABEL_LONG_WRAP);
-  lv_obj_set_style_text_align(version_label_, LV_TEXT_ALIGN_CENTER, 0);
+  lv_label_set_text(info_label_, version_text.c_str());
+  lv_obj_set_width(info_label_, K_CONTENT_WIDTH);
+  lv_label_set_long_mode(info_label_, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_text_align(info_label_, LV_TEXT_ALIGN_CENTER, 0);
   auto* status_font =
       assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"),
                               K_STATUS_FONT_SIZE);
-  lv_obj_set_style_text_font(version_label_, status_font ? status_font : &lv_font_montserrat_12, 0);
-  reactive::bind_theme(version_label_,
+  lv_obj_set_style_text_font(info_label_, status_font ? status_font : &lv_font_montserrat_12, 0);
+  reactive::bind_theme(info_label_,
                        app_view_model_ref_().dark_mode_subject(),
                        reactive::ThemeRole::TEXT);
 
-  status_label_ = lv_label_create(layout);
-  lv_label_set_text(status_label_, "");
-  lv_obj_set_width(status_label_, K_CONTENT_WIDTH);
-  lv_label_set_long_mode(status_label_, LV_LABEL_LONG_DOT);
-  lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_style_text_font(status_label_, status_font ? status_font : &lv_font_montserrat_12, 0);
-  reactive::bind_theme(status_label_,
-                       app_view_model_ref_().dark_mode_subject(),
-                       reactive::ThemeRole::TEXT);
+  lv_obj_set_style_translate_y(upload_icon_, K_CONTENT_Y_OFFSET, 0);
+  lv_obj_set_style_translate_y(progress_bar_, K_CONTENT_Y_OFFSET, 0);
+  lv_obj_set_style_translate_y(info_label_, K_CONTENT_Y_OFFSET, 0);
 }
 
 void Py32UpgradePage::apply_progress_theme_(bool dark_mode) {
@@ -132,7 +128,7 @@ void Py32UpgradePage::apply_progress_theme_(bool dark_mode) {
 }
 
 void Py32UpgradePage::start_upgrade_() {
-  if (job_state_.running.load() || !progress_bar_ || !status_label_) {
+  if (job_state_.running.load() || !progress_bar_ || !info_label_) {
     return;
   }
 
@@ -150,6 +146,7 @@ void Py32UpgradePage::start_upgrade_() {
   job_state_.done.store(false);
   job_state_.running.store(true);
   completion_handled_ = false;
+  reboot_prompt_handled_ = false;
   app_view_model_ref_().clear_nav_actions();
 
   const auto archive_path = archive_path_;
@@ -176,7 +173,7 @@ void Py32UpgradePage::start_upgrade_() {
 }
 
 void Py32UpgradePage::refresh_() {
-  if (!progress_bar_ || !status_label_) {
+  if (!progress_bar_ || !info_label_) {
     return;
   }
 
@@ -197,10 +194,10 @@ void Py32UpgradePage::refresh_() {
     if (job_state_.done.load() && !success) {
       const auto translated = app_view_model_ref_().tr(
           error_status.empty() ? "Upgrade failed" : error_status.c_str());
-      lv_label_set_text(status_label_, translated.c_str());
+      lv_label_set_text(info_label_, translated.c_str());
     } else {
       const auto translated = app_view_model_ref_().tr(status.c_str());
-      lv_label_set_text(status_label_, translated.c_str());
+      lv_label_set_text(info_label_, translated.c_str());
     }
   }
 
@@ -219,7 +216,7 @@ void Py32UpgradePage::restore_nav_actions_() {
 }
 
 void Py32UpgradePage::show_reboot_dialog_() {
-  if (!root() || (reboot_dialog_ && reboot_dialog_->visible())) {
+  if (!root() || reboot_prompt_handled_ || (reboot_dialog_ && reboot_dialog_->visible())) {
     return;
   }
 
@@ -249,6 +246,7 @@ void Py32UpgradePage::show_reboot_dialog_() {
 }
 
 void Py32UpgradePage::close_reboot_dialog_() {
+  reboot_prompt_handled_ = true;
   if (reboot_dialog_) {
     reboot_dialog_->close();
   }

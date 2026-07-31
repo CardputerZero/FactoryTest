@@ -137,8 +137,8 @@ void I2cConnectivityView::build_static_content_() {
     return;
   }
 
-  auto* header_font = assets_->load_font(app_view_model_->ui_font_name("inter-semibold.ttf"), 10);
-  auto* cell_font   = assets_->load_font(app_view_model_->ui_font_name("inter-medium.ttf"), 10);
+  auto* header_font = assets_->load_font("inter-semibold.ttf", 10);
+  auto* cell_font   = assets_->load_font("inter-medium.ttf", 10);
   const auto colors = view::palette(app_view_model_->is_dark_mode());
 
   card_ = lv_obj_create(panel_);

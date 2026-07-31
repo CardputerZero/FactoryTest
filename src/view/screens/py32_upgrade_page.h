@@ -49,14 +49,14 @@ class Py32UpgradePage : public BaseScreen {
 
   lv_obj_t* upload_icon_{nullptr};
   lv_obj_t* progress_bar_{nullptr};
-  lv_obj_t* version_label_{nullptr};
-  lv_obj_t* status_label_{nullptr};
+  lv_obj_t* info_label_{nullptr};
   lv_timer_t* refresh_timer_{nullptr};
   std::filesystem::path archive_path_{};
   JobState job_state_{};
   std::thread worker_{};
   std::unique_ptr<view::widgets::Dialog> reboot_dialog_{};
   bool completion_handled_{false};
+  bool reboot_prompt_handled_{false};
 };
 
 }  // namespace screen
