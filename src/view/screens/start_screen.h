@@ -40,6 +40,11 @@ class StartScreen : public BaseScreen {
   void show_language_dialog_();
   void close_language_dialog_();
   bool handle_language_dialog_key_(uint32_t key, const char* key_name);
+  void show_session_recovery_dialog_();
+  void close_session_recovery_dialog_();
+  bool handle_session_recovery_dialog_key_(uint32_t key, const char* key_name);
+  void resume_test_session_();
+  void start_new_test_session_();
   void show_power_dialog_(bool reboot);
   void close_power_dialog_();
   bool handle_power_dialog_key_(uint32_t key, const char* key_name);
@@ -100,6 +105,7 @@ class StartScreen : public BaseScreen {
   std::unique_ptr<view::widgets::IconList> list_{};
   std::unique_ptr<view::widgets::Popup> exit_popup_{};
   std::unique_ptr<view::widgets::Dialog> language_dialog_{};
+  std::unique_ptr<view::widgets::Dialog> session_recovery_dialog_{};
   std::unique_ptr<view::widgets::Dialog> power_dialog_{};
   lv_obj_t* language_dropdown_{nullptr};
   lv_obj_t* drawer_{nullptr};

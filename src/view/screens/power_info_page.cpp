@@ -213,14 +213,30 @@ void PowerInfoPage::build_content(lv_obj_t* content) {
   lv_obj_clear_flag(grid_, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_align(grid_, LV_ALIGN_TOP_MID, 0, 0);
 
-  auto* icon_font  = assets_ref_().load_font("Phosphor-Fill.ttf", 14);
-  auto* key_font   = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 11);
-  auto* value_font = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 11);
+  auto* icon_font = assets_ref_().load_font("Phosphor-Fill.ttf", 14);
+  auto* key_font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 11);
+  auto* value_font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 11);
   platform::power::PowerSupplyInfo info;
   std::string error_message;
   const bool has_info            = platform::power::read_battery_info(info, error_message);
   const auto fields              = has_info ? make_fields(info) : make_error_fields(error_message);
   const int32_t capacity_percent = has_info ? info.capacity_percent : -1;
+  if (has_info) {
+    model::TestEvidence evidence;
+    evidence.emplace("capacity_percent", model::EvidenceValue::number(info.capacity_percent));
+    evidence.emplace(
+        "voltage_uv",
+        model::EvidenceValue::number(info.voltage_instant_uv >= 0 ? info.voltage_instant_uv
+                                                                  : info.voltage_now_uv));
+    evidence.emplace(
+        "current_ua",
+        model::EvidenceValue::number(info.current_instant_ua >= 0 ? info.current_instant_ua
+                                                                  : info.current_now_ua));
+    evidence.emplace("temperature_decic", model::EvidenceValue::number(info.temp_decic));
+    app_view_model_ref_().record_current_test_evidence(evidence);
+  }
 
   for (std::size_t i = 0; i < fields.size(); ++i) {
     const auto label = app_view_model_ref_().tr(fields[i].label);

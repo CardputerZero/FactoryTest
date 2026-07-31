@@ -159,7 +159,7 @@ void LcdTestPage::build_content(lv_obj_t* content) {
     lv_obj_set_scrollbar_mode(tile, LV_SCROLLBAR_MODE_OFF);
   }
 
-  prompt_ = lv_label_create(tiles_[K_COLOR_TILE_INDEX]);
+  prompt_                   = lv_label_create(tiles_[K_COLOR_TILE_INDEX]);
   const auto initial_prompt = app_view_model_ref_().tr("Press Enter to step through LCD colors.");
   lv_label_set_text(prompt_, initial_prompt.c_str());
   lv_obj_set_width(prompt_, 280);
@@ -500,6 +500,10 @@ void LcdTestPage::update_nav_actions_() {
 void LcdTestPage::advance_color_step_() {
   if (active_tile_index_ != K_COLOR_TILE_INDEX || lcd_view_model_.is_brightness_test_active()) {
     return;
+  }
+  if (current_color_index_ == 0) {
+    app_view_model_ref_().record_current_test_evidence("visual_test_started",
+                                                       model::EvidenceValue::boolean(true));
   }
   lcd_view_model_.advance_color();
 }

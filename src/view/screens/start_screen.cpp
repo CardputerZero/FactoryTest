@@ -522,7 +522,11 @@ void StartScreen::activate_selected_item_() {
   if (item.starts_sequence) {
     perf_view_model_.clear_direct_subpage();
     connectivity_view_model_.clear_direct_subpage();
-    app_view_model_ref_().start_full_test_sequence();
+    if (app_view_model_ref_().load_recoverable_test_session()) {
+      show_session_recovery_dialog_();
+    } else {
+      start_new_test_session_();
+    }
     return;
   }
 
@@ -609,6 +613,78 @@ bool StartScreen::handle_language_dialog_key_(uint32_t key, const char* key_name
   return true;
 }
 
+void StartScreen::show_session_recovery_dialog_() {
+  if (!root() || (session_recovery_dialog_ && session_recovery_dialog_->visible())) {
+    return;
+  }
+
+  platform::set_modal_key_capture(true);
+  view::widgets::DialogConfig config;
+  config.width               = 286;
+  config.height              = 150;
+  config.title               = "Resume Test Session";
+  config.shortcut_text       = "4: Close  6: New  8: Resume";
+  config.ok_button_label     = "Resume";
+  config.cancel_button_label = "Start New";
+  config.button_width        = 92;
+  config.button_row_width    = 206;
+  config.ok_button_tone      = view::widgets::DialogButtonTone::SUCCESS;
+  config.cancel_button_tone  = view::widgets::DialogButtonTone::WARNING;
+
+  view::widgets::DialogCallbacks callbacks;
+  callbacks.ok_action      = [this]() { resume_test_session_(); };
+  callbacks.cancel_action  = [this]() { start_new_test_session_(); };
+  session_recovery_dialog_ = std::make_unique<view::widgets::Dialog>(root(),
+                                                                     app_view_model_ref_(),
+                                                                     assets_ref_(),
+                                                                     config,
+                                                                     callbacks);
+  session_recovery_dialog_->build();
+
+  const auto summary = app_view_model_ref_().test_session_summary();
+  const auto message = app_view_model_ref_().tr("Continue the latest unfinished session?") + "\n" +
+                       std::to_string(summary.completed) + "/" + std::to_string(summary.total) +
+                       "  " + app_view_model_ref_().test_session_id();
+  session_recovery_dialog_->add_label(message.c_str(), 262, LV_TEXT_ALIGN_CENTER);
+}
+
+void StartScreen::close_session_recovery_dialog_() {
+  if (session_recovery_dialog_) {
+    session_recovery_dialog_->close();
+  }
+  platform::set_modal_key_capture(false);
+}
+
+bool StartScreen::handle_session_recovery_dialog_key_(uint32_t key, const char* key_name) {
+  if (!session_recovery_dialog_ || !session_recovery_dialog_->visible()) {
+    return false;
+  }
+  if (is_exit_key(key) ||
+      (key_name && (std::strcmp(key_name, "Esc") == 0 || std::strcmp(key_name, "Escape") == 0))) {
+    close_session_recovery_dialog_();
+    return true;
+  }
+  if (key == '6') {
+    session_recovery_dialog_->trigger_cancel();
+    return true;
+  }
+  if (key == '8' || key == LV_KEY_ENTER || key == '\r') {
+    session_recovery_dialog_->trigger_ok();
+    return true;
+  }
+  return true;
+}
+
+void StartScreen::resume_test_session_() {
+  close_session_recovery_dialog_();
+  app_view_model_ref_().resume_full_test_sequence();
+}
+
+void StartScreen::start_new_test_session_() {
+  close_session_recovery_dialog_();
+  app_view_model_ref_().start_full_test_sequence();
+}
+
 void StartScreen::show_power_dialog_(bool reboot) {
   if (!root() || (power_dialog_ && power_dialog_->visible())) {
     return;
@@ -628,8 +704,8 @@ void StartScreen::show_power_dialog_(bool reboot) {
   config.button_row_width    = 206;
   config.button_bottom_pad   = 4;
   config.body_font_size      = 13;
-  config.ok_button_tone      = reboot ? view::widgets::DialogButtonTone::WARNING
-                                      : view::widgets::DialogButtonTone::ERROR;
+  config.ok_button_tone =
+      reboot ? view::widgets::DialogButtonTone::WARNING : view::widgets::DialogButtonTone::ERROR;
 
   view::widgets::DialogCallbacks callbacks;
   callbacks.ok_action = [this]() {
@@ -640,13 +716,16 @@ void StartScreen::show_power_dialog_(bool reboot) {
   };
   callbacks.cancel_action = [this]() { close_power_dialog_(); };
 
-  power_dialog_ = std::make_unique<view::widgets::Dialog>(
-      root(), app_view_model_ref_(), assets_ref_(), config, callbacks);
+  power_dialog_ = std::make_unique<view::widgets::Dialog>(root(),
+                                                          app_view_model_ref_(),
+                                                          assets_ref_(),
+                                                          config,
+                                                          callbacks);
   power_dialog_->build();
-  power_dialog_->add_label(reboot ? "Are you sure you want to reboot?"
-                                  : "Are you sure you want to power off?",
-                           246,
-                           LV_TEXT_ALIGN_CENTER);
+  power_dialog_->add_label(
+      reboot ? "Are you sure you want to reboot?" : "Are you sure you want to power off?",
+      246,
+      LV_TEXT_ALIGN_CENTER);
 }
 
 void StartScreen::close_power_dialog_() {
@@ -689,23 +768,24 @@ void StartScreen::show_power_error_dialog_() {
 
   platform::set_modal_key_capture(true);
   view::widgets::DialogConfig config;
-  config.width               = 270;
-  config.height              = 136;
-  config.title               = "Power operation failed";
-  config.show_cancel_button  = false;
-  config.ok_button_label     = "OK";
-  config.button_width        = 92;
-  config.button_row_width    = 92;
-  config.ok_button_tone      = view::widgets::DialogButtonTone::ERROR;
+  config.width              = 270;
+  config.height             = 136;
+  config.title              = "Power operation failed";
+  config.show_cancel_button = false;
+  config.ok_button_label    = "OK";
+  config.button_width       = 92;
+  config.button_row_width   = 92;
+  config.ok_button_tone     = view::widgets::DialogButtonTone::ERROR;
 
   view::widgets::DialogCallbacks callbacks;
   callbacks.ok_action = [this]() { close_power_dialog_(); };
-  power_dialog_ = std::make_unique<view::widgets::Dialog>(
-      root(), app_view_model_ref_(), assets_ref_(), config, callbacks);
+  power_dialog_       = std::make_unique<view::widgets::Dialog>(root(),
+                                                                app_view_model_ref_(),
+                                                                assets_ref_(),
+                                                                config,
+                                                                callbacks);
   power_dialog_->build();
-  power_dialog_->add_label("Unable to complete the power operation.",
-                           246,
-                           LV_TEXT_ALIGN_CENTER);
+  power_dialog_->add_label("Unable to complete the power operation.", 246, LV_TEXT_ALIGN_CENTER);
 }
 
 void StartScreen::refresh_language_() {
@@ -760,6 +840,10 @@ void StartScreen::key_listener(uint32_t key, const char* key_name, void* user_da
   }
 
   if (page->handle_language_dialog_key_(key, key_name)) {
+    page->fixture_shortcut_count_ = 0;
+    return;
+  }
+  if (page->handle_session_recovery_dialog_key_(key, key_name)) {
     page->fixture_shortcut_count_ = 0;
     return;
   }

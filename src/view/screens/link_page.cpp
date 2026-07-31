@@ -195,7 +195,7 @@ void rebuild_link_panel(lv_obj_t* panel,
                snapshot.ethernet_iperf);
 
   auto* hint_label = lv_label_create(panel);
-  const auto hint = app_view_model.tr("5/R Restart  |  7 iperf Settings");
+  const auto hint  = app_view_model.tr("5/R Restart  |  7 iperf Settings");
   lv_label_set_text(hint_label, hint.c_str());
   lv_obj_set_width(hint_label, K_LINK_CARD_WIDTH);
   lv_obj_set_style_text_align(hint_label, LV_TEXT_ALIGN_CENTER, 0);
@@ -219,11 +219,16 @@ void LinkConnectivityView::build(lv_obj_t* parent,
   assets_         = &assets;
   dialog_parent_  = dialog_parent;
   panel_          = build_link_panel(parent, app_view_model);
+  app_view_model_->begin_current_test_attempt();
   refresh_();
   refresh_timer_ = lv_timer_create(refresh_timer_cb, K_REFRESH_POLL_MS, this);
 }
 
 void LinkConnectivityView::restart() {
+  evidence_recorded_ = false;
+  if (app_view_model_) {
+    app_view_model_->begin_current_test_attempt();
+  }
   view_model_.refresh(true);
   rebuild_();
 }
@@ -311,6 +316,7 @@ void LinkConnectivityView::refresh_() {
   if (changed || !panel_initialized_) {
     rebuild_();
   }
+  record_evidence_();
 }
 
 void LinkConnectivityView::rebuild_() {
@@ -318,6 +324,25 @@ void LinkConnectivityView::rebuild_() {
     rebuild_link_panel(panel_, *app_view_model_, *assets_, view_model_.snapshot());
     panel_initialized_ = true;
   }
+}
+
+void LinkConnectivityView::record_evidence_() {
+  if (evidence_recorded_ || !app_view_model_) {
+    return;
+  }
+  const auto& snapshot  = view_model_.snapshot();
+  const bool has_result = snapshot.internet.status != model::LinkTestStatus::IDLE ||
+                          snapshot.wifi_iperf.status != model::LinkTestStatus::IDLE ||
+                          snapshot.ethernet_iperf.status != model::LinkTestStatus::IDLE;
+  if (snapshot.running || !has_result) {
+    return;
+  }
+
+  model::TestEvidence evidence;
+  evidence.emplace("internet_latency_ms", model::EvidenceValue::number(snapshot.internet.value));
+  evidence.emplace("wifi_mbps", model::EvidenceValue::number(snapshot.wifi_iperf.value));
+  evidence.emplace("ethernet_mbps", model::EvidenceValue::number(snapshot.ethernet_iperf.value));
+  evidence_recorded_ = app_view_model_->record_current_test_evidence(evidence);
 }
 
 void LinkConnectivityView::hide_config_dialog_() {

@@ -6,9 +6,8 @@
 
 #pragma once
 
-#include <cstddef>
-
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -39,6 +38,7 @@ class ImuTestPage : public BaseScreen {
   platform::imu::ImuDevice device_{};
   std::string status_message_{};
   bool has_imu_{false};
+  bool evidence_recorded_{false};
   lv_obj_t* status_label_{nullptr};
   lv_obj_t* viewport_{nullptr};
   lv_obj_t* grid_{nullptr};

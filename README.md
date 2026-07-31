@@ -7,13 +7,13 @@ This repository holds the factory test application of CardputerZero.
 + Download the debian release
 
 ```
-wget https://github.com/CardputerZero/FactoryTest/releases/download/0.2.9/FactoryTest_0.2.9_m5stack1_arm64.deb
+wget https://github.com/CardputerZero/FactoryTest/releases/download/0.2.10/FactoryTest_0.2.10_m5stack1_arm64.deb
 ```
 
 + Install the package
 
 ```
-sudo apt install ./FactoryTest_0.2.9_m5stack1_arm64.deb
+sudo apt install ./FactoryTest_0.2.10_m5stack1_arm64.deb
 ```
 
 
@@ -23,6 +23,16 @@ TODO
 
 
 ## Changelog
+
+### 0.2.10 - 2026-07-30
+
+- Replace the flat full-test report with atomic, per-run session and result files containing device and build metadata, UTC timestamps, attempt history, detailed subtest results, and typed test evidence.
+- Recover the latest compatible unfinished full-test session after an interruption, with start-new and resume actions that continue from the first incomplete test.
+- Capture evidence from input, display, audio, camera, fixture, connectivity, device, power, IMU, and performance tests, and flag completed tests that have no evidence on the result page.
+- Standardize full-test outcomes on `PASS` and `FAIL`, remove the skip action, and add desktop CTest coverage for session persistence, recovery, result generation, and plan validation.
+- Upgrade the packaged IOE1 firmware to target version `0x5A01`, rename the package and SHA-256 manifest, and validate both the archive and extracted firmware before programming.
+- Read and display the combined IOE1 major/minor firmware version, show the installed and available versions on the upgrade page, and improve upgrade progress parsing and diagnostic logging.
+- Embed the source commit in build metadata, bump the application and Debian download instructions to 0.2.10, and complete the Chinese localization for session recovery and the revised IOE1 workflow.
 
 ### 0.2.9 - 2026-07-28
 

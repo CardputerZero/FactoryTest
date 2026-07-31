@@ -6,9 +6,19 @@
 
 cmake_minimum_required(VERSION 3.23)
 
-project(factory_test VERSION 0.2.9 LANGUAGES C CXX)
+project(factory_test VERSION 0.2.10 LANGUAGES C CXX)
 
 string(TIMESTAMP FACTORY_TEST_BUILD_TIME "%Y-%m-%d %H:%M:%S")
+execute_process(
+    COMMAND git rev-parse --short=8 HEAD
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    OUTPUT_VARIABLE FACTORY_TEST_GIT_COMMIT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+if(NOT FACTORY_TEST_GIT_COMMIT)
+    set(FACTORY_TEST_GIT_COMMIT "UNKNOWN")
+endif()
 set(FACTORY_TEST_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/version.h.in"
@@ -640,7 +650,7 @@ file(GLOB_RECURSE VIEWMODEL_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DI
 add_library(${PROJECT_NAME}_viewmodel STATIC ${VIEWMODEL_SOURCES})
 target_include_directories(${PROJECT_NAME}_viewmodel PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src/viewmodel" "${CMAKE_CURRENT_SOURCE_DIR}/src/model" ${LVGL_INCLUDE_DIR})
 target_link_libraries(${PROJECT_NAME}_viewmodel
-    PUBLIC lvgl ${PROJECT_NAME}_reactive ${PROJECT_NAME}_model
+    PUBLIC lvgl ${PROJECT_NAME}_reactive ${PROJECT_NAME}_model factory_test_version
     PRIVATE ${PROJECT_NAME}_platform
 )
 
@@ -675,5 +685,12 @@ target_link_libraries(${PROJECT_NAME}_core PUBLIC lvgl logger ${PROJECT_NAME}_vi
 
 add_executable(${PROJECT_NAME} src/main.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_platform ${PROJECT_NAME}_core ${PROJECT_NAME}_model ${PROJECT_NAME}_view ${PROJECT_NAME}_viewmodel)
+
+include(CTest)
+if(BUILD_TESTING AND USE_DESKTOP)
+    add_executable(session_manager_test tests/session_manager_test.cpp)
+    target_link_libraries(session_manager_test PRIVATE ${PROJECT_NAME}_model logger)
+    add_test(NAME session_manager COMMAND session_manager_test)
+endif()
 
 include(cmake/cm0-package.cmake)

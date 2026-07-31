@@ -182,6 +182,8 @@ void CapLora1262TestPage::refresh_() {
 
 void CapLora1262TestPage::start_() {
   if (can_start(model_.snapshot().state)) {
+    app_view_model_ref_().record_current_test_evidence("fixture_started",
+                                                       model::EvidenceValue::boolean(true));
     model_.start();
   }
 }

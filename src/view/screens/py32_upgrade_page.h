@@ -49,6 +49,7 @@ class Py32UpgradePage : public BaseScreen {
 
   lv_obj_t* upload_icon_{nullptr};
   lv_obj_t* progress_bar_{nullptr};
+  lv_obj_t* version_label_{nullptr};
   lv_obj_t* status_label_{nullptr};
   lv_timer_t* refresh_timer_{nullptr};
   std::filesystem::path archive_path_{};

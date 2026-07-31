@@ -36,7 +36,7 @@ bool is_enter_key(uint32_t key) { return key == LV_KEY_ENTER || key == '\n' || k
 Py32UpgradePage::Py32UpgradePage(viewmodel::AppViewModel& app_view_model, app::AssetManager& assets)
     : BaseScreen(app_view_model, assets) {
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
-  archive_path_ = assets.resolve("py32_firmware/cardputerzero_ioe1_upgrade-main.tar.gz");
+  archive_path_ = assets.resolve("py32_firmware/cardputerzero_ioe1_upgrade.tar.gz");
   set_default_test_nav_(false);
   set_nav_action_('8', view::ICON_UPLOAD, [this]() { start_upgrade_(); });
   init();
@@ -89,19 +89,31 @@ void Py32UpgradePage::build_content(lv_obj_t* content) {
                         theme_observer,
                         this);
 
-  status_label_        = lv_label_create(layout);
+  version_label_       = lv_label_create(layout);
   auto current_version = platform::device_info::read_py32_firmware_version(false);
   if (current_version.empty() || current_version == "--") {
-    current_version = "0x--";
+    current_version = "0x----";
   }
-  const auto current_status = app_view_model_ref_().tr("Current version") + " " + current_version;
-  lv_label_set_text(status_label_, current_status.c_str());
-  lv_obj_set_width(status_label_, K_CONTENT_WIDTH);
-  lv_label_set_long_mode(status_label_, LV_LABEL_LONG_DOT);
-  lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
+  const auto version_text = app_view_model_ref_().tr("Current version") + " " + current_version +
+                            "\n" + app_view_model_ref_().tr("Available version") + " " +
+                            platform::py32_upgrade::target_version();
+  lv_label_set_text(version_label_, version_text.c_str());
+  lv_obj_set_width(version_label_, K_CONTENT_WIDTH);
+  lv_label_set_long_mode(version_label_, LV_LABEL_LONG_WRAP);
+  lv_obj_set_style_text_align(version_label_, LV_TEXT_ALIGN_CENTER, 0);
   auto* status_font =
       assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"),
                               K_STATUS_FONT_SIZE);
+  lv_obj_set_style_text_font(version_label_, status_font ? status_font : &lv_font_montserrat_12, 0);
+  reactive::bind_theme(version_label_,
+                       app_view_model_ref_().dark_mode_subject(),
+                       reactive::ThemeRole::TEXT);
+
+  status_label_ = lv_label_create(layout);
+  lv_label_set_text(status_label_, "");
+  lv_obj_set_width(status_label_, K_CONTENT_WIDTH);
+  lv_label_set_long_mode(status_label_, LV_LABEL_LONG_DOT);
+  lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_style_text_font(status_label_, status_font ? status_font : &lv_font_montserrat_12, 0);
   reactive::bind_theme(status_label_,
                        app_view_model_ref_().dark_mode_subject(),
@@ -155,7 +167,7 @@ void Py32UpgradePage::start_upgrade_() {
       job_state_.error_status = std::move(result.error_status);
       if (result.success) {
         job_state_.percent = 100;
-        job_state_.status  = "Upgrade complete (0xF8). Please reboot.";
+        job_state_.status  = "Upgrade complete (0x5A01). Please reboot.";
       }
     }
     job_state_.running.store(false);
@@ -215,7 +227,7 @@ void Py32UpgradePage::show_reboot_dialog_() {
   view::widgets::DialogConfig config;
   config.width               = 270;
   config.height              = 136;
-  config.title               = "Upgrade complete";
+  config.title               = "Complete";
   config.shortcut_text       = "ESC: Cancel  Enter: OK";
   config.ok_button_label     = "Reboot";
   config.cancel_button_label = "Cancel";

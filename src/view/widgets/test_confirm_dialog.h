@@ -26,7 +26,6 @@ struct TestConfirmDialogConfig {
 
 struct TestConfirmDialogCallbacks {
   std::function<void()> pass_action{};
-  std::function<void()> skip_action{};
   std::function<void()> fail_action{};
 };
 
@@ -47,7 +46,6 @@ class TestConfirmDialog : public BaseWidgets {
  private:
   enum class ButtonRole {
     FAIL,
-    SKIP,
     PASS,
   };
 
@@ -84,7 +82,7 @@ class TestConfirmDialog : public BaseWidgets {
   lv_obj_t* title_label_{nullptr};
   lv_obj_t* body_label_{nullptr};
   lv_obj_t* button_row_{nullptr};
-  ButtonEntry buttons_[3]{};
+  ButtonEntry buttons_[2]{};
   std::size_t button_count_{0};
   std::size_t focused_button_index_{0};
   bool action_triggered_{false};

@@ -119,7 +119,7 @@ void CapCc1101TestPage::build_content(lv_obj_t* content) {
                                text_font ? text_font : &lv_font_montserrat_12,
                                0);
 
-    detail_values_[i] = lv_label_create(row);
+    detail_values_[i]            = lv_label_create(row);
     const auto translated_detail = app_view_model_ref_().tr(initial.items[i].detail.c_str());
     lv_label_set_text(detail_values_[i], translated_detail.c_str());
     lv_obj_set_width(detail_values_[i], 190);
@@ -176,6 +176,8 @@ void CapCc1101TestPage::refresh_() {
 
 void CapCc1101TestPage::start_() {
   if (can_start(model_.snapshot().state)) {
+    app_view_model_ref_().record_current_test_evidence("fixture_started",
+                                                       model::EvidenceValue::boolean(true));
     model_.start();
   }
 }

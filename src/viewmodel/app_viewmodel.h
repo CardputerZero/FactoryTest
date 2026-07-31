@@ -89,9 +89,14 @@ class AppViewModel {
   void show_device_info_page();
   void show_perf_test_page();
   void show_test_result_page();
-  void start_full_test_sequence();
+  bool load_recoverable_test_session();
+  bool start_full_test_sequence();
+  bool resume_full_test_sequence();
   void show_single_test_page(model::AppPage page);
   void refresh_current_page();
+  bool begin_current_test_attempt();
+  bool record_current_test_evidence(const std::string& key, model::EvidenceValue value);
+  bool record_current_test_evidence(const model::TestEvidence& evidence);
   void complete_current_test();
   void complete_current_test(model::TestResult result);
   void complete_current_test_with_details(
@@ -100,7 +105,11 @@ class AppViewModel {
   const char* current_test_name() const;
   std::size_t current_test_number() const;
   std::size_t test_count() const;
+  const std::string& test_session_path() const;
   const std::string& test_result_path() const;
+  const std::string& test_session_id() const;
+  const std::vector<model::TestRecord>& test_records() const;
+  model::SessionSummary test_session_summary() const;
   void set_back_request_handler(BackRequestHandler handler, void* user_data);
   void clear_back_request_handler(BackRequestHandler handler, void* user_data);
   void request_back_or_quit();
@@ -110,11 +119,12 @@ class AppViewModel {
   void publish_all_();
   void show_page_(model::AppPage page);
   void advance_test_sequence_();
+  bool open_test_sequence_item_(std::size_t index);
 
  private:
   model::AppModel model_{};
   model::TranslationService& translations_;
-  model::TestSession test_session_{};
+  model::SessionManager session_manager_{};
   std::size_t test_sequence_index_{0};
   std::string title_msgid_{};
   reactive::StringSubject<48> title_subject_;

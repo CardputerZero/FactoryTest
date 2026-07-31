@@ -182,6 +182,8 @@ void IrFixtureTestPage::refresh_() {
 
 void IrFixtureTestPage::start_() {
   if (can_start(model_.snapshot().state)) {
+    app_view_model_ref_().record_current_test_evidence("fixture_started",
+                                                       model::EvidenceValue::boolean(true));
     model_.start();
   }
 }
@@ -195,15 +197,14 @@ void IrFixtureTestPage::report_result_() {
 
   const auto item_result = [](model::IrFixtureItemState state) {
     return state == model::IrFixtureItemState::PASSED ? model::TestResult::PASS
-                                                      : model::TestResult::FAILED;
+                                                      : model::TestResult::FAIL;
   };
   const std::vector<model::NamedTestResult> details = {
       {"IR Fixture - TX", item_result(snapshot.items[0].state)},
       {"IR Fixture - RX", item_result(snapshot.items[1].state)},
   };
-  const auto overall = snapshot.state == model::IrFixtureRunState::PASSED
-                           ? model::TestResult::PASS
-                           : model::TestResult::FAILED;
+  const auto overall = snapshot.state == model::IrFixtureRunState::PASSED ? model::TestResult::PASS
+                                                                          : model::TestResult::FAIL;
   app_view_model_ref_().complete_current_test_with_details(overall, details);
 }
 

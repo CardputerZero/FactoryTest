@@ -725,9 +725,7 @@ void KeyboardTestPage::update_nav_actions_() {
         LV_EVENT_LONG_PRESSED,
         viewmodel::NavHoldTarget::SUCCESS,
         false,
-        [this]() {
-          show_hold_popup_("Hold 8 to confirm test", view::widgets::PopupTone::SUCCESS);
-        },
+        [this]() { show_hold_popup_("Hold 8 to confirm test", view::widgets::PopupTone::SUCCESS); },
         [this]() { hide_hold_popup_(); });
   }
 }
@@ -749,8 +747,9 @@ void KeyboardTestPage::show_hold_popup_(const char* message, view::widgets::Popu
     config.label_width = 234;
     config.message     = app_view_model_ref_().tr(message ? message : "");
     config.tone        = tone;
-    config.font        = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 12);
-    hold_popup_tone_   = tone;
+    config.font =
+        assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 12);
+    hold_popup_tone_ = tone;
     hold_popup_ = std::make_unique<view::widgets::Popup>(root(), app_view_model_ref_(), config);
     hold_popup_->build();
   } else {
@@ -775,9 +774,16 @@ void KeyboardTestPage::mark_key_pressed_(uint32_t key, const char* key_name) {
 
     const bool counted = is_counted_key(K_KEYS[i]);
     if (key_states_[i] != KeyState::PRESSED) {
-      key_states_[i] = KeyState::PRESSED;
+      const bool first_key = std::all_of(layer_pressed_counts_.begin(),
+                                         layer_pressed_counts_.end(),
+                                         [](std::size_t count) { return count == 0; });
+      key_states_[i]       = KeyState::PRESSED;
       if (counted) {
         ++layer_pressed_counts_[layer_index(K_KEYS[i].layer)];
+        if (first_key) {
+          app_view_model_ref_().record_current_test_evidence("key_input_seen",
+                                                             model::EvidenceValue::boolean(true));
+        }
       }
       update_button_state_(i);
     }

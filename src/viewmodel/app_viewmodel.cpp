@@ -11,6 +11,8 @@
 #include <utility>
 
 #include "device_info_service.h"
+#include "logger.h"
+#include "version.h"
 
 namespace viewmodel {
 namespace {
@@ -18,30 +20,31 @@ namespace {
 int page_to_int(model::AppPage page) { return static_cast<int>(page); }
 
 struct TestSequenceItem {
+  const char* id;
   const char* name;
   model::AppPage page;
 };
 
 constexpr std::array<TestSequenceItem, 19> K_TEST_SEQUENCE = {{
-    {"Input Test", model::AppPage::KEYBOARD_TEST},
-    {"Display Test", model::AppPage::LCD_TEST},
-    {"Audio Test", model::AppPage::AUDIO_TEST},
-    {"Camera Test", model::AppPage::CAMERA_TEST},
-    {"IR Fixture Test", model::AppPage::IR_FIXTURE_TEST},
-    {"Wi-Fi", model::AppPage::WIFI_TEST},
-    {"Bluetooth", model::AppPage::BT_TEST},
-    {"Ethernet", model::AppPage::ETH_TEST},
-    {"Link Test", model::AppPage::LINK_TEST},
-    {"HDMI", model::AppPage::HDMI_TEST},
-    {"CAP Fixture Test", model::AppPage::CAP_FIXTURE_TEST},
-    {"CAP LoRa-1262", model::AppPage::CAP_LORA_1262_TEST},
-    {"CAP-CC1101", model::AppPage::CAP_CC1101_TEST},
-    {"Device Information", model::AppPage::DEVICE_INFO},
-    {"Power Information", model::AppPage::POWER_INFO},
-    {"IMU Test", model::AppPage::IMU_TEST},
-    {"CPU Benchmark", model::AppPage::CPU_BENCHMARK},
-    {"Mem Stress Test", model::AppPage::MEM_STRESS_TEST},
-    {"SD Card Test", model::AppPage::SD_CARD_TEST},
+    {"input", "Input Test", model::AppPage::KEYBOARD_TEST},
+    {"display", "Display Test", model::AppPage::LCD_TEST},
+    {"audio", "Audio Test", model::AppPage::AUDIO_TEST},
+    {"camera", "Camera Test", model::AppPage::CAMERA_TEST},
+    {"ir_fixture", "IR Fixture Test", model::AppPage::IR_FIXTURE_TEST},
+    {"wifi", "Wi-Fi", model::AppPage::WIFI_TEST},
+    {"bluetooth", "Bluetooth", model::AppPage::BT_TEST},
+    {"ethernet", "Ethernet", model::AppPage::ETH_TEST},
+    {"link", "Link Test", model::AppPage::LINK_TEST},
+    {"hdmi", "HDMI", model::AppPage::HDMI_TEST},
+    {"cap_fixture", "CAP Fixture Test", model::AppPage::CAP_FIXTURE_TEST},
+    {"cap_lora_1262", "CAP LoRa-1262", model::AppPage::CAP_LORA_1262_TEST},
+    {"cap_cc1101", "CAP-CC1101", model::AppPage::CAP_CC1101_TEST},
+    {"device_info", "Device Information", model::AppPage::DEVICE_INFO},
+    {"power", "Power Information", model::AppPage::POWER_INFO},
+    {"imu", "IMU Test", model::AppPage::IMU_TEST},
+    {"cpu", "CPU Benchmark", model::AppPage::CPU_BENCHMARK},
+    {"memory", "Mem Stress Test", model::AppPage::MEM_STRESS_TEST},
+    {"sd_card", "SD Card Test", model::AppPage::SD_CARD_TEST},
 }};
 
 bool sequence_item_enabled(const TestSequenceItem& item) {
@@ -69,6 +72,32 @@ const TestSequenceItem* sequence_item(std::size_t index) {
 std::size_t test_sequence_size() {
   return static_cast<std::size_t>(
       std::count_if(K_TEST_SEQUENCE.begin(), K_TEST_SEQUENCE.end(), sequence_item_enabled));
+}
+
+std::vector<model::TestDefinition> test_sequence_plan() {
+  std::vector<model::TestDefinition> plan;
+  plan.reserve(test_sequence_size());
+  for (const auto& item : K_TEST_SEQUENCE) {
+    if (sequence_item_enabled(item)) {
+      plan.push_back({item.id, item.name});
+    }
+  }
+  return plan;
+}
+
+model::SessionMetadata session_metadata() {
+  model::SessionMetadata metadata;
+  const auto product_model = platform::device_info::product_model();
+  metadata.sku             = platform::device_info::product_model_name(product_model);
+  metadata.serial_number   = platform::device_info::read_serial_number();
+  metadata.station         = "AUTO_TEST";
+  metadata.firmware        = factory_test::get_version_str();
+#if defined(FACTORY_TEST_GIT_COMMIT)
+  metadata.commit = FACTORY_TEST_GIT_COMMIT;
+#else
+  metadata.commit = "UNKNOWN";
+#endif
+  return metadata;
 }
 
 }  // namespace
@@ -231,15 +260,46 @@ void AppViewModel::show_perf_test_page() { show_page_(model::AppPage::PERF_TEST)
 
 void AppViewModel::show_test_result_page() { show_page_(model::AppPage::TEST_RESULT); }
 
-void AppViewModel::start_full_test_sequence() {
+bool AppViewModel::load_recoverable_test_session() {
+  return session_manager_.load_latest_recoverable(test_sequence_plan());
+}
+
+bool AppViewModel::start_full_test_sequence() {
+  if (!session_manager_.start_new(test_sequence_plan(), session_metadata())) {
+    LOG_ERROR("failed to start test session: {}", session_manager_.last_error());
+    return false;
+  }
   model_.set_test_sequence_active(true);
   test_sequence_index_ = 0;
-  test_session_.start();
-  if (const auto* item = sequence_item(test_sequence_index_)) {
-    show_page_(item->page);
-  } else {
-    show_start_page();
+  if (!open_test_sequence_item_(test_sequence_index_)) {
+    model_.set_test_sequence_active(false);
+    return false;
   }
+  return true;
+}
+
+bool AppViewModel::resume_full_test_sequence() {
+  if (!session_manager_.recoverable() && !load_recoverable_test_session()) {
+    return false;
+  }
+
+  test_sequence_index_ = session_manager_.next_incomplete_index();
+  if (test_sequence_index_ >= test_sequence_size()) {
+    if (!session_manager_.finalize()) {
+      LOG_ERROR("failed to finalize recovered test session: {}", session_manager_.last_error());
+      return false;
+    }
+    model_.set_test_sequence_active(false);
+    show_test_result_page();
+    return true;
+  }
+
+  model_.set_test_sequence_active(true);
+  if (!open_test_sequence_item_(test_sequence_index_)) {
+    model_.set_test_sequence_active(false);
+    return false;
+  }
+  return true;
 }
 
 void AppViewModel::show_single_test_page(model::AppPage page) {
@@ -249,11 +309,31 @@ void AppViewModel::show_single_test_page(model::AppPage page) {
 
 void AppViewModel::refresh_current_page() { current_page_subject_.notify(); }
 
+bool AppViewModel::begin_current_test_attempt() {
+  const auto* item = model_.test_sequence_active() ? sequence_item(test_sequence_index_) : nullptr;
+  return item && session_manager_.begin_test(item->id);
+}
+
+bool AppViewModel::record_current_test_evidence(const std::string& key,
+                                                model::EvidenceValue value) {
+  const auto* item = model_.test_sequence_active() ? sequence_item(test_sequence_index_) : nullptr;
+  return item && session_manager_.record_evidence(item->id, key, std::move(value));
+}
+
+bool AppViewModel::record_current_test_evidence(const model::TestEvidence& evidence) {
+  const auto* item = model_.test_sequence_active() ? sequence_item(test_sequence_index_) : nullptr;
+  return item && session_manager_.record_evidence(item->id, evidence);
+}
+
 void AppViewModel::complete_current_test() { complete_current_test(model::TestResult::PASS); }
 
 void AppViewModel::complete_current_test(model::TestResult result) {
   if (model_.test_sequence_active()) {
-    test_session_.append_result(current_test_name(), result);
+    const auto* item = sequence_item(test_sequence_index_);
+    if (!item || !session_manager_.complete_test(item->id, result)) {
+      LOG_ERROR("failed to persist test result: {}", session_manager_.last_error());
+      return;
+    }
   }
 
   advance_test_sequence_();
@@ -263,9 +343,18 @@ void AppViewModel::complete_current_test_with_details(
     model::TestResult result,
     const std::vector<model::NamedTestResult>& detail_results) {
   if (model_.test_sequence_active()) {
-    test_session_.append_result(current_test_name(), result);
-    for (const auto& detail : detail_results) {
-      test_session_.append_result(detail.test_name.c_str(), detail.result);
+    const auto* item = sequence_item(test_sequence_index_);
+    if (!item) {
+      return;
+    }
+    if (!detail_results.empty()) {
+      session_manager_.record_evidence(item->id,
+                                       "subtest_count",
+                                       model::EvidenceValue::number(detail_results.size()));
+    }
+    if (!session_manager_.complete_test(item->id, result, detail_results)) {
+      LOG_ERROR("failed to persist detailed test result: {}", session_manager_.last_error());
+      return;
     }
   }
 
@@ -280,12 +369,33 @@ void AppViewModel::advance_test_sequence_() {
 
   ++test_sequence_index_;
   if (const auto* item = sequence_item(test_sequence_index_)) {
+    if (!session_manager_.set_current_test(item->id)) {
+      LOG_ERROR("failed to persist current test: {}", session_manager_.last_error());
+      model_.set_test_sequence_active(false);
+      show_start_page();
+      return;
+    }
     show_page_(item->page);
     return;
   }
 
   model_.set_test_sequence_active(false);
   show_test_result_page();
+}
+
+bool AppViewModel::open_test_sequence_item_(std::size_t index) {
+  const auto* item = sequence_item(index);
+  if (!item) {
+    show_start_page();
+    return false;
+  }
+  if (!session_manager_.set_current_test(item->id)) {
+    LOG_ERROR("failed to persist current test: {}", session_manager_.last_error());
+    show_start_page();
+    return false;
+  }
+  show_page_(item->page);
+  return true;
 }
 
 const char* AppViewModel::current_test_name() const {
@@ -337,7 +447,7 @@ const char* AppViewModel::current_test_name() const {
     case model::AppPage::DEVICE_INFO:
       return "Device Information";
     case model::AppPage::PY32_UPGRADE:
-      return "PY32 Upgrade";
+      return "IOE1 Upgrade";
     case model::AppPage::PERF_TEST:
       return "Performance Test";
     case model::AppPage::CPU_BENCHMARK:
@@ -368,7 +478,21 @@ std::size_t AppViewModel::current_test_number() const {
 
 std::size_t AppViewModel::test_count() const { return test_sequence_size(); }
 
-const std::string& AppViewModel::test_result_path() const { return test_session_.output_path(); }
+const std::string& AppViewModel::test_session_path() const {
+  return session_manager_.session_path();
+}
+
+const std::string& AppViewModel::test_result_path() const { return session_manager_.result_path(); }
+
+const std::string& AppViewModel::test_session_id() const { return session_manager_.session_id(); }
+
+const std::vector<model::TestRecord>& AppViewModel::test_records() const {
+  return session_manager_.tests();
+}
+
+model::SessionSummary AppViewModel::test_session_summary() const {
+  return session_manager_.summary();
+}
 
 void AppViewModel::set_back_request_handler(BackRequestHandler handler, void* user_data) {
   back_request_handler_   = handler;

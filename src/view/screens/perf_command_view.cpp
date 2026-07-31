@@ -175,6 +175,9 @@ void PerfCommandView::start_() {
     return;
   }
 
+  if (app_view_model_) {
+    app_view_model_->begin_current_test_attempt();
+  }
   state_      = std::make_shared<JobState>();
   auto state  = state_;
   auto runner = runner_;
@@ -287,14 +290,23 @@ void PerfCommandView::update_stdout_buffer_() {
 }
 
 void PerfCommandView::show_report_(const platform::perf::TestResult& result) {
+  if (app_view_model_) {
+    model::TestEvidence evidence;
+    evidence.emplace("runner_passed", model::EvidenceValue::boolean(result.passed));
+    evidence.emplace("runner_status",
+                     model::EvidenceValue::string(result_status_text(result.status)));
+    for (const auto& metric : result.metrics) {
+      evidence.emplace(metric.first, model::EvidenceValue::string(metric.second));
+    }
+    app_view_model_->record_current_test_evidence(evidence);
+  }
   const auto colors = view::palette(app_view_model_ && app_view_model_->is_dark_mode());
-  const auto status_color = result.status == platform::perf::TestStatus::PASS
-                                ? colors.success
-                                : (result.status == platform::perf::TestStatus::WARNING
-                                       ? colors.warning
-                                       : colors.error);
+  const auto status_color =
+      result.status == platform::perf::TestStatus::PASS
+          ? colors.success
+          : (result.status == platform::perf::TestStatus::WARNING ? colors.warning : colors.error);
   if (status_label_) {
-    const auto title_text = app_view_model_ ? app_view_model_->tr(title_.c_str()) : title_;
+    const auto title_text  = app_view_model_ ? app_view_model_->tr(title_.c_str()) : title_;
     const char* raw_status = result_status_text(result.status);
     const auto status_text =
         app_view_model_ ? app_view_model_->tr(raw_status[0] == ' ' ? raw_status + 1 : raw_status)

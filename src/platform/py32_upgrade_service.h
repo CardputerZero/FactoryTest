@@ -27,6 +27,8 @@ struct Result {
   std::string error_message{};
 };
 
+const char* target_version() noexcept;
+
 Result run(const std::filesystem::path& archive_path,
            const ProgressCallback& progress_callback = {});
 

@@ -6,14 +6,12 @@
 
 #include "test_result_page.h"
 
-#include <cctype>
 #include <string>
 #include <vector>
 
 #include "asset_manager.h"
 #include "bindings.h"
 #include "linux_input.h"
-#include "process_service.h"
 #include "theme.h"
 #include "ui_const.h"
 
@@ -105,75 +103,48 @@ const char* icon_for_test_name(const std::string& name) {
   return view::ICON_INFO;
 }
 
-view::widgets::IconList::Status status_for_result(std::string result) {
-  for (char& ch : result) {
-    ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-  }
-
-  if (result == "pass" || result == "passed") {
-    return view::widgets::IconList::Status::PASS;
-  }
-  if (result == "skip" || result == "skipped") {
-    return view::widgets::IconList::Status::WARN;
-  }
-  if (result == "fail" || result == "failed") {
-    return view::widgets::IconList::Status::FAIL;
-  }
-  return view::widgets::IconList::Status::NONE;
+view::widgets::IconList::Status status_for_result(model::TestResult result) {
+  return result == model::TestResult::PASS ? view::widgets::IconList::Status::PASS
+                                           : view::widgets::IconList::Status::FAIL;
 }
 
-std::vector<view::widgets::IconList::Item> load_result_items(const std::string& path,
-                                                             std::vector<std::string>& titles) {
+std::vector<view::widgets::IconList::Item> load_result_items(
+    viewmodel::AppViewModel& app_view_model,
+    std::vector<std::string>& titles) {
   std::vector<view::widgets::IconList::Item> items;
   titles.clear();
-  const auto parsed = platform::process::parse_json_file(path);
-  if (!parsed.success() || parsed.value.type != platform::process::OutputValue::Type::Object) {
+  const auto& records = app_view_model.test_records();
+  if (records.empty()) {
     titles.push_back("No test results found");
     items.push_back(
         {view::ICON_INFO, titles.back().c_str(), false, view::widgets::IconList::Status::WARN});
     return items;
   }
 
-  const auto results_it = parsed.value.object_values.find("results");
-  if (results_it == parsed.value.object_values.end() ||
-      results_it->second.type != platform::process::OutputValue::Type::Array) {
-    titles.push_back("No test results found");
-    items.push_back(
-        {view::ICON_INFO, titles.back().c_str(), false, view::widgets::IconList::Status::WARN});
-    return items;
+  std::size_t item_count = records.size();
+  for (const auto& record : records) {
+    item_count += record.details.size();
   }
-
-  items.reserve(results_it->second.array_values.size());
-  titles.reserve(results_it->second.array_values.size());
-  for (const auto& entry : results_it->second.array_values) {
-    if (entry.type != platform::process::OutputValue::Type::Object) {
-      continue;
+  items.reserve(item_count);
+  titles.reserve(item_count);
+  for (const auto& record : records) {
+    std::string title = app_view_model.tr(record.name.c_str());
+    if (!record.has_evidence()) {
+      title += " - " + app_view_model.tr("No evidence");
     }
-
-    const auto name_it   = entry.object_values.find("test_name");
-    const auto result_it = entry.object_values.find("test_result");
-    const std::string name =
-        name_it != entry.object_values.end() &&
-                name_it->second.type == platform::process::OutputValue::Type::String
-            ? name_it->second.string_value
-            : "Unknown Test";
-    const std::string result =
-        result_it != entry.object_values.end() &&
-                result_it->second.type == platform::process::OutputValue::Type::String
-            ? result_it->second.string_value
-            : "";
-
-    titles.push_back(name);
-    items.push_back({icon_for_test_name(titles.back()),
+    titles.push_back(std::move(title));
+    items.push_back({icon_for_test_name(record.name),
                      titles.back().c_str(),
                      false,
-                     status_for_result(result)});
-  }
-
-  if (items.empty()) {
-    titles.push_back("No test results found");
-    items.push_back(
-        {view::ICON_INFO, titles.back().c_str(), false, view::widgets::IconList::Status::WARN});
+                     record.completed ? status_for_result(record.result)
+                                      : view::widgets::IconList::Status::FAIL});
+    for (const auto& detail : record.details) {
+      titles.push_back(app_view_model.tr(detail.test_name.c_str()));
+      items.push_back({icon_for_test_name(detail.test_name),
+                       titles.back().c_str(),
+                       false,
+                       status_for_result(detail.result)});
+    }
   }
   return items;
 }
@@ -205,7 +176,7 @@ void TestResultPage::build_content(lv_obj_t* content) {
                        app_view_model_ref_().dark_mode_subject(),
                        reactive::ThemeRole::SURFACE);
 
-  auto items  = load_result_items(app_view_model_ref_().test_result_path(), result_titles_);
+  auto items  = load_result_items(app_view_model_ref_(), result_titles_);
   item_count_ = items.size();
   auto* text_font =
       assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 14);

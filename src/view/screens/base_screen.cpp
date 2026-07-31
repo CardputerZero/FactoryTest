@@ -131,13 +131,9 @@ void BaseScreen::show_test_result_dialog_() {
     platform::set_modal_key_capture(false);
     app_view_model_.complete_current_test(model::TestResult::PASS);
   };
-  callbacks.skip_action = [this]() {
-    platform::set_modal_key_capture(false);
-    app_view_model_.complete_current_test(model::TestResult::SKIPPED);
-  };
   callbacks.fail_action = [this]() {
     platform::set_modal_key_capture(false);
-    app_view_model_.complete_current_test(model::TestResult::FAILED);
+    app_view_model_.complete_current_test(model::TestResult::FAIL);
   };
 
   test_result_dialog_ = std::make_unique<view::widgets::TestConfirmDialog>(root_,

@@ -129,6 +129,14 @@ void CameraTestPage::update_preview_frame_() {
     return;
   }
 
+  if (!evidence_recorded_) {
+    model::TestEvidence evidence;
+    evidence.emplace("camera", model::EvidenceValue::string(camera_.name));
+    evidence.emplace("frame_width", model::EvidenceValue::number(width));
+    evidence.emplace("frame_height", model::EvidenceValue::number(height));
+    evidence_recorded_ = app_view_model_ref_().record_current_test_evidence(evidence);
+  }
+
   preview_image_dsc_.data = reinterpret_cast<const uint8_t*>(preview_buffer_.data());
   lv_obj_invalidate(preview_image_);
 }

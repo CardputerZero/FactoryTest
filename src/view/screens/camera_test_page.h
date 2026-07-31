@@ -39,6 +39,7 @@ class CameraTestPage : public BaseScreen {
   lv_timer_t* frame_timer_{nullptr};
   bool has_camera_{false};
   bool preview_started_{false};
+  bool evidence_recorded_{false};
 };
 
 }  // namespace screen

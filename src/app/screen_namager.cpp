@@ -64,7 +64,7 @@ const char* placeholder_title(model::AppPage page) {
     case model::AppPage::DEVICE_INFO:
       return "Device Information";
     case model::AppPage::PY32_UPGRADE:
-      return "PY32 Upgrade";
+      return "IOE1 Upgrade";
     case model::AppPage::PERF_TEST:
       return "Performance Test";
     case model::AppPage::WIFI_TEST:

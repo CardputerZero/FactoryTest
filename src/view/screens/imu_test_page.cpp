@@ -134,7 +134,7 @@ void ImuTestPage::build_content(lv_obj_t* content) {
                        reactive::ThemeRole::TEXT);
   lv_label_set_text(status_label_, status_message_.c_str());
 
-  auto* icon_font  = assets_ref_().load_font("Phosphor-Fill.ttf", 14);
+  auto* icon_font = assets_ref_().load_font("Phosphor-Fill.ttf", 14);
   auto* label_font =
       assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 11);
   auto* value_font =
@@ -177,6 +177,19 @@ void ImuTestPage::update_readings_() {
   if (!platform::imu::read_nine_axis(device_, reading, error)) {
     lv_label_set_text(status_label_, error.c_str());
     return;
+  }
+
+  if (!evidence_recorded_) {
+    model::TestEvidence evidence;
+    evidence.emplace("bmi270", model::EvidenceValue::boolean(device_.has_bmi270));
+    evidence.emplace("bmm150", model::EvidenceValue::boolean(device_.has_bmm150));
+    evidence.emplace("accel_x", model::EvidenceValue::number(reading.accel_x));
+    evidence.emplace("accel_y", model::EvidenceValue::number(reading.accel_y));
+    evidence.emplace("accel_z", model::EvidenceValue::number(reading.accel_z));
+    evidence.emplace("gyro_x", model::EvidenceValue::number(reading.gyro_x));
+    evidence.emplace("gyro_y", model::EvidenceValue::number(reading.gyro_y));
+    evidence.emplace("gyro_z", model::EvidenceValue::number(reading.gyro_z));
+    evidence_recorded_ = app_view_model_ref_().record_current_test_evidence(evidence);
   }
 
   lv_label_set_text(status_label_, status_message_.c_str());

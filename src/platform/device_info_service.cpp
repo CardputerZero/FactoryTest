@@ -52,6 +52,7 @@ constexpr std::size_t K_HW_REVISION_MIN_SAMPLE_COUNT = 3;
 constexpr uint32_t K_HW_REVISION_SAMPLE_INTERVAL_MS  = 10;
 constexpr int K_PY32_I2C_BUS                         = 1;
 constexpr uint8_t K_PY32_I2C_ADDRESS                 = 0x4F;
+constexpr uint8_t K_CP0_MAJOR_VERSION                = 0x02;
 constexpr uint8_t K_CP0_HARDWARE_VERSION             = 0xB8;
 constexpr uint8_t K_CP0_MINOR_VERSION                = 0xBA;
 constexpr auto K_IOE1_REFRESH_INTERVAL               = std::chrono::seconds(60);
@@ -323,14 +324,23 @@ std::string read_hardware_revision() {
 }
 
 std::string read_py32_firmware_version_impl(bool force_refresh) {
-  static Ioe1RegisterCache cache;
-  uint8_t version = 0;
-  if (!read_cached_ioe1_register(K_CP0_MINOR_VERSION, cache, version, nullptr, force_refresh)) {
+  static Ioe1RegisterCache major_cache;
+  static Ioe1RegisterCache minor_cache;
+  uint8_t major_version = 0;
+  uint8_t minor_version = 0;
+  if (!read_cached_ioe1_register(
+          K_CP0_MAJOR_VERSION, major_cache, major_version, nullptr, force_refresh) ||
+      !read_cached_ioe1_register(
+          K_CP0_MINOR_VERSION, minor_cache, minor_version, nullptr, force_refresh)) {
     return K_EMPTY_VALUE;
   }
 
-  char value[5]{};
-  std::snprintf(value, sizeof(value), "0x%02X", static_cast<unsigned int>(version));
+  char value[7]{};
+  std::snprintf(value,
+                sizeof(value),
+                "0x%02X%02X",
+                static_cast<unsigned int>(major_version),
+                static_cast<unsigned int>(minor_version));
   return value;
 }
 
@@ -484,7 +494,7 @@ std::string format_local_time(std::time_t value) {
 }
 
 std::string format_rtc_time_as_local(std::tm rtc_utc) {
-  rtc_utc.tm_isdst = 0;
+  rtc_utc.tm_isdst           = 0;
   const std::time_t utc_time = timegm(&rtc_utc);
   if (utc_time == static_cast<std::time_t>(-1)) {
     return K_EMPTY_VALUE;
@@ -587,9 +597,9 @@ std::string read_hwclock_command() {
 #endif
 
 std::string timezone_from_path(std::filesystem::path path) {
-  const auto text = path.lexically_normal().string();
+  const auto text              = path.lexically_normal().string();
   constexpr const char* marker = "zoneinfo/";
-  const auto pos              = text.find(marker);
+  const auto pos               = text.find(marker);
   if (pos == std::string::npos) {
     return {};
   }
@@ -660,6 +670,8 @@ const char* product_model_name(ProductModel model) {
       return "CardputerZero Lite";
   }
 }
+
+std::string read_serial_number() { return read_soc_serial_number(); }
 
 std::string read_py32_firmware_version(bool force_refresh) {
   return read_py32_firmware_version_impl(force_refresh);

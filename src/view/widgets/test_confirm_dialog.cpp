@@ -21,8 +21,8 @@ constexpr int32_t K_HEIGHT            = 146;
 constexpr int32_t K_PAD               = 8;
 constexpr int32_t K_TITLE_HEIGHT      = 18;
 constexpr int32_t K_BODY_WIDTH        = 246;
-constexpr int32_t K_BUTTON_ROW_WIDTH  = 232;
-constexpr int32_t K_BUTTON_WIDTH      = 62;
+constexpr int32_t K_BUTTON_ROW_WIDTH  = 176;
+constexpr int32_t K_BUTTON_WIDTH      = 76;
 constexpr int32_t K_BUTTON_HEIGHT     = 26;
 constexpr int32_t K_BUTTON_BOTTOM_PAD = 2;
 
@@ -64,9 +64,7 @@ void TestConfirmDialog::build() {
   lv_obj_move_foreground(core_obj_);
 }
 
-bool TestConfirmDialog::visible() const {
-  return core_obj_ && lv_obj_is_valid(core_obj_);
-}
+bool TestConfirmDialog::visible() const { return core_obj_ && lv_obj_is_valid(core_obj_); }
 
 bool TestConfirmDialog::handle_key(uint32_t key, const char* key_name) {
   if (!visible() || action_triggered_) {
@@ -94,16 +92,16 @@ bool TestConfirmDialog::handle_key(uint32_t key, const char* key_name) {
 
 void TestConfirmDialog::close() {
   destroy_core_obj_();
-  core_obj_              = nullptr;
-  title_label_           = nullptr;
-  body_label_            = nullptr;
-  button_row_            = nullptr;
+  core_obj_    = nullptr;
+  title_label_ = nullptr;
+  body_label_  = nullptr;
+  button_row_  = nullptr;
   for (auto& button : buttons_) {
     button = {};
   }
-  button_count_          = 0;
-  focused_button_index_  = 0;
-  action_triggered_      = false;
+  button_count_         = 0;
+  focused_button_index_ = 0;
+  action_triggered_     = false;
 }
 
 const lv_font_t* TestConfirmDialog::ui_font_(const char* latin_font_name, uint32_t size) {
@@ -112,7 +110,7 @@ const lv_font_t* TestConfirmDialog::ui_font_(const char* latin_font_name, uint32
 }
 
 void TestConfirmDialog::add_title_() {
-  title_label_ = lv_label_create(core_obj_);
+  title_label_     = lv_label_create(core_obj_);
   const auto title = app_view_model_.tr(config_.title.c_str());
   lv_label_set_text(title_label_, title.c_str());
   lv_label_set_long_mode(title_label_, LV_LABEL_LONG_DOT);
@@ -144,9 +142,7 @@ void TestConfirmDialog::add_body_() {
   lv_obj_set_style_text_align(body_label_, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_style_text_font(body_label_, ui_font_("inter-medium.ttf", 14), 0);
   lv_obj_align(body_label_, LV_ALIGN_CENTER, 0, -10);
-  reactive::bind_theme(body_label_,
-                       app_view_model_.dark_mode_subject(),
-                       reactive::ThemeRole::TEXT);
+  reactive::bind_theme(body_label_, app_view_model_.dark_mode_subject(), reactive::ThemeRole::TEXT);
 }
 
 void TestConfirmDialog::add_buttons_() {
@@ -166,7 +162,6 @@ void TestConfirmDialog::add_buttons_() {
   lv_obj_align(button_row_, LV_ALIGN_BOTTOM_MID, 0, -(K_PAD + K_BUTTON_BOTTOM_PAD));
 
   add_button_("Fail", ButtonRole::FAIL);
-  add_button_("Skip", ButtonRole::SKIP);
   add_button_("Pass", ButtonRole::PASS);
   focused_button_index_ = button_count_ - 1;
 }
@@ -176,15 +171,15 @@ void TestConfirmDialog::add_button_(const char* label, ButtonRole role) {
     return;
   }
 
-  auto& entry = buttons_[button_count_++];
-  entry.role  = role;
+  auto& entry  = buttons_[button_count_++];
+  entry.role   = role;
   entry.button = lv_button_create(button_row_);
   lv_obj_remove_style_all(entry.button);
   lv_obj_set_size(entry.button, K_BUTTON_WIDTH, K_BUTTON_HEIGHT);
   lv_obj_set_style_radius(entry.button, 8, 0);
   lv_obj_add_event_cb(entry.button, button_cb, LV_EVENT_CLICKED, this);
 
-  entry.label = lv_label_create(entry.button);
+  entry.label           = lv_label_create(entry.button);
   const auto translated = app_view_model_.tr(label);
   lv_label_set_text(entry.label, translated.c_str());
   lv_obj_set_style_text_font(entry.label, ui_font_("inter-semibold.ttf", 11), 0);
@@ -254,11 +249,6 @@ void TestConfirmDialog::trigger_focused_button_() {
         callbacks_.fail_action();
       }
       break;
-    case ButtonRole::SKIP:
-      if (callbacks_.skip_action) {
-        callbacks_.skip_action();
-      }
-      break;
     case ButtonRole::PASS:
       if (callbacks_.pass_action) {
         callbacks_.pass_action();
@@ -272,8 +262,6 @@ lv_color_t TestConfirmDialog::role_color_(ButtonRole role) const {
   switch (role) {
     case ButtonRole::FAIL:
       return colors.error;
-    case ButtonRole::SKIP:
-      return colors.warning;
     case ButtonRole::PASS:
     default:
       return colors.success;

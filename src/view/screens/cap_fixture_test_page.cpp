@@ -203,6 +203,8 @@ void CapFixtureTestPage::key_listener(uint32_t key, const char* key_name, void* 
 
 void CapFixtureTestPage::start_() {
   if (model_.snapshot().state == model::CapFixtureRunState::IDLE) {
+    app_view_model_ref_().record_current_test_evidence("fixture_started",
+                                                       model::EvidenceValue::boolean(true));
     model_.start();
   }
 }

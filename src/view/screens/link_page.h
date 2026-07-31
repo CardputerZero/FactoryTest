@@ -33,6 +33,7 @@ class LinkConnectivityView {
  private:
   void refresh_();
   void rebuild_();
+  void record_evidence_();
   void hide_config_dialog_();
   void apply_config_dialog_();
   bool append_dialog_char_(char ch);
@@ -47,6 +48,7 @@ class LinkConnectivityView {
   std::unique_ptr<view::widgets::Dialog> dialog_{};
   lv_obj_t* host_input_{nullptr};
   bool panel_initialized_{false};
+  bool evidence_recorded_{false};
   lv_timer_t* refresh_timer_{nullptr};
 };
 

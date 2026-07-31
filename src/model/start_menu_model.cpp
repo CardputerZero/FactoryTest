@@ -22,7 +22,7 @@ const std::array<StartMenuItem, StartMenuModel::K_ITEM_COUNT>& start_menu_items(
       {"Start Full Test", view::ICON_FLASK, StartMenuCategory::AUTO, AppPage::KEYBOARD_TEST, true},
       {"Language", view::ICON_TRANSLATE, StartMenuCategory::AUTO, AppPage::START, false},
       {"Device Information", view::ICON_INFO, StartMenuCategory::AUTO, AppPage::DEVICE_INFO, false},
-      {"PY32 Upgrade",
+      {"IOE1 Upgrade",
        view::ICON_BOX_ARROW_UP,
        StartMenuCategory::AUTO,
        AppPage::PY32_UPGRADE,

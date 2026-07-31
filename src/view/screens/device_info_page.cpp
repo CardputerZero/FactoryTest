@@ -102,18 +102,26 @@ void DeviceInfoPage::build_content(lv_obj_t* content) {
   lv_obj_clear_flag(grid_, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_align(grid_, LV_ALIGN_TOP_MID, 0, 0);
 
-  auto* icon_font   = assets_ref_().load_font("Phosphor-Fill.ttf", 14);
-  auto* key_font    = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 11);
-  auto* value_font  = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 11);
+  auto* icon_font = assets_ref_().load_font("Phosphor-Fill.ttf", 14);
+  auto* key_font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 11);
+  auto* value_font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 11);
   auto fields = platform::device_info::read_device_info_fields();
   fields.push_back({"Software Version", factory_test::get_version_str()});
   fields.push_back({"Build time", factory_test::get_build_time_str()});
+  model::TestEvidence evidence;
+  evidence.emplace("field_count", model::EvidenceValue::number(fields.size()));
+  evidence.emplace("model",
+                   model::EvidenceValue::string(platform::device_info::product_model_name(
+                       platform::device_info::product_model())));
+  app_view_model_ref_().record_current_test_evidence(evidence);
   cards_.clear();
   cards_.reserve(fields.size());
 
   for (std::size_t i = 0; i < fields.size(); ++i) {
     const auto label = app_view_model_ref_().tr(fields[i].label.c_str());
-    auto card = std::make_unique<view::widgets::IconCard>(
+    auto card        = std::make_unique<view::widgets::IconCard>(
         grid_,
         app_view_model_ref_(),
         field_icon(i),

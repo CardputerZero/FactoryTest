@@ -139,6 +139,10 @@ void AudioTestPage::start_recording_() {
 
   recording_started_at_ = lv_tick_get();
   job_state_->stage.store(JobStage::RECORDING);
+  model::TestEvidence evidence;
+  evidence.emplace("record_seconds", model::EvidenceValue::number(K_RECORD_SECONDS));
+  evidence.emplace("device", model::EvidenceValue::string(device_.display_name));
+  app_view_model_ref_().record_current_test_evidence(evidence);
   update_status_();
 
   auto state        = job_state_;

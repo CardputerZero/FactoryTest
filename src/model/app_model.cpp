@@ -33,7 +33,7 @@ const char* AppModel::app_title() const {
     case AppPage::DEVICE_INFO:
       return "Device Information";
     case AppPage::PY32_UPGRADE:
-      return "PY32 Upgrade";
+      return "IOE1 Upgrade";
     case AppPage::PERF_TEST:
       return "Performance Test";
     case AppPage::WIFI_TEST:
