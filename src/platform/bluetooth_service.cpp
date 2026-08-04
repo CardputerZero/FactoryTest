@@ -28,7 +28,7 @@
 
 #include "logger.h"
 
-#if APP_USE_BLUEZ
+#if !USE_DESKTOP
 #include <gio/gio.h>
 #endif
 #if defined(__linux__)
@@ -64,7 +64,6 @@ bool wireless_result_sort_less(const WirelessScanItem& left, const WirelessScanI
   }
   return left.detail < right.detail;
 }
-
 
 struct WirelessLogSnapshot {
   bool initialized{false};
@@ -109,7 +108,7 @@ void log_wireless_result(const char* source,
   }
 }
 
-#if APP_USE_BLUEZ
+#if !USE_DESKTOP
 struct GErrorOwner {
   GError* error{nullptr};
 
@@ -359,13 +358,12 @@ std::vector<WirelessScanItem> bluez_devices_from_managed_objects(GVariant* manag
 }
 #endif
 
-
 }  // namespace
 
 std::vector<WirelessScanItem> scan_bluetooth(std::string& error_message) {
   static WirelessLogSnapshot log_snapshot;
   error_message.clear();
-#if APP_USE_BLUEZ
+#if !USE_DESKTOP
   LOG_TRACE("connectivity Bluetooth scan requested");
   auto bus = make_system_bus(error_message);
   if (!bus.connection) {

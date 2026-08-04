@@ -28,7 +28,7 @@
 
 #include "logger.h"
 
-#if APP_USE_LIBNM
+#if !USE_DESKTOP
 #include <NetworkManager.h>
 #endif
 #if defined(__linux__)
@@ -64,7 +64,6 @@ bool wireless_result_sort_less(const WirelessScanItem& left, const WirelessScanI
   }
   return left.detail < right.detail;
 }
-
 
 struct WirelessLogSnapshot {
   bool initialized{false};
@@ -109,7 +108,7 @@ void log_wireless_result(const char* source,
   }
 }
 
-#if APP_USE_LIBNM
+#if !USE_DESKTOP
 constexpr gint64 K_WIFI_SCAN_WAIT_TIMEOUT_US  = 12000000;
 constexpr gint64 K_WIFI_SCAN_POLL_INTERVAL_US = 100000;
 constexpr gint64 K_WIFI_SCAN_SETTLE_TIME_US   = 500000;
@@ -132,7 +131,6 @@ std::string take_error(GErrorOwner& owner, const char* fallback) {
   }
   return fallback ? fallback : "NetworkManager error";
 }
-
 
 struct GMainContextScope {
   GMainContext* context{nullptr};
@@ -572,7 +570,7 @@ std::vector<WirelessScanItem> read_wifi_access_points(NMClient* client,
 std::vector<WirelessScanItem> scan_wifi(std::string& error_message) {
   static WirelessLogSnapshot log_snapshot;
   error_message.clear();
-#if APP_USE_LIBNM
+#if !USE_DESKTOP
   LOG_TRACE("connectivity Wi-Fi scan requested");
   GMainContextScope context_scope;
   auto client = make_client(error_message);

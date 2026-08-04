@@ -5,8 +5,12 @@
  */
 
 #include "app.h"
+#include "logger.h"
 
 int main() {
   app::Application application;
-  return application.run();
+  const int result = application.run();
+  LOG_INFO("application exiting: code={}", result);
+  logger::Logger::shutdown();
+  return result;
 }

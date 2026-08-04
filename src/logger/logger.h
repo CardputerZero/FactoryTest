@@ -8,27 +8,9 @@
 
 #include <fmt/core.h>
 
+#include <cstddef>
 #include <string>
 #include <utility>
-
-// Compile-time log filtering. Larger values keep more verbose logs.
-// Example: -DAPP_LOG_LEVEL=APP_LOG_LEVEL_DEBUG keeps DEBUG and above.
-#define APP_LOG_LEVEL_OFF 0
-#define APP_LOG_LEVEL_FATAL 1
-#define APP_LOG_LEVEL_ERROR 2
-#define APP_LOG_LEVEL_WARN 3
-#define APP_LOG_LEVEL_INFO 4
-#define APP_LOG_LEVEL_DEBUG 5
-#define APP_LOG_LEVEL_TRACE 6
-#define APP_LOG_LEVEL_VERBOSE APP_LOG_LEVEL_TRACE
-
-#ifndef APP_LOG_LEVEL
-#define APP_LOG_LEVEL APP_LOG_LEVEL_DEBUG
-#endif
-
-#if APP_LOG_LEVEL < APP_LOG_LEVEL_OFF || APP_LOG_LEVEL > APP_LOG_LEVEL_TRACE
-#error "APP_LOG_LEVEL must be one of APP_LOG_LEVEL_OFF/FATAL/ERROR/WARN/INFO/DEBUG/TRACE/VERBOSE"
-#endif
 
 namespace logger {
 
@@ -36,9 +18,26 @@ enum class LogLevel { TRACE = 0, DEBUG, INFO, WARN, ERROR, FATAL, OFF };
 
 enum class ColorMode { AUTO, ENABLE, DISABLE };
 
+struct FileLogConfig {
+  static constexpr std::size_t K_DEFAULT_SEGMENT_SIZE   = 5U * 1024U * 1024U;
+  static constexpr std::size_t K_DEFAULT_DIRECTORY_SIZE = 50U * 1024U * 1024U;
+
+  // An empty directory resolves to $HOME/.local/state/factory-test/logs.
+  std::string directory{};
+  std::size_t max_segment_size_bytes{K_DEFAULT_SEGMENT_SIZE};
+  std::size_t max_directory_size_bytes{K_DEFAULT_DIRECTORY_SIZE};
+  bool enabled{true};
+};
+
 class Logger {
  public:
   static void init();
+  static void init(const FileLogConfig& config);
+  static void shutdown();
+
+  static bool file_logging_enabled();
+  static std::string log_directory();
+  static std::string current_log_path();
 
   static void set_level(LogLevel level);
   static LogLevel level();
@@ -50,15 +49,6 @@ class Logger {
 
   static void set_timestamp_enabled(bool enabled);
   static bool timestamp_enabled();
-
-  static constexpr int compile_level() { return APP_LOG_LEVEL; }
-  static constexpr bool should_compile_trace() { return APP_LOG_LEVEL >= APP_LOG_LEVEL_TRACE; }
-  static constexpr bool should_compile_verbose() { return APP_LOG_LEVEL >= APP_LOG_LEVEL_VERBOSE; }
-  static constexpr bool should_compile_debug() { return APP_LOG_LEVEL >= APP_LOG_LEVEL_DEBUG; }
-  static constexpr bool should_compile_info() { return APP_LOG_LEVEL >= APP_LOG_LEVEL_INFO; }
-  static constexpr bool should_compile_warn() { return APP_LOG_LEVEL >= APP_LOG_LEVEL_WARN; }
-  static constexpr bool should_compile_error() { return APP_LOG_LEVEL >= APP_LOG_LEVEL_ERROR; }
-  static constexpr bool should_compile_fatal() { return APP_LOG_LEVEL >= APP_LOG_LEVEL_FATAL; }
 
   template <typename... Args>
   static void trace(fmt::format_string<Args...> fmt_str, Args&&... args) {
@@ -156,68 +146,14 @@ class Logger {
 
   static bool should_log(LogLevel level);
   static bool should_use_color();
-
- private:
-  inline static LogLevel current_level{LogLevel::DEBUG};
-  inline static const char* current_tag{""};
-  inline static ColorMode current_color_mode{ColorMode::AUTO};
-  inline static bool timestamp_enabled_flag{false};
 };
 
 }  // namespace logger
 
-#if APP_LOG_LEVEL >= APP_LOG_LEVEL_TRACE
-#define LOG_TRACE(...) ::logger::Logger::trace_at(__FILE__, __LINE__, __VA_ARGS__)
-#else
-#define LOG_TRACE(...) \
-  do {                 \
-  } while (0)
-#endif
-
-#if APP_LOG_LEVEL >= APP_LOG_LEVEL_VERBOSE
+#define LOG_TRACE(...)   ::logger::Logger::trace_at(__FILE__, __LINE__, __VA_ARGS__)
 #define LOG_VERBOSE(...) ::logger::Logger::verbose_at(__FILE__, __LINE__, __VA_ARGS__)
-#else
-#define LOG_VERBOSE(...) \
-  do {                   \
-  } while (0)
-#endif
-
-#if APP_LOG_LEVEL >= APP_LOG_LEVEL_DEBUG
-#define LOG_DEBUG(...) ::logger::Logger::debug_at(__FILE__, __LINE__, __VA_ARGS__)
-#else
-#define LOG_DEBUG(...) \
-  do {                 \
-  } while (0)
-#endif
-
-#if APP_LOG_LEVEL >= APP_LOG_LEVEL_INFO
-#define LOG_INFO(...) ::logger::Logger::info_at(__FILE__, __LINE__, __VA_ARGS__)
-#else
-#define LOG_INFO(...) \
-  do {                \
-  } while (0)
-#endif
-
-#if APP_LOG_LEVEL >= APP_LOG_LEVEL_WARN
-#define LOG_WARN(...) ::logger::Logger::warn_at(__FILE__, __LINE__, __VA_ARGS__)
-#else
-#define LOG_WARN(...) \
-  do {                \
-  } while (0)
-#endif
-
-#if APP_LOG_LEVEL >= APP_LOG_LEVEL_ERROR
-#define LOG_ERROR(...) ::logger::Logger::error_at(__FILE__, __LINE__, __VA_ARGS__)
-#else
-#define LOG_ERROR(...) \
-  do {                 \
-  } while (0)
-#endif
-
-#if APP_LOG_LEVEL >= APP_LOG_LEVEL_FATAL
-#define LOG_FATAL(...) ::logger::Logger::fatal_at(__FILE__, __LINE__, __VA_ARGS__)
-#else
-#define LOG_FATAL(...) \
-  do {                 \
-  } while (0)
-#endif
+#define LOG_DEBUG(...)   ::logger::Logger::debug_at(__FILE__, __LINE__, __VA_ARGS__)
+#define LOG_INFO(...)    ::logger::Logger::info_at(__FILE__, __LINE__, __VA_ARGS__)
+#define LOG_WARN(...)    ::logger::Logger::warn_at(__FILE__, __LINE__, __VA_ARGS__)
+#define LOG_ERROR(...)   ::logger::Logger::error_at(__FILE__, __LINE__, __VA_ARGS__)
+#define LOG_FATAL(...)   ::logger::Logger::fatal_at(__FILE__, __LINE__, __VA_ARGS__)

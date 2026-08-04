@@ -6,10 +6,6 @@
 
 #include "test_session.h"
 
-#if defined(FACTORY_TEST_SCONS_BUILD)
-#include "factory_test_config.h"
-#endif
-
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -30,12 +26,10 @@
 
 #include "logger.h"
 
-#if APP_USE_LIBCJSON
 #if __has_include(<cjson/cJSON.h>)
 #include <cjson/cJSON.h>
 #else
 #include <cJSON.h>
-#endif
 #endif
 
 namespace model {
@@ -230,7 +224,6 @@ TestResult test_result_from_text(const char* value) {
   return value && std::string(value) == "PASS" ? TestResult::PASS : TestResult::FAIL;
 }
 
-#if APP_USE_LIBCJSON
 struct JsonOwner {
   cJSON* value{nullptr};
 
@@ -483,7 +476,6 @@ bool parse_session_document(const std::string& text,
   }
   return true;
 }
-#endif
 
 }  // namespace
 
@@ -582,7 +574,6 @@ bool SessionManager::start_new(const std::vector<TestDefinition>& tests, Session
 
 bool SessionManager::load_latest_recoverable(const std::vector<TestDefinition>& expected_tests) {
   reset_();
-#if APP_USE_LIBCJSON
   const auto directory = default_session_directory();
   std::error_code ec;
   if (!std::filesystem::is_directory(directory, ec)) {
@@ -653,11 +644,6 @@ bool SessionManager::load_latest_recoverable(const std::vector<TestDefinition>& 
            summary().completed,
            tests_.size());
   return true;
-#else
-  (void)expected_tests;
-  set_error_("cJSON library is not available");
-  return false;
-#endif
 }
 
 bool SessionManager::abandon() {
@@ -875,7 +861,6 @@ bool SessionManager::finalize() {
 }
 
 std::string SessionManager::build_result_json(bool formatted) const {
-#if APP_USE_LIBCJSON
   if (session_id_.empty() || tests_.empty()) {
     return {};
   }
@@ -915,10 +900,38 @@ std::string SessionManager::build_result_json(bool formatted) const {
     }
   }
   return print_json(root.get(), formatted);
-#else
-  (void)formatted;
-  return {};
-#endif
+}
+
+std::string SessionManager::build_upload_result_json(bool formatted) const {
+  if (session_id_.empty() || tests_.empty() || state_ != SessionState::COMPLETED) {
+    return {};
+  }
+
+  JsonOwner root(cJSON_CreateObject());
+  cJSON* details = root.get() ? cJSON_AddObjectToObject(root.get(), "test_details") : nullptr;
+  const auto session_summary = summary();
+  const bool passed =
+      session_summary.completed == session_summary.total && session_summary.failed == 0;
+  if (!root.get() || !details ||
+      !cJSON_AddNumberToObject(root.get(), "seq", static_cast<double>(sequence_number_)) ||
+      !cJSON_AddStringToObject(root.get(), "sku", metadata_.sku.c_str()) ||
+      !cJSON_AddStringToObject(root.get(), "sn", metadata_.serial_number.c_str()) ||
+      !cJSON_AddStringToObject(root.get(), "station", metadata_.station.c_str()) ||
+      !cJSON_AddStringToObject(root.get(), "status", passed ? "PASS" : "FAIL") ||
+      !cJSON_AddStringToObject(root.get(), "firmware", metadata_.firmware.c_str()) ||
+      !cJSON_AddStringToObject(root.get(), "commit", metadata_.commit.c_str())) {
+    return {};
+  }
+
+  // The lower device accepts protocol lines up to 511 bytes. Keep the complete
+  // evidence in the result file and send per-test pass/fail values on serial.
+  for (const auto& test : tests_) {
+    if (!cJSON_AddBoolToObject(details, test.id.c_str(),
+                              test.completed && test.result == TestResult::PASS)) {
+      return {};
+    }
+  }
+  return print_json(root.get(), formatted);
 }
 
 TestRecord* SessionManager::find_test_(const std::string& test_id) {
@@ -936,7 +949,6 @@ const TestRecord* SessionManager::find_test_(const std::string& test_id) const {
 }
 
 bool SessionManager::persist_() {
-#if APP_USE_LIBCJSON
   if (session_path_.empty()) {
     set_error_("session path is empty");
     return false;
@@ -996,10 +1008,6 @@ bool SessionManager::persist_() {
   }
   last_error_.clear();
   return true;
-#else
-  set_error_("cJSON library is not available");
-  return false;
-#endif
 }
 
 bool SessionManager::write_result_() {

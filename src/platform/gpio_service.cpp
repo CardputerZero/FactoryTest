@@ -21,7 +21,7 @@
 
 #include "logger.h"
 
-#if APP_USE_LIBGPIOD
+#if !USE_DESKTOP
 #include <gpiod.h>
 #endif
 
@@ -117,7 +117,7 @@ bool write_sysfs_binary_value_unlocked(const std::string& path,
   return false;
 }
 
-#if APP_USE_LIBGPIOD
+#if !USE_DESKTOP
 struct LineRequestOwner {
   gpiod_line_request* request{nullptr};
 
@@ -254,7 +254,7 @@ struct OutputLine::Impl {
     std::lock_guard<std::mutex> lock(mutex);
     error_message.clear();
 
-#if APP_USE_LIBGPIOD
+#if !USE_DESKTOP
     const auto value = active ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE;
     if (!request || !output_mode) {
       release_locked();
@@ -317,7 +317,7 @@ struct OutputLine::Impl {
     std::lock_guard<std::mutex> lock(mutex);
     error_message.clear();
 
-#if APP_USE_LIBGPIOD
+#if !USE_DESKTOP
     release_locked();
     return request_line_locked(GPIOD_LINE_DIRECTION_INPUT,
                                GPIOD_LINE_VALUE_INACTIVE,
@@ -338,7 +338,7 @@ struct OutputLine::Impl {
     std::lock_guard<std::mutex> lock(mutex);
     error_message.clear();
 
-#if APP_USE_LIBGPIOD
+#if !USE_DESKTOP
     if (!request) {
       return read_line_value_preserving_direction(config, active, request, error_message);
     }
@@ -352,7 +352,7 @@ struct OutputLine::Impl {
 #endif
   }
 
-#if APP_USE_LIBGPIOD
+#if !USE_DESKTOP
   bool request_line_locked(gpiod_line_direction direction,
                            gpiod_line_value initial_value,
                            std::string& error_message) {
@@ -369,7 +369,7 @@ struct OutputLine::Impl {
 #endif
 
   void release_locked() {
-#if APP_USE_LIBGPIOD
+#if !USE_DESKTOP
     if (request) {
       gpiod_line_request_release(request);
       request = nullptr;
@@ -380,7 +380,7 @@ struct OutputLine::Impl {
 
   OutputLineConfig config;
   std::mutex mutex;
-#if APP_USE_LIBGPIOD
+#if !USE_DESKTOP
   gpiod_line_request* request{nullptr};
   bool output_mode{false};
 #endif
@@ -427,7 +427,7 @@ bool get_output_value(const OutputLineConfig& config, bool& active, std::string&
     return it->second->get_value(active, error_message);
   }
 
-#if APP_USE_LIBGPIOD
+#if !USE_DESKTOP
   gpiod_line_request* retained_request = nullptr;
   const bool ok =
       read_line_value_preserving_direction(config, active, retained_request, error_message);
@@ -454,6 +454,41 @@ void release_output_value(const OutputLineConfig& config) {
   }
 }
 
+bool get_line_usage(const OutputLineConfig& config,
+                    bool& used,
+                    std::string& consumer,
+                    std::string& error_message) {
+  used = false;
+  consumer.clear();
+  error_message.clear();
+
+#if !USE_DESKTOP
+  gpiod_chip* chip = gpiod_chip_open(config.chip_path.c_str());
+  if (!chip) {
+    error_message = errno_message((std::string("Failed to open ") + config.chip_path).c_str());
+    return false;
+  }
+
+  gpiod_line_info* info = gpiod_chip_get_line_info(chip, config.line_offset);
+  if (!info) {
+    error_message = errno_message("Failed to query GPIO line info");
+    gpiod_chip_close(chip);
+    return false;
+  }
+
+  used = gpiod_line_info_is_used(info);
+  if (const char* current_consumer = gpiod_line_info_get_consumer(info)) {
+    consumer = current_consumer;
+  }
+  gpiod_line_info_free(info);
+  gpiod_chip_close(chip);
+  return true;
+#else
+  error_message = "libgpiod headers/library not found; cannot query GPIO line usage";
+  return false;
+#endif
+}
+
 bool get_input_value(const OutputLineConfig& config, bool& active, std::string& error_message) {
   {
     std::lock_guard<std::mutex> lock(output_lines_mutex());
@@ -466,7 +501,7 @@ bool get_input_value(const OutputLineConfig& config, bool& active, std::string& 
     }
   }
 
-#if APP_USE_LIBGPIOD
+#if !USE_DESKTOP
   LineRequestOwner owner;
   if (!request_line(config,
                     GPIOD_LINE_DIRECTION_INPUT,

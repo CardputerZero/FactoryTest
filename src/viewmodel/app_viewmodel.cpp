@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "device_info_service.h"
+#include "factory_upload_service.h"
 #include "logger.h"
 #include "version.h"
 
@@ -85,12 +86,12 @@ std::vector<model::TestDefinition> test_sequence_plan() {
   return plan;
 }
 
-model::SessionMetadata session_metadata() {
+model::SessionMetadata session_metadata(const std::string& station_id) {
   model::SessionMetadata metadata;
   const auto product_model = platform::device_info::product_model();
-  metadata.sku             = platform::device_info::product_model_name(product_model);
+  metadata.sku             = platform::device_info::product_model_sku(product_model);
   metadata.serial_number   = platform::device_info::read_serial_number();
-  metadata.station         = "AUTO_TEST";
+  metadata.station         = station_id;
   metadata.firmware        = factory_test::get_version_str();
 #if defined(FACTORY_TEST_GIT_COMMIT)
   metadata.commit = FACTORY_TEST_GIT_COMMIT;
@@ -102,8 +103,10 @@ model::SessionMetadata session_metadata() {
 
 }  // namespace
 
-AppViewModel::AppViewModel(model::TranslationService& translations)
+AppViewModel::AppViewModel(model::TranslationService& translations,
+                           model::AppConfigStore& config_store)
     : translations_(translations),
+      config_store_(config_store),
       title_msgid_(model_.app_title()),
       title_subject_(translations_.translate(title_msgid_).c_str()),
       title_alignment_subject_(static_cast<int32_t>(LV_ALIGN_LEFT_MID)),
@@ -111,7 +114,22 @@ AppViewModel::AppViewModel(model::TranslationService& translations)
       title_y_offset_subject_(0),
       dark_mode_subject_(model_.dark_mode()),
       current_page_subject_(page_to_int(model_.current_page())),
-      quit_requested_subject_(false) {}
+      quit_requested_subject_(false) {
+  model_.set_dark_mode(config_store_.config().ui.dark_mode);
+  dark_mode_subject_.set(model_.dark_mode());
+  if (!translations_.set_language(config_store_.config().ui.language)) {
+    config_store_.config().ui.language = "en";
+    translations_.set_language("en");
+    save_config_();
+  }
+  title_subject_.set(translations_.translate(title_msgid_).c_str());
+
+  platform::factory_upload::FactoryUploadConfig upload_config;
+  upload_config.tester_firmware = factory_test::get_version_str();
+  factory_upload_service_ =
+      std::make_unique<platform::factory_upload::FactoryUploadService>(std::move(upload_config));
+  factory_upload_service_->start();
+}
 
 AppViewModel::~AppViewModel() = default;
 
@@ -142,11 +160,15 @@ const std::array<NavAction, 5>& AppViewModel::nav_actions() const { return nav_a
 void AppViewModel::set_dark_mode(bool enabled) {
   model_.set_dark_mode(enabled);
   dark_mode_subject_.set(model_.dark_mode());
+  config_store_.config().ui.dark_mode = model_.dark_mode();
+  save_config_();
 }
 
 void AppViewModel::toggle_dark_mode() {
   model_.toggle_dark_mode();
   dark_mode_subject_.set(model_.dark_mode());
+  config_store_.config().ui.dark_mode = model_.dark_mode();
+  save_config_();
 }
 
 bool AppViewModel::set_language(const std::string& locale) {
@@ -156,7 +178,25 @@ bool AppViewModel::set_language(const std::string& locale) {
 
   title_subject_.set(translations_.translate(title_msgid_).c_str());
   language_subject_.set(language_subject_.value() + 1);
+  config_store_.config().ui.language = locale;
+  save_config_();
   return true;
+}
+
+int AppViewModel::uart_baud_rate() const { return config_store_.config().uart.baud_rate; }
+
+bool AppViewModel::set_uart_baud_rate(int baud_rate) {
+  config_store_.config().uart.baud_rate = baud_rate;
+  return save_config_();
+}
+
+bool AppViewModel::set_iperf_settings(const std::string& host, int port) {
+  if (host.empty() || port <= 0 || port > 65535) {
+    return false;
+  }
+  config_store_.config().network.iperf_host = host;
+  config_store_.config().network.iperf_port = port;
+  return save_config_();
 }
 
 std::string AppViewModel::tr(const char* msgid) const {
@@ -265,7 +305,8 @@ bool AppViewModel::load_recoverable_test_session() {
 }
 
 bool AppViewModel::start_full_test_sequence() {
-  if (!session_manager_.start_new(test_sequence_plan(), session_metadata())) {
+  if (!session_manager_.start_new(test_sequence_plan(),
+                                  session_metadata(config_store_.config().factory.station_id))) {
     LOG_ERROR("failed to start test session: {}", session_manager_.last_error());
     return false;
   }
@@ -276,6 +317,16 @@ bool AppViewModel::start_full_test_sequence() {
     return false;
   }
   return true;
+}
+
+bool AppViewModel::save_config_() {
+  if (config_store_.save()) {
+    return true;
+  }
+  LOG_ERROR("failed to save config {}: {}",
+            config_store_.path().string(),
+            config_store_.last_error());
+  return false;
 }
 
 bool AppViewModel::resume_full_test_sequence() {
@@ -492,6 +543,76 @@ const std::vector<model::TestRecord>& AppViewModel::test_records() const {
 
 model::SessionSummary AppViewModel::test_session_summary() const {
   return session_manager_.summary();
+}
+
+bool AppViewModel::upload_test_result(std::string& error_message) {
+  error_message.clear();
+  if (!factory_upload_service_) {
+    error_message = "Factory upload service is unavailable";
+    return false;
+  }
+
+  const auto listener = factory_upload_service_->snapshot();
+  if (!listener.listener_online) {
+    error_message = "Factory upload listener is offline";
+    LOG_ERROR("factory upload request rejected: listener heartbeat age={}ms",
+              listener.listener_heartbeat_age_ms);
+    return false;
+  }
+
+  auto payload = session_manager_.build_upload_result_json(false);
+  if (payload.empty()) {
+    error_message = "Completed test result is unavailable";
+    LOG_ERROR("factory upload request rejected: {}", error_message);
+    return false;
+  }
+  return factory_upload_service_->queue_result(std::move(payload), error_message);
+}
+
+TestUploadSnapshot AppViewModel::test_upload_snapshot() const {
+  TestUploadSnapshot result;
+  if (!factory_upload_service_) {
+    result.message = "Factory upload service is unavailable";
+    return result;
+  }
+
+  const auto snapshot              = factory_upload_service_->snapshot();
+  result.message                   = snapshot.message;
+  result.port                      = snapshot.port;
+  result.revision                  = snapshot.revision;
+  result.listener_online           = snapshot.listener_online;
+  result.listener_heartbeat_age_ms = snapshot.listener_heartbeat_age_ms;
+  switch (snapshot.state) {
+    case platform::factory_upload::UploadState::SEARCHING:
+      result.state = TestUploadState::SEARCHING;
+      break;
+    case platform::factory_upload::UploadState::WAITING_HANDSHAKE:
+      result.state = TestUploadState::WAITING_HANDSHAKE;
+      break;
+    case platform::factory_upload::UploadState::READY:
+      result.state = TestUploadState::READY;
+      break;
+    case platform::factory_upload::UploadState::QUEUED:
+      result.state = TestUploadState::QUEUED;
+      break;
+    case platform::factory_upload::UploadState::SENDING:
+      result.state = TestUploadState::SENDING;
+      break;
+    case platform::factory_upload::UploadState::WAITING_RESULT_ACK:
+      result.state = TestUploadState::WAITING_RESULT_ACK;
+      break;
+    case platform::factory_upload::UploadState::SUCCEEDED:
+      result.state = TestUploadState::SUCCEEDED;
+      break;
+    case platform::factory_upload::UploadState::FAILED:
+      result.state = TestUploadState::FAILED;
+      break;
+    case platform::factory_upload::UploadState::UNAVAILABLE:
+    default:
+      result.state = TestUploadState::UNAVAILABLE;
+      break;
+  }
+  return result;
 }
 
 void AppViewModel::set_back_request_handler(BackRequestHandler handler, void* user_data) {

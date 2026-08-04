@@ -34,7 +34,7 @@ if(APP_INSTALL_SYSTEMD_SERVICE)
     )
 endif()
 
-if(APP_USE_LIBNM)
+if(NOT USE_DESKTOP)
     configure_file(
         "${CMAKE_CURRENT_LIST_DIR}/templates/factory-test-networkmanager.rules.in"
         "${APP_GENERATED_DIR}/50-${PROJECT_NAME}-networkmanager.rules"
@@ -106,7 +106,7 @@ if(APP_INSTALL_SYSTEMD_SERVICE)
     )
 endif()
 
-if(APP_USE_LIBNM)
+if(NOT USE_DESKTOP)
     install(
         FILES "${APP_GENERATED_DIR}/50-${PROJECT_NAME}-networkmanager.rules"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/polkit-1/rules.d"

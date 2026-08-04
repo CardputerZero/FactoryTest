@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -25,6 +26,17 @@ struct UartOpenResult {
   std::string message;
 };
 
+struct UsbSerialPortInfo {
+  std::string path;
+  int bus{-1};
+  int address{-1};
+};
+
+UsbSerialPortInfo find_usb_serial_port(std::uint16_t vendor_id,
+                                       std::uint16_t product_id,
+                                       std::string& error_message);
+bool same_usb_serial_instance(const UsbSerialPortInfo& lhs, const UsbSerialPortInfo& rhs);
+
 class UartDebugSession {
  public:
   ~UartDebugSession();
@@ -34,7 +46,9 @@ class UartDebugSession {
 
   static std::unique_ptr<UartDebugSession> open(const std::string& path,
                                                 int baud_rate,
-                                                UartOpenResult& result);
+                                                UartOpenResult& result,
+                                                bool flush_buffers = true);
+  void close(bool drain_output = true);
   int baud_rate() const;
   bool set_baud_rate(int baud_rate, std::string& error_message);
   std::string read_available(std::string& error_message);

@@ -7,7 +7,6 @@
 #include "ir_fixture_test_page.h"
 
 #include <cstring>
-#include <vector>
 
 #include "asset_manager.h"
 #include "bindings.h"
@@ -54,7 +53,7 @@ IrFixtureTestPage::IrFixtureTestPage(viewmodel::AppViewModel& app_view_model,
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
   app_view_model_ref_().clear_nav_actions();
   set_nav_action_('4', view::ICON_ARROW_U_UP_LEFT, [this]() { cancel_and_leave_(); });
-  set_nav_action_('8', view::ICON_CHECK_SQUARE, [this]() { report_result_(); });
+  set_nav_action_('8', view::ICON_CHECK_SQUARE, [this]() { show_test_result_dialog_(); });
   init();
   refresh_timer_ = lv_timer_create(refresh_timer_cb, 100, this);
   platform::set_key_listener(key_listener, this);
@@ -154,6 +153,9 @@ void IrFixtureTestPage::key_listener(uint32_t key, const char* key_name, void* u
   if (!page) {
     return;
   }
+  if (page->handle_test_result_dialog_key_(key, key_name)) {
+    return;
+  }
   if (is_enter(key, key_name)) {
     page->start_();
   }
@@ -186,26 +188,6 @@ void IrFixtureTestPage::start_() {
                                                        model::EvidenceValue::boolean(true));
     model_.start();
   }
-}
-
-void IrFixtureTestPage::report_result_() {
-  const auto snapshot = model_.snapshot();
-  if (snapshot.state != model::IrFixtureRunState::PASSED &&
-      snapshot.state != model::IrFixtureRunState::FAILED) {
-    return;
-  }
-
-  const auto item_result = [](model::IrFixtureItemState state) {
-    return state == model::IrFixtureItemState::PASSED ? model::TestResult::PASS
-                                                      : model::TestResult::FAIL;
-  };
-  const std::vector<model::NamedTestResult> details = {
-      {"IR Fixture - TX", item_result(snapshot.items[0].state)},
-      {"IR Fixture - RX", item_result(snapshot.items[1].state)},
-  };
-  const auto overall = snapshot.state == model::IrFixtureRunState::PASSED ? model::TestResult::PASS
-                                                                          : model::TestResult::FAIL;
-  app_view_model_ref_().complete_current_test_with_details(overall, details);
 }
 
 void IrFixtureTestPage::cancel_and_leave_() {

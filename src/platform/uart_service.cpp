@@ -12,8 +12,8 @@
 
 #include <algorithm>
 #include <array>
-#include <chrono>
 #include <cctype>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -22,7 +22,7 @@
 
 #include "logger.h"
 
-#if APP_USE_LIBSERIALPORT
+#if !USE_DESKTOP
 #include <libserialport.h>
 #endif
 
@@ -106,13 +106,23 @@ bool uart_occupied_by_console(const std::string& path) {
 }
 #endif
 
-#if APP_USE_LIBSERIALPORT
+#if !USE_DESKTOP
 struct PortConfigOwner {
   sp_port_config* config{nullptr};
 
   ~PortConfigOwner() {
     if (config) {
       sp_free_config(config);
+    }
+  }
+};
+
+struct PortListOwner {
+  sp_port** ports{nullptr};
+
+  ~PortListOwner() {
+    if (ports) {
+      sp_free_port_list(ports);
     }
   }
 };
@@ -149,14 +159,19 @@ bool check_sp(sp_return result, const char* operation, std::string& error_messag
   return false;
 }
 
-bool configure_uart_port(sp_port* port, int baud_rate, std::string& error_message) {
+bool configure_uart_port(sp_port* port,
+                         int baud_rate,
+                         bool flush_buffers,
+                         std::string& error_message) {
   if (!port) {
     error_message = "UART is not open";
     return false;
   }
 
-  sp_drain(port);
-  sp_flush(port, SP_BUF_BOTH);
+  if (flush_buffers) {
+    sp_drain(port);
+    sp_flush(port, SP_BUF_BOTH);
+  }
 
   PortConfigOwner owner;
   auto rc = sp_new_config(&owner.config);
@@ -171,9 +186,7 @@ bool configure_uart_port(sp_port* port, int baud_rate, std::string& error_messag
       !check_sp(sp_set_config_parity(owner.config, SP_PARITY_NONE),
                 "sp_set_config_parity",
                 error_message) ||
-      !check_sp(sp_set_config_stopbits(owner.config, 1),
-                "sp_set_config_stopbits",
-                error_message) ||
+      !check_sp(sp_set_config_stopbits(owner.config, 1), "sp_set_config_stopbits", error_message) ||
       // Avoid flowcontrol presets: they also overwrite RTS/DTR on four-wire UART.
       !check_sp(sp_set_config_xon_xoff(owner.config, SP_XONXOFF_DISABLED),
                 "sp_set_config_xon_xoff",
@@ -192,34 +205,100 @@ bool configure_uart_port(sp_port* port, int baud_rate, std::string& error_messag
   }
 
   std::this_thread::sleep_for(std::chrono::milliseconds(20));
-  sp_flush(port, SP_BUF_BOTH);
+  if (flush_buffers) {
+    sp_flush(port, SP_BUF_BOTH);
+  }
   return true;
 }
 #endif
 
 }  // namespace
 
+UsbSerialPortInfo find_usb_serial_port(std::uint16_t vendor_id,
+                                       std::uint16_t product_id,
+                                       std::string& error_message) {
+  error_message.clear();
+#if !USE_DESKTOP
+  PortListOwner owner;
+  const auto rc = sp_list_ports(&owner.ports);
+  if (rc != SP_OK || !owner.ports) {
+    error_message = serialport_error("sp_list_ports", rc);
+    return {};
+  }
+
+  for (std::size_t index = 0; owner.ports[index] != nullptr; ++index) {
+    auto* port = owner.ports[index];
+    if (sp_get_port_transport(port) != SP_TRANSPORT_USB) {
+      continue;
+    }
+
+    int port_vendor_id  = 0;
+    int port_product_id = 0;
+    if (sp_get_port_usb_vid_pid(port, &port_vendor_id, &port_product_id) != SP_OK ||
+        port_vendor_id != vendor_id || port_product_id != product_id) {
+      continue;
+    }
+
+    const char* name = sp_get_port_name(port);
+    if (name && name[0] != '\0') {
+      UsbSerialPortInfo result;
+      result.path = name;
+      if (sp_get_port_usb_bus_address(port, &result.bus, &result.address) != SP_OK) {
+        result.bus     = -1;
+        result.address = -1;
+      }
+      return result;
+    }
+  }
+
+  error_message = "matching USB serial port not found";
+  return {};
+#else
+  (void)vendor_id;
+  (void)product_id;
+  error_message = "libserialport backend is not enabled";
+  return {};
+#endif
+}
+
+bool same_usb_serial_instance(const UsbSerialPortInfo& lhs, const UsbSerialPortInfo& rhs) {
+  if (lhs.path.empty() || rhs.path.empty() || lhs.path != rhs.path) {
+    return false;
+  }
+  if (lhs.bus < 0 || lhs.address < 0 || rhs.bus < 0 || rhs.address < 0) {
+    return true;
+  }
+  return lhs.bus == rhs.bus && lhs.address == rhs.address;
+}
+
 UartDebugSession::UartDebugSession(sp_port* port, std::string path, int baud_rate)
     : port_(port),
       path_(std::move(path)),
       baud_rate_(baud_rate) {}
 
-UartDebugSession::~UartDebugSession() {
-#if APP_USE_LIBSERIALPORT
+UartDebugSession::~UartDebugSession() { close(); }
+
+void UartDebugSession::close(bool drain_output) {
+#if !USE_DESKTOP
   if (port_) {
-    sp_drain(port_);
+    if (drain_output) {
+      sp_drain(port_);
+    }
     sp_close(port_);
     sp_free_port(port_);
     port_ = nullptr;
   }
+#else
+  (void)drain_output;
 #endif
 }
 
 std::unique_ptr<UartDebugSession> UartDebugSession::open(const std::string& path,
                                                          int baud_rate,
-                                                         UartOpenResult& result) {
+                                                         UartOpenResult& result,
+                                                         bool flush_buffers) {
   result = {};
-#if APP_USE_LIBSERIALPORT
+#if !USE_DESKTOP
   if (uart_occupied_by_console(path)) {
     result.status  = UartOpenStatus::OCCUPIED_BY_CONSOLE;
     result.message = "UART is used by console. Disable serial login in raspi-config.";
@@ -243,7 +322,7 @@ std::unique_ptr<UartDebugSession> UartDebugSession::open(const std::string& path
   }
 
   std::string error;
-  if (!configure_uart_port(port, baud_rate, error)) {
+  if (!configure_uart_port(port, baud_rate, flush_buffers, error)) {
     sp_close(port);
     sp_free_port(port);
     result.status  = UartOpenStatus::OPEN_FAILED;
@@ -258,6 +337,7 @@ std::unique_ptr<UartDebugSession> UartDebugSession::open(const std::string& path
 #else
   (void)path;
   (void)baud_rate;
+  (void)flush_buffers;
   result.status  = UartOpenStatus::UNSUPPORTED;
   result.message = "libserialport backend is not enabled";
   return nullptr;
@@ -268,12 +348,12 @@ int UartDebugSession::baud_rate() const { return baud_rate_; }
 
 bool UartDebugSession::set_baud_rate(int baud_rate, std::string& error_message) {
   error_message.clear();
-#if APP_USE_LIBSERIALPORT
+#if !USE_DESKTOP
   if (!port_) {
     error_message = "UART is not open";
     return false;
   }
-  if (!configure_uart_port(port_, baud_rate, error_message)) {
+  if (!configure_uart_port(port_, baud_rate, true, error_message)) {
     return false;
   }
   baud_rate_ = baud_rate;
@@ -291,7 +371,7 @@ bool UartDebugSession::set_baud_rate(int baud_rate, std::string& error_message) 
 std::string UartDebugSession::read_available(std::string& error_message) {
   error_message.clear();
   std::string output;
-#if APP_USE_LIBSERIALPORT
+#if !USE_DESKTOP
   if (!port_) {
     error_message = "UART is not open";
     return output;
@@ -318,7 +398,7 @@ std::string UartDebugSession::read_available(std::string& error_message) {
 
 bool UartDebugSession::write_text(const std::string& text, std::string& error_message) {
   error_message.clear();
-#if APP_USE_LIBSERIALPORT
+#if !USE_DESKTOP
   if (!port_) {
     error_message = "UART is not open";
     return false;

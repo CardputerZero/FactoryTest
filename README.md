@@ -7,13 +7,13 @@ This repository holds the factory test application of CardputerZero.
 + Download the debian release
 
 ```
-wget https://github.com/CardputerZero/FactoryTest/releases/download/0.2.10/FactoryTest_0.2.10_m5stack1_arm64.deb
+wget https://github.com/CardputerZero/FactoryTest/releases/download/0.3.0/FactoryTest_0.3.0_m5stack1_arm64.deb
 ```
 
 + Install the package
 
 ```
-sudo apt install ./FactoryTest_0.2.10_m5stack1_arm64.deb
+sudo apt install ./FactoryTest_0.3.0_m5stack1_arm64.deb
 ```
 
 
@@ -23,6 +23,15 @@ TODO
 
 
 ## Changelog
+
+### 0.3.0 - 2026-08-04
+
+- Add a versioned JSON configuration store for persistent theme, language, key-click, iperf, UART, logging, and factory-station settings.
+- Add thread-safe file logging with UTC timestamps, bounded segment rotation, directory retention, graceful fallback, and desktop coverage.
+- Upload completed test results from the result page over the `M5FACTORY` USB serial protocol, with device discovery, handshake and acknowledgement handling, progress feedback, and Chinese localization.
+- Harden CAP fixture testing with software-reset retries, corrected `303a:4005` USB detection, GPIO ownership checks, deterministic USB/GPIO switching, and cleaner resource release.
+- Improve UART lifecycle and USB serial discovery, persist manual UART and link settings, and refine audio channel handling and configurable key-click playback.
+- Simplify target builds around the DRM backend and required hardware libraries, fail early on missing BSP dependencies, and add configuration, logger, UART, and session tests.
 
 ### 0.2.10 - 2026-07-30
 

@@ -18,17 +18,17 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <vector>
 #include <filesystem>
 #include <fstream>
 #include <memory>
 #include <optional>
 #include <sstream>
 #include <utility>
+#include <vector>
 
 #include "logger.h"
 
-#if APP_USE_LIBNM
+#if !USE_DESKTOP
 #include <NetworkManager.h>
 #endif
 #if defined(__linux__)
@@ -101,7 +101,7 @@ bool wireless_result_sort_less(const WirelessScanItem& left, const WirelessScanI
   return left.detail < right.detail;
 }
 
-#if APP_USE_LIBNM
+#if !USE_DESKTOP
 constexpr gint64 K_WIFI_SCAN_WAIT_TIMEOUT_US  = 12000000;
 constexpr gint64 K_WIFI_SCAN_POLL_INTERVAL_US = 100000;
 constexpr gint64 K_WIFI_SCAN_SETTLE_TIME_US   = 500000;
@@ -124,7 +124,6 @@ std::string take_error(GErrorOwner& owner, const char* fallback) {
   }
   return fallback ? fallback : "NetworkManager error";
 }
-
 
 struct GMainContextScope {
   GMainContext* context{nullptr};
@@ -564,7 +563,7 @@ EthernetInfo read_ethernet_info(std::string& error_message) {
   static EthernetLogSnapshot log_snapshot;
   error_message.clear();
   EthernetInfo info;
-#if APP_USE_LIBNM
+#if !USE_DESKTOP
   LOG_TRACE("connectivity Ethernet info requested");
   auto client = make_client(error_message);
   if (!client.client) {

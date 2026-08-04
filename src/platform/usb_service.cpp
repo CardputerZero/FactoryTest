@@ -28,7 +28,7 @@
 
 #include "logger.h"
 
-#if APP_USE_LIBUDEV
+#if !USE_DESKTOP
 #include <libudev.h>
 #endif
 #if defined(__linux__)
@@ -95,7 +95,7 @@ void log_usb_result(const std::vector<UsbDeviceInfo>& devices,
   }
 }
 
-#if APP_USE_LIBUDEV
+#if !USE_DESKTOP
 struct UdevOwner {
   udev* context{nullptr};
 
@@ -199,7 +199,7 @@ std::string usb_device_detail(udev_device* device) {
 std::vector<UsbDeviceInfo> list_usb_devices(std::string& error_message) {
   static UsbLogSnapshot log_snapshot;
   error_message.clear();
-#if APP_USE_LIBUDEV
+#if !USE_DESKTOP
   LOG_TRACE("connectivity USB enumeration requested");
   LOG_TRACE("connectivity initializing libudev context");
   UdevOwner udev_context{udev_new()};

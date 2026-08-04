@@ -45,14 +45,18 @@ std::string errno_error(const char* operation) {
   return std::string(operation ? operation : "operation") + ": " + std::strerror(errno);
 }
 
+std::string usb_id_text(uint16_t vendor_id, uint16_t product_id) {
+  char id[10]{};
+  std::snprintf(id, sizeof(id), "%04x:%04x", vendor_id, product_id);
+  return id;
+}
+
 bool target_usb_present(uint16_t vendor_id,
                         uint16_t product_id,
                         std::string* sys_path,
                         std::string& error_message) {
   auto devices = platform::connectivity::list_usb_devices(error_message);
-  char expected[10]{};
-  std::snprintf(expected, sizeof(expected), "%04x:%04x", vendor_id, product_id);
-  std::string expected_text(expected);
+  auto expected_text = usb_id_text(vendor_id, product_id);
   std::transform(expected_text.begin(), expected_text.end(), expected_text.begin(), [](char ch) {
     return static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
   });
@@ -322,10 +326,45 @@ bool set_ext_5v_enabled(bool enabled, std::string& error_message) {
   return platform::gpio::write_sysfs_binary_value(K_EXT_5V_PATH, enabled, error_message);
 }
 
-bool set_usb_gpio_function(bool usb_enabled, std::string& error_message) {
-  return platform::gpio::write_sysfs_binary_value(K_USB_GPIO_FUNCTION_PATH,
-                                                  usb_enabled,
-                                                  error_message);
+bool select_usb_function(std::string& error_message) {
+  for (const auto& line : K_GPIO_TEST_LINES) {
+    platform::gpio::release_output_value(line);
+  }
+
+  std::string occupied_lines;
+  for (const auto& line : K_GPIO_TEST_LINES) {
+    bool used = false;
+    std::string consumer;
+    std::string line_error;
+    if (!platform::gpio::get_line_usage(line, used, consumer, line_error)) {
+      error_message = "failed to inspect GPIO" + std::to_string(line.line_offset) +
+                      " before USB function switch: " + line_error;
+      return false;
+    }
+    LOG_INFO("[CAP-FIXTURE][USB] GPIO{} released; used={} consumer='{}'",
+             line.line_offset,
+             used,
+             consumer.empty() ? "<none>" : consumer);
+    if (!used) {
+      continue;
+    }
+    if (!occupied_lines.empty()) {
+      occupied_lines += ", ";
+    }
+    occupied_lines += "GPIO" + std::to_string(line.line_offset) + " consumer='" +
+                      (consumer.empty() ? "<unknown>" : consumer) + "'";
+  }
+
+  if (!occupied_lines.empty()) {
+    error_message = "GPIO lines are occupied before USB function switch: " + occupied_lines;
+    return false;
+  }
+
+  return platform::gpio::write_sysfs_binary_value(K_USB_GPIO_FUNCTION_PATH, true, error_message);
+}
+
+bool select_gpio_function(std::string& error_message) {
+  return platform::gpio::write_sysfs_binary_value(K_USB_GPIO_FUNCTION_PATH, false, error_message);
 }
 
 bool read_charge_report(uint8_t& report, std::string& detail, std::string& error_message) {
@@ -461,7 +500,7 @@ bool wait_for_usb_device(uint16_t vendor_id,
       return false;
     }
   }
-  error_message = "timed out waiting for USB 303a:1001";
+  error_message = "timed out waiting for USB " + usb_id_text(vendor_id, product_id);
   return false;
 }
 

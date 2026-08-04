@@ -70,12 +70,34 @@ std::filesystem::path unique_test_root() {
 }
 
 model::SessionMetadata metadata() {
-  return {"CardputerZero", "SN-TEST-001", "AUTO_TEST", "0.2.9", "1234567890"};
+  return {"C154", "SN-TEST-001", "AUTO_TEST", "0.2.9", "1234567890"};
 }
 
 const std::vector<model::TestDefinition> kPlan = {
     {"input", "Input Test"},
     {"display", "Display Test"},
+};
+
+const std::vector<model::TestDefinition> kFullPlan = {
+    {"input", "Input Test"},
+    {"display", "Display Test"},
+    {"audio", "Audio Test"},
+    {"camera", "Camera Test"},
+    {"ir_fixture", "IR Fixture Test"},
+    {"wifi", "Wi-Fi"},
+    {"bluetooth", "Bluetooth"},
+    {"ethernet", "Ethernet"},
+    {"link", "Link Test"},
+    {"hdmi", "HDMI"},
+    {"cap_fixture", "CAP Fixture Test"},
+    {"cap_lora_1262", "CAP LoRa-1262"},
+    {"cap_cc1101", "CAP-CC1101"},
+    {"device_info", "Device Information"},
+    {"power", "Power Information"},
+    {"imu", "IMU Test"},
+    {"cpu", "CPU Benchmark"},
+    {"memory", "Mem Stress Test"},
+    {"sd_card", "SD Card Test"},
 };
 
 void check_no_temporary_files(const std::filesystem::path& directory) {
@@ -125,6 +147,7 @@ void test_persistence_evidence_and_result(const std::filesystem::path& root) {
   const auto result         = read_file(recovered.result_path());
   const auto compact_result = without_whitespace(result);
   CHECK(!result.empty());
+  CHECK(compact_result.find("\"sku\":\"C154\"") != std::string::npos);
   CHECK(compact_result.find("\"status\":\"FAIL\"") != std::string::npos);
   CHECK(compact_result.find("\"result\":\"PASS\"") != std::string::npos);
   CHECK(compact_result.find("\"result\":\"FAIL\"") != std::string::npos);
@@ -132,6 +155,13 @@ void test_persistence_evidence_and_result(const std::filesystem::path& root) {
   CHECK(compact_result.find("\"pattern_rendered\":true") != std::string::npos);
   CHECK(compact_result.find("\"commit\":\"12345678\"") != std::string::npos);
   CHECK(result.find("FAILED") == std::string::npos);
+
+  const auto upload_result = recovered.build_upload_result_json(false);
+  CHECK(!upload_result.empty());
+  CHECK(upload_result.find("\"sku\":\"C154\"") != std::string::npos);
+  CHECK(upload_result.find("\"input\":true") != std::string::npos);
+  CHECK(upload_result.find("\"display\":false") != std::string::npos);
+  CHECK(std::string("M5FACTORY:RESULT ").size() + upload_result.size() <= 511);
   check_no_temporary_files(directory);
 }
 
@@ -184,6 +214,19 @@ void test_missing_session_and_plan_mismatch(const std::filesystem::path& root) {
   CHECK(mismatch.state() == model::SessionState::NONE);
 }
 
+void test_full_plan_upload_fits_protocol_line(const std::filesystem::path& root) {
+  set_session_directory(root / "full-plan");
+  model::SessionManager session;
+  CHECK(session.start_new(kFullPlan, metadata()));
+  for (const auto& test : kFullPlan) {
+    CHECK(session.complete_test(test.id, model::TestResult::PASS));
+  }
+
+  const auto upload_result = session.build_upload_result_json(false);
+  CHECK(!upload_result.empty());
+  CHECK(std::string("M5FACTORY:RESULT ").size() + upload_result.size() <= 511);
+}
+
 }  // namespace
 
 int main() {
@@ -198,6 +241,7 @@ int main() {
   test_persistence_evidence_and_result(root);
   test_only_latest_session_is_recoverable(root);
   test_missing_session_and_plan_mismatch(root);
+  test_full_plan_upload_fits_protocol_line(root);
 
   std::filesystem::remove_all(root, ec);
   if (ec) {

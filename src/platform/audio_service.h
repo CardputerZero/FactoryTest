@@ -21,6 +21,8 @@ bool find_audio_device(AudioDevice& device, std::string& error_message);
 bool record_wav(const AudioDevice& device, const std::string& output_path, int seconds);
 bool play_wav(const AudioDevice& device, const std::string& input_path);
 void set_volume_level(float level);
+void set_key_click_enabled(bool enabled);
+void set_key_click_volume_level(float level);
 void set_key_click_sound_path(const std::string& input_path);
 bool initialize_key_click_sound();
 void play_key_click_sound();

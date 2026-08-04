@@ -6,6 +6,8 @@
 
 #include "uart_page.h"
 
+#include <unistd.h>
+
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -13,11 +15,10 @@
 #include <cstring>
 #include <sstream>
 #include <utility>
-#include <unistd.h>
 
 #include "bindings.h"
-#include "io_page_common.h"
 #include "gpio_service.h"
+#include "io_page_common.h"
 #include "linux_input.h"
 #include "screenshot_service.h"
 #include "theme.h"
@@ -108,6 +109,7 @@ void UartConnectivityView::build(lv_obj_t* parent,
   app_view_model_ = &app_view_model;
   assets_         = &assets;
   dialog_parent_  = dialog_parent;
+  baud_rate_      = app_view_model.uart_baud_rate();
 
   root_ = lv_obj_create(parent);
   lv_obj_remove_style_all(root_);
@@ -302,12 +304,14 @@ void UartConnectivityView::open_session_() {
   }
 
   if (result.status == platform::connectivity::UartOpenStatus::OCCUPIED_BY_CONSOLE) {
-    show_status_(app_view_model_ ? app_view_model_->tr("UART console active\nDisable login shell in raspi-config")
+    show_status_(app_view_model_ ? app_view_model_->tr(
+                                       "UART console active\nDisable login shell in raspi-config")
                                  : "UART console active\nDisable login shell in raspi-config");
   } else {
-    show_status_(result.message.empty() ? (app_view_model_ ? app_view_model_->tr("Unable to open /dev/ttyS0")
-                                                           : "Unable to open /dev/ttyS0")
-                                        : result.message);
+    show_status_(result.message.empty()
+                     ? (app_view_model_ ? app_view_model_->tr("Unable to open /dev/ttyS0")
+                                        : "Unable to open /dev/ttyS0")
+                     : result.message);
   }
 }
 
@@ -373,7 +377,8 @@ void UartConnectivityView::send_input_() {
   append_log_(">>>", payload);
 
   if (!session_) {
-    append_log_("***", app_view_model_ ? app_view_model_->tr("UART is not open") : "UART is not open");
+    append_log_("***",
+                app_view_model_ ? app_view_model_->tr("UART is not open") : "UART is not open");
     return;
   }
 
@@ -440,6 +445,9 @@ void UartConnectivityView::apply_config_dialog_() {
   hide_config_dialog_();
 
   baud_rate_ = new_baud;
+  if (app_view_model_) {
+    app_view_model_->set_uart_baud_rate(baud_rate_);
+  }
   if (session_) {
     std::string error;
     if (session_->set_baud_rate(baud_rate_, error)) {
@@ -447,10 +455,9 @@ void UartConnectivityView::apply_config_dialog_() {
       append_log_("***", prefix + " " + std::to_string(baud_rate_));
     } else {
       append_log_("***",
-                  error.empty()
-                      ? (app_view_model_ ? app_view_model_->tr("Failed to set baud")
-                                         : "Failed to set baud")
-                      : error);
+                  error.empty() ? (app_view_model_ ? app_view_model_->tr("Failed to set baud")
+                                                   : "Failed to set baud")
+                                : error);
     }
   } else {
     if (status_label_ && lv_obj_is_valid(status_label_)) {

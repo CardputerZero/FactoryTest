@@ -65,6 +65,7 @@ class CapFixtureTestModel {
   bool run_spi_();
   bool run_usb_();
   bool run_gpio_();
+  bool select_host_pin_function_(bool usb_enabled, std::string& error_message);
   bool delay_(const char* stage, unsigned int milliseconds, const char* reason);
   bool hold_gpio_outputs_high_(const char* stage, unsigned int milliseconds, const char* reason);
   bool write_reg_(const char* stage, unsigned int reg, const unsigned char* data, std::size_t size);
@@ -81,6 +82,9 @@ class CapFixtureTestModel {
   std::atomic_bool cancel_requested_{false};
   std::thread worker_{};
   std::size_t active_item_{6};
+  bool host_pin_function_known_{false};
+  bool host_usb_function_selected_{false};
+  bool gpio_test_lines_released_{false};
 };
 
 const char* cap_fixture_item_state_text(CapFixtureItemState state);

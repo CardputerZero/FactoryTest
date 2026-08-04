@@ -26,7 +26,6 @@ class IrFixtureTestPage : public BaseScreen {
   static void key_listener(uint32_t key, const char* key_name, void* user_data);
   void refresh_();
   void start_();
-  void report_result_();
   void cancel_and_leave_();
 
   model::IrFixtureTestModel model_{};

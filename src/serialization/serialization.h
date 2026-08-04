@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <map>
 #include <string>
 #include <vector>
@@ -43,5 +44,6 @@ ParseResult parse_json_file(const std::string& path);
 ParseResult parse_yaml_file(const std::string& path);
 
 std::string output_value_to_string(const OutputValue& value);
+std::string output_value_to_pretty_string(const OutputValue& value, std::size_t indent_size = 2);
 
 }  // namespace platform::serialization

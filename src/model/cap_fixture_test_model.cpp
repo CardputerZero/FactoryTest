@@ -29,8 +29,15 @@ constexpr std::size_t K_SPI_ITEM   = 3;
 constexpr std::size_t K_USB_ITEM   = 4;
 constexpr std::size_t K_GPIO_ITEM  = 5;
 
+constexpr uint16_t K_USB_VENDOR_ID  = 0x303A;
+constexpr uint16_t K_USB_PRODUCT_ID = 0x4005;
+
 constexpr unsigned int K_FEATURE_GUARD_DELAY_MS  = 100;
 constexpr unsigned int K_COMMAND_DELAY_MS        = 100;
+constexpr unsigned int K_SOFTWARE_RESET_DELAY_MS = 2000;
+constexpr unsigned int K_SOFTWARE_RESET_RETRY_MS = 200;
+constexpr unsigned int K_SOFTWARE_RESET_ATTEMPTS = 5;
+constexpr unsigned int K_FIXTURE_POWER_SETTLE_MS  = 300;
 constexpr unsigned int K_SYSFS_SWITCH_DELAY_MS   = 150;
 constexpr unsigned int K_INTER_TEST_DELAY_MS     = 1000;
 constexpr unsigned int K_GPIO_HOLD_REFRESH_MS    = 10;
@@ -167,10 +174,10 @@ void CapFixtureTestModel::start() {
     return;
   }
   cancel_requested_.store(false);
-  publish_(CapFixtureRunState::RUNNING, "Preparing Zero interfaces");
+  publish_(CapFixtureRunState::RUNNING, "Resetting CAP fixture");
   LOG_INFO(
-      "[CAP-FIXTURE][RUN] starting Zero fixture sequence: I2C -> Power -> UART -> SPI -> USB -> "
-      "GPIO");
+      "[CAP-FIXTURE][RUN] starting Zero fixture sequence: EXT 5V -> Software Reset -> I2C -> "
+      "Power -> UART -> SPI -> USB -> GPIO");
   worker_ = std::thread(&CapFixtureTestModel::run_, this);
 }
 
@@ -190,34 +197,64 @@ CapFixtureSnapshot CapFixtureTestModel::snapshot() const {
 }
 
 void CapFixtureTestModel::run_() {
+  std::string error;
+  LOG_INFO("[CAP-FIXTURE][PREPARE] ensuring EXT 5V output before reset: {}=1",
+           platform::fixture::K_EXT_5V_PATH);
+  if (!platform::fixture::set_ext_5v_enabled(true, error)) {
+    fail_("PREPARE", "failed to enable EXT 5V before reset: " + error);
+    cleanup_();
+    return;
+  }
+  if (!delay_("PREPARE",
+              K_FIXTURE_POWER_SETTLE_MS,
+              "EXT 5V power-on and CAP I2C readiness before reset")) {
+    cleanup_();
+    return;
+  }
+
+  LOG_INFO("[CAP-FIXTURE][RESET] sending software reset command");
+  std::string reset_error;
+  bool reset_sent = false;
+  for (unsigned int attempt = 1; attempt <= K_SOFTWARE_RESET_ATTEMPTS; ++attempt) {
+    if (cancel_requested_.load()) {
+      break;
+    }
+    LOG_INFO("[CAP-FIXTURE][RESET] I2C TX attempt {}/{} addr=0x42 reg=0x01 data=[07]",
+             attempt,
+             K_SOFTWARE_RESET_ATTEMPTS);
+    if (platform::fixture::write_register(0x01, 0x07, reset_error)) {
+      reset_sent = true;
+      LOG_INFO("[CAP-FIXTURE][RESET] software reset command accepted on attempt {}/{}",
+               attempt,
+               K_SOFTWARE_RESET_ATTEMPTS);
+      break;
+    }
+    LOG_WARN("[CAP-FIXTURE][RESET] I2C software reset attempt {}/{} failed: {}",
+             attempt,
+             K_SOFTWARE_RESET_ATTEMPTS,
+             reset_error);
+    if (attempt < K_SOFTWARE_RESET_ATTEMPTS &&
+        !delay_("RESET", K_SOFTWARE_RESET_RETRY_MS, "retry software reset I2C write")) {
+      break;
+    }
+  }
+  if (!reset_sent) {
+    if (!cancel_requested_.load()) {
+      fail_("RESET",
+            "I2C software reset failed after " +
+                std::to_string(K_SOFTWARE_RESET_ATTEMPTS) + " attempts: " + reset_error);
+    }
+    cleanup_();
+    return;
+  }
+  if (!delay_("RESET", K_SOFTWARE_RESET_DELAY_MS, "CAP fixture software restart")) {
+    cleanup_();
+    return;
+  }
+
   LOG_INFO(
       "[CAP-FIXTURE][PREPARE] no status/step registers will be polled; fixed delays and data "
       "checks are active");
-
-  std::string error;
-  LOG_INFO("[CAP-FIXTURE][PREPARE] restoring EXT 5V output: {}=1",
-           platform::fixture::K_EXT_5V_PATH);
-  if (!platform::fixture::set_ext_5v_enabled(true, error)) {
-    fail_("PREPARE", "failed to enable EXT 5V: " + error);
-    cleanup_();
-    return;
-  }
-  if (!delay_("PREPARE", K_SYSFS_SWITCH_DELAY_MS, "EXT 5V output settle")) {
-    cleanup_();
-    return;
-  }
-  LOG_INFO("[CAP-FIXTURE][PREPARE] restoring host USB function: {}=1",
-           platform::fixture::K_USB_GPIO_FUNCTION_PATH);
-  if (!platform::fixture::set_usb_gpio_function(true, error)) {
-    fail_("PREPARE", "failed to select USB function: " + error);
-    cleanup_();
-    return;
-  }
-  if (!delay_("PREPARE", K_SYSFS_SWITCH_DELAY_MS, "USB pin function settle") ||
-      !delay_("PREPARE", K_FEATURE_GUARD_DELAY_MS, "CAP HAT I2C startup guard")) {
-    cleanup_();
-    return;
-  }
 
   const bool passed =
       run_i2c_() && delay_("SEQUENCE", K_INTER_TEST_DELAY_MS, "I2C -> Power guard") &&
@@ -432,7 +469,7 @@ bool CapFixtureTestModel::run_usb_() {
   std::string error;
   LOG_INFO("[CAP-FIXTURE][USB] select host USB function: {}=1",
            platform::fixture::K_USB_GPIO_FUNCTION_PATH);
-  if (!platform::fixture::set_usb_gpio_function(true, error)) {
+  if (!select_host_pin_function_(true, error)) {
     return fail_(STAGE, "USB function switch failed: " + error);
   }
   if (!delay_(STAGE, 200, "host USB D+/D- function settle")) {
@@ -445,9 +482,11 @@ bool CapFixtureTestModel::run_usb_() {
   }
 
   std::string usb_path;
-  LOG_INFO("[CAP-FIXTURE][USB] wait up to 12 s for CDC+HID enumeration");
-  if (!platform::fixture::wait_for_usb_device(0x303A,
-                                              0x1001,
+  LOG_INFO("[CAP-FIXTURE][USB] wait up to 12 s for CDC+HID enumeration {:04X}:{:04X}",
+           K_USB_VENDOR_ID,
+           K_USB_PRODUCT_ID);
+  if (!platform::fixture::wait_for_usb_device(K_USB_VENDOR_ID,
+                                              K_USB_PRODUCT_ID,
                                               std::chrono::seconds(12),
                                               cancel_requested_,
                                               usb_path,
@@ -460,8 +499,8 @@ bool CapFixtureTestModel::run_usb_() {
   std::string received;
   LOG_INFO("[CAP-FIXTURE][USB] wait up to 4 s for exact HID payload 'HDR-14P'");
   if (!platform::fixture::receive_usb_hid_text(
-          0x303A,
-          0x1001,
+          K_USB_VENDOR_ID,
+          K_USB_PRODUCT_ID,
           "HDR-14P",
           std::chrono::seconds(4),
           cancel_requested_,
@@ -478,8 +517,8 @@ bool CapFixtureTestModel::run_usb_() {
     return false;
   }
   LOG_INFO("[CAP-FIXTURE][USB] wait up to 3 s for DUT disconnect");
-  if (!platform::fixture::wait_for_usb_disconnect(0x303A,
-                                                  0x1001,
+  if (!platform::fixture::wait_for_usb_disconnect(K_USB_VENDOR_ID,
+                                                  K_USB_PRODUCT_ID,
                                                   std::chrono::seconds(3),
                                                   cancel_requested_,
                                                   error)) {
@@ -499,7 +538,7 @@ bool CapFixtureTestModel::run_gpio_() {
   std::string error;
   LOG_INFO("[CAP-FIXTURE][GPIO] select host GPIO function: {}=0",
            platform::fixture::K_USB_GPIO_FUNCTION_PATH);
-  if (!platform::fixture::set_usb_gpio_function(false, error)) {
+  if (!select_host_pin_function_(false, error)) {
     return fail_(STAGE, "GPIO function switch failed: " + error);
   }
   if (!delay_(STAGE, K_INTER_TEST_DELAY_MS, "USB-to-GPIO pin function settle")) {
@@ -561,7 +600,8 @@ bool CapFixtureTestModel::run_gpio_() {
            stop_ok ? "succeeded" : "failed",
            stop_ok ? "" : ": " + stop_error);
   std::string input_error;
-  const bool input_ok = platform::fixture::set_gpio_test_inputs(input_error);
+  const bool input_ok       = platform::fixture::set_gpio_test_inputs(input_error);
+  gpio_test_lines_released_ = input_ok;
   LOG_INFO("[CAP-FIXTURE][GPIO] host GPIO26/23/22 final direction={}{}",
            input_ok ? "INPUT/HIGH-Z" : "INPUT request failed",
            input_ok ? "" : ": " + input_error);
@@ -581,6 +621,23 @@ bool CapFixtureTestModel::run_gpio_() {
   LOG_INFO(
       "[CAP-FIXTURE][GPIO] PASS: all outputs observed high; final mode remains GPIO input/high-Z");
   return true;
+}
+
+bool CapFixtureTestModel::select_host_pin_function_(bool usb_enabled, std::string& error_message) {
+  if (host_pin_function_known_ && host_usb_function_selected_ == usb_enabled) {
+    error_message.clear();
+    LOG_DEBUG("[CAP-FIXTURE] host pin function already {}; skipping duplicate switch",
+              usb_enabled ? "USB" : "GPIO");
+    return true;
+  }
+
+  const bool selected = usb_enabled ? platform::fixture::select_usb_function(error_message)
+                                    : platform::fixture::select_gpio_function(error_message);
+  if (selected) {
+    host_pin_function_known_    = true;
+    host_usb_function_selected_ = usb_enabled;
+  }
+  return selected;
 }
 
 bool CapFixtureTestModel::delay_(const char* stage, unsigned int milliseconds, const char* reason) {
@@ -716,17 +773,21 @@ void CapFixtureTestModel::cleanup_() {
     LOG_INFO("[CAP-FIXTURE][CLEANUP] CAP STOP command sent");
   }
   error.clear();
-  if (!platform::fixture::set_usb_gpio_function(false, error)) {
+  if (!select_host_pin_function_(false, error)) {
     LOG_ERROR("[CAP-FIXTURE][CLEANUP] failed to keep host GPIO function: {}", error);
   } else {
     LOG_INFO("[CAP-FIXTURE][CLEANUP] host pin function kept as GPIO: brightness=0");
     std::this_thread::sleep_for(std::chrono::milliseconds(K_SYSFS_SWITCH_DELAY_MS));
   }
   error.clear();
-  if (!platform::fixture::set_gpio_test_inputs(error)) {
-    LOG_ERROR("[CAP-FIXTURE][CLEANUP] failed to retain GPIO26/23/22 as input/high-Z: {}", error);
+  if (gpio_test_lines_released_) {
+    LOG_DEBUG("[CAP-FIXTURE][CLEANUP] GPIO26/23/22 already released; skipping duplicate setup");
+  } else if (!platform::fixture::set_gpio_test_inputs(error)) {
+    LOG_ERROR("[CAP-FIXTURE][CLEANUP] failed to release GPIO26/23/22 in input/high-Z state: {}",
+              error);
   } else {
-    LOG_INFO("[CAP-FIXTURE][CLEANUP] GPIO26/23/22 retained as input/high-Z");
+    gpio_test_lines_released_ = true;
+    LOG_INFO("[CAP-FIXTURE][CLEANUP] GPIO26/23/22 released in input/high-Z state");
   }
   error.clear();
   if (!platform::fixture::set_ext_5v_enabled(true, error)) {

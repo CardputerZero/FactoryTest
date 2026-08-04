@@ -22,11 +22,7 @@
 
 #include "logger.h"
 
-#ifndef APP_USE_LIBCAMERA
-#define APP_USE_LIBCAMERA 0
-#endif
-
-#if APP_USE_LIBCAMERA
+#if !USE_DESKTOP
 #include <libcamera/base/shared_fd.h>
 #include <libcamera/base/unique_fd.h>
 #include <libcamera/formats.h>
@@ -34,7 +30,7 @@
 #include <libcamera/libcamera.h>
 #endif
 
-#if APP_USE_LIBCAMERA && (defined(__unix__) || defined(__APPLE__))
+#if !USE_DESKTOP && (defined(__unix__) || defined(__APPLE__))
 #include <fcntl.h>
 #include <linux/dma-buf.h>
 #include <linux/dma-heap.h>
@@ -50,7 +46,7 @@ uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
   return static_cast<uint16_t>(((r & 0xF8U) << 8U) | ((g & 0xFCU) << 3U) | (b >> 3U));
 }
 
-#if APP_USE_LIBCAMERA
+#if !USE_DESKTOP
 constexpr const char* K_DMA_HEAP_PATH = "/dev/dma_heap/default_cma_region";
 
 const char* validation_status_name(libcamera::CameraConfiguration::Status status) {
@@ -693,7 +689,7 @@ PreviewSession::~PreviewSession() { stop(); }
 bool PreviewSession::start(const CameraInfo& camera, std::string& error_message) {
   stop();
 
-#if APP_USE_LIBCAMERA
+#if !USE_DESKTOP
   auto info    = camera;
   auto* native = new NativePreview();
   if (native->start(info, error_message)) {
@@ -711,7 +707,7 @@ bool PreviewSession::start(const CameraInfo& camera, std::string& error_message)
 }
 
 void PreviewSession::stop() {
-#if APP_USE_LIBCAMERA
+#if !USE_DESKTOP
   if (native_) {
     delete static_cast<NativePreview*>(native_);
     native_ = nullptr;
@@ -720,7 +716,7 @@ void PreviewSession::stop() {
 }
 
 bool PreviewSession::running() const {
-#if APP_USE_LIBCAMERA
+#if !USE_DESKTOP
   if (native_) {
     return static_cast<NativePreview*>(native_)->running();
   }
@@ -731,7 +727,7 @@ bool PreviewSession::running() const {
 bool PreviewSession::copy_frame_rgb565(std::vector<uint16_t>& frame,
                                        int& width,
                                        int& height) const {
-#if APP_USE_LIBCAMERA
+#if !USE_DESKTOP
   if (native_) {
     return static_cast<const NativePreview*>(native_)->copy_frame(frame, width, height);
   }
@@ -743,7 +739,7 @@ bool PreviewSession::copy_frame_rgb565(std::vector<uint16_t>& frame,
 }
 
 bool find_mipi_csi_camera(CameraInfo& camera, std::string& error_message) {
-#if APP_USE_LIBCAMERA
+#if !USE_DESKTOP
   LOG_DEBUG("initializing native libcamera MIPI-CSI camera discovery");
   libcamera::CameraManager manager;
   if (manager.start() != 0) {

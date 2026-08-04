@@ -11,10 +11,10 @@
 #endif
 
 #include <cstddef>
-#include <cstdlib>
 #include <cstring>
 #include <utility>
 
+#include "app_config.h"
 #include "app_viewmodel.h"
 #include "asset_manager.h"
 #include "audio_service.h"
@@ -31,17 +31,9 @@
 #include "translation_service.h"
 
 #if !USE_DESKTOP
-#if APP_USE_DRM
 #include <unistd.h>
 
 #include "src/drivers/display/drm/lv_linux_drm.h"
-#else
-#include "src/drivers/display/fb/lv_linux_fbdev.h"
-#endif
-#endif
-
-#ifndef APP_FRAMEBUFFER_DEVICE
-#define APP_FRAMEBUFFER_DEVICE "/dev/fb0"
 #endif
 
 #ifndef APP_DRM_DEVICE
@@ -54,6 +46,16 @@
 
 namespace app {
 namespace {
+
+logger::LogLevel log_level_from_config(const std::string& level) {
+  if (level == "trace") return logger::LogLevel::TRACE;
+  if (level == "info") return logger::LogLevel::INFO;
+  if (level == "warn") return logger::LogLevel::WARN;
+  if (level == "error") return logger::LogLevel::ERROR;
+  if (level == "fatal") return logger::LogLevel::FATAL;
+  if (level == "off") return logger::LogLevel::OFF;
+  return logger::LogLevel::DEBUG;
+}
 
 void quit_requested_observer(lv_observer_t* observer, lv_subject_t* subject) {
   auto* running = static_cast<bool*>(lv_observer_get_user_data(observer));
@@ -76,7 +78,7 @@ bool page_handles_global_key_locally(model::AppPage page, uint32_t key) {
   return page == model::AppPage::UART_TEST && (is_theme_toggle_key(key) || is_screenshot_key(key));
 }
 
-#if !USE_DESKTOP && APP_USE_DRM
+#if !USE_DESKTOP
 bool is_duplicate_candidate(const char* candidate,
                             const char* const* candidates,
                             std::size_t count) {
@@ -185,22 +187,9 @@ lv_display_t* init_display() {
   auto* keyboard = lv_sdl_keyboard_create();
   platform::attach_key_router(keyboard);
   return display;
-#elif APP_USE_DRM
+#else
   auto* display = init_drm_display();
   if (!display) {
-    return nullptr;
-  }
-
-  platform::init_key_input(display);
-  return display;
-#else
-  auto* display = lv_linux_fbdev_create();
-  if (!display) {
-    return nullptr;
-  }
-
-  if (lv_linux_fbdev_set_file(display, APP_FRAMEBUFFER_DEVICE) != LV_RESULT_OK) {
-    lv_display_delete(display);
     return nullptr;
   }
 
@@ -212,8 +201,28 @@ lv_display_t* init_display() {
 }  // namespace
 
 int Application::run() {
-  logger::Logger::init();
+  model::AppConfigStore config_store;
+  const bool config_loaded = config_store.load();
+  const auto& config       = config_store.config();
+
+  logger::FileLogConfig file_log_config;
+  file_log_config.max_segment_size_bytes   = config.logging.max_segment_size_bytes;
+  file_log_config.max_directory_size_bytes = config.logging.max_directory_size_bytes;
+  logger::Logger::init(file_log_config);
   logger::Logger::set_tag("factory-test");
+  logger::Logger::set_level(log_level_from_config(config.logging.level));
+  if (!config_loaded) {
+    LOG_ERROR("failed to load config {}: {}",
+              config_store.path().string(),
+              config_store.last_error());
+  }
+  for (const auto& diagnostic : config_store.diagnostics()) {
+    LOG_WARN("config: {}", diagnostic);
+  }
+  LOG_INFO("config file: {}", config_store.path().string());
+  if (logger::Logger::file_logging_enabled()) {
+    LOG_INFO("log file: {}", logger::Logger::current_log_path());
+  }
 
   lv_init();
 
@@ -228,9 +237,12 @@ int Application::run() {
     LOG_INFO("asset root: {}", root.string());
   }
   const auto click_sound_path = assets.resolve("audio/click.wav");
+  platform::audio::set_key_click_enabled(config.ui.key_click_enabled);
+  platform::audio::set_key_click_volume_level(
+      static_cast<float>(config.ui.key_click_volume_percent) / 100.0F);
   if (!click_sound_path.empty()) {
     platform::audio::set_key_click_sound_path(click_sound_path.string());
-    if (!platform::audio::initialize_key_click_sound()) {
+    if (config.ui.key_click_enabled && !platform::audio::initialize_key_click_sound()) {
       LOG_WARN("failed to initialize global key click playback");
     }
   } else {
@@ -250,18 +262,15 @@ int Application::run() {
     LOG_WARN("translation asset not found: i18n/zh_CN.json");
   }
 
-  viewmodel::AppViewModel app_view_model(translations);
+  viewmodel::AppViewModel app_view_model(translations, config_store);
   viewmodel::StartMenuViewModel start_menu_view_model;
   viewmodel::KeyboardTestViewModel keyboard_view_model;
   viewmodel::LcdTestViewModel lcd_view_model;
   viewmodel::ConnectivityTestViewModel connectivity_view_model;
-  if (const char* iperf_host = std::getenv("FACTORY_TEST_IPERF_HOST");
-      iperf_host && iperf_host[0] != '\0') {
-    auto settings       = connectivity_view_model.link_view_model().settings();
-    settings.iperf_host = iperf_host;
-    connectivity_view_model.link_view_model().set_settings(std::move(settings));
-    LOG_INFO("iperf server overridden by FACTORY_TEST_IPERF_HOST: {}", iperf_host);
-  }
+  auto link_settings       = connectivity_view_model.link_view_model().settings();
+  link_settings.iperf_host = config.network.iperf_host;
+  link_settings.iperf_port = config.network.iperf_port;
+  connectivity_view_model.link_view_model().set_settings(std::move(link_settings));
   viewmodel::PerfTestViewModel perf_view_model;
   view::apply_lvgl_theme(display, app_view_model.is_dark_mode());
   platform::set_global_key_listener(global_key_listener, &app_view_model);

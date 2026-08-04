@@ -20,7 +20,6 @@
                 "CM0_SDK_ROOT": "${sourceDir}/.cache/sdk_bsp-src",
                 "CMAKE_SYSROOT": "${sourceDir}/.cache/sdk_bsp-src",
                 "CM0_ALLOW_FETCH_DEPS": "ON",
-                "APP_USE_DRM": "ON",
                 "APP_DRM_DEVICE": "/dev/dri/card1"
             }
         },
@@ -36,8 +35,7 @@
                 "CMAKE_CONFIGURATION_TYPES": "Debug;Release",
                 "FETCHCONTENT_BASE_DIR": "${sourceDir}/.cache/cp0-deps",
                 "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/${presetName}/install",
-                "USE_DESKTOP": "OFF",
-                "APP_USE_DRM": "OFF"
+                "USE_DESKTOP": "OFF"
             }
         },
         {

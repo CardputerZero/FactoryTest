@@ -10,14 +10,20 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
+#include "app_config.h"
 #include "app_model.h"
 #include "lvgl.h"
 #include "subjects.h"
 #include "test_session.h"
 #include "translation_service.h"
+
+namespace platform::factory_upload {
+class FactoryUploadService;
+}
 
 namespace viewmodel {
 
@@ -39,9 +45,30 @@ struct NavAction {
   bool force_enabled{false};
 };
 
+enum class TestUploadState {
+  UNAVAILABLE,
+  SEARCHING,
+  WAITING_HANDSHAKE,
+  READY,
+  QUEUED,
+  SENDING,
+  WAITING_RESULT_ACK,
+  SUCCEEDED,
+  FAILED,
+};
+
+struct TestUploadSnapshot {
+  TestUploadState state{TestUploadState::UNAVAILABLE};
+  std::string message{};
+  std::string port{};
+  std::uint64_t revision{0};
+  bool listener_online{false};
+  std::uint64_t listener_heartbeat_age_ms{0};
+};
+
 class AppViewModel {
  public:
-  explicit AppViewModel(model::TranslationService& translations);
+  AppViewModel(model::TranslationService& translations, model::AppConfigStore& config_store);
   ~AppViewModel();
 
   AppViewModel(const AppViewModel&)            = delete;
@@ -63,6 +90,9 @@ class AppViewModel {
   void set_dark_mode(bool enabled);
   void toggle_dark_mode();
   bool set_language(const std::string& locale);
+  int uart_baud_rate() const;
+  bool set_uart_baud_rate(int baud_rate);
+  bool set_iperf_settings(const std::string& host, int port);
   std::string tr(const char* msgid) const;
   const char* ui_font_name(const char* latin_font_name) const;
 
@@ -110,6 +140,8 @@ class AppViewModel {
   const std::string& test_session_id() const;
   const std::vector<model::TestRecord>& test_records() const;
   model::SessionSummary test_session_summary() const;
+  bool upload_test_result(std::string& error_message);
+  TestUploadSnapshot test_upload_snapshot() const;
   void set_back_request_handler(BackRequestHandler handler, void* user_data);
   void clear_back_request_handler(BackRequestHandler handler, void* user_data);
   void request_back_or_quit();
@@ -122,9 +154,13 @@ class AppViewModel {
   bool open_test_sequence_item_(std::size_t index);
 
  private:
+  bool save_config_();
+
   model::AppModel model_{};
   model::TranslationService& translations_;
+  model::AppConfigStore& config_store_;
   model::SessionManager session_manager_{};
+  std::unique_ptr<platform::factory_upload::FactoryUploadService> factory_upload_service_{};
   std::size_t test_sequence_index_{0};
   std::string title_msgid_{};
   reactive::StringSubject<48> title_subject_;

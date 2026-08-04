@@ -28,11 +28,7 @@
 
 #include "logger.h"
 
-#ifndef APP_USE_LIRC
-#define APP_USE_LIRC 0
-#endif
-
-#if APP_USE_LIRC
+#if !USE_DESKTOP
 #include <fcntl.h>
 #include <linux/lirc.h>
 #include <sys/ioctl.h>
@@ -43,22 +39,22 @@
 namespace platform::ir {
 namespace {
 
-constexpr uint32_t K_CARRIER_HZ       = 38000;
-constexpr uint32_t K_DUTY_CYCLE       = 50;
-constexpr uint32_t K_REC_TIMEOUT_US   = 30000;
-constexpr std::size_t K_PACKET_BYTES  = 4;
-constexpr uint32_t K_NEC_HDR_PULSE_US = 9000;
-constexpr uint32_t K_NEC_HDR_SPACE_US = 4500;
-constexpr uint32_t K_NEC_BIT_PULSE_US = 560;
+constexpr uint32_t K_CARRIER_HZ        = 38000;
+constexpr uint32_t K_DUTY_CYCLE        = 50;
+constexpr uint32_t K_REC_TIMEOUT_US    = 30000;
+constexpr std::size_t K_PACKET_BYTES   = 4;
+constexpr uint32_t K_NEC_HDR_PULSE_US  = 9000;
+constexpr uint32_t K_NEC_HDR_SPACE_US  = 4500;
+constexpr uint32_t K_NEC_BIT_PULSE_US  = 560;
 constexpr uint32_t K_NEC_ZERO_SPACE_US = 560;
-constexpr uint32_t K_NEC_ONE_SPACE_US = 1690;
+constexpr uint32_t K_NEC_ONE_SPACE_US  = 1690;
 constexpr const char* K_PROTOCOL_NEC   = "NEC";
 constexpr const char* K_PROTOCOL_NECX  = "NECX";
 constexpr const char* K_PROTOCOL_NEC32 = "NEC32";
 
 std::string trim(std::string value) {
-  while (!value.empty() && (value.back() == '\n' || value.back() == '\r' ||
-                            value.back() == ' ' || value.back() == '\t')) {
+  while (!value.empty() && (value.back() == '\n' || value.back() == '\r' || value.back() == ' ' ||
+                            value.back() == '\t')) {
     value.pop_back();
   }
   const auto first = value.find_first_not_of(" \t");
@@ -119,7 +115,7 @@ std::vector<std::string> find_lirc_paths_for_rc(const std::string& rc_name) {
   return lirc_paths;
 }
 
-#if APP_USE_LIRC
+#if !USE_DESKTOP
 int open_lirc_for_features(const std::string& lirc_path) {
   for (int flags : {O_RDWR | O_NONBLOCK, O_RDONLY | O_NONBLOCK, O_WRONLY | O_NONBLOCK}) {
     const int fd = open(lirc_path.c_str(), flags);
@@ -147,8 +143,8 @@ IrDeviceInfo make_device_info(const std::string& rc_name,
   info.lirc_path = lirc_path;
 
   const std::filesystem::path rc_path = std::filesystem::path("/sys/class/rc") / rc_name;
-  info.driver_name = read_uevent_value(rc_path / "uevent", "DRV_NAME");
-  info.device_name = read_uevent_value(rc_path / "uevent", "DEV_NAME");
+  info.driver_name                    = read_uevent_value(rc_path / "uevent", "DRV_NAME");
+  info.device_name                    = read_uevent_value(rc_path / "uevent", "DEV_NAME");
   if (info.driver_name.empty()) {
     info.driver_name = read_uevent_value(rc_path / "device" / "uevent", "DRIVER");
   }
@@ -162,7 +158,7 @@ IrDeviceInfo make_device_info(const std::string& rc_name,
     return info;
   }
 
-#if APP_USE_LIRC
+#if !USE_DESKTOP
   LOG_VERBOSE("probing IR {} device: rc={} path={}",
               sender ? "sender" : "receiver",
               rc_name,
@@ -221,7 +217,7 @@ IrDeviceInfo make_device_info(const std::string& rc_name,
 
 IrDeviceInfo find_ir_device(bool sender) {
   IrDeviceInfo first_probe_error;
-  bool has_probe_error  = false;
+  bool has_probe_error   = false;
   std::size_t candidates = 0;
 
   for (const auto& rc_name : list_rc_names()) {
@@ -233,7 +229,7 @@ IrDeviceInfo find_ir_device(bool sender) {
       }
       if (!has_probe_error && info.features == 0) {
         first_probe_error = info;
-        has_probe_error  = true;
+        has_probe_error   = true;
       }
     }
   }
@@ -243,10 +239,9 @@ IrDeviceInfo find_ir_device(bool sender) {
   }
 
   IrDeviceInfo info;
-  info.error_message =
-      candidates == 0 ? "No LIRC nodes found under /sys/class/rc"
-                      : std::string("No LIRC device advertises IR ") +
-                            (sender ? "sender" : "receiver") + " capability";
+  info.error_message = candidates == 0 ? "No LIRC nodes found under /sys/class/rc"
+                                       : std::string("No LIRC device advertises IR ") +
+                                             (sender ? "sender" : "receiver") + " capability";
   LOG_WARN("IR {} discovery failed: {}", sender ? "sender" : "receiver", info.error_message);
   return info;
 }
@@ -256,7 +251,7 @@ std::string errno_message(const char* prefix) {
 }
 
 bool close_fd(int& fd) {
-#if APP_USE_LIRC
+#if !USE_DESKTOP
   if (fd >= 0) {
     close(fd);
     fd = -1;
@@ -289,10 +284,7 @@ std::vector<uint8_t> make_nec_bytes(uint16_t address, uint16_t command) {
 }
 
 std::vector<uint8_t> make_standard_nec_bytes(uint8_t address, uint8_t command) {
-  return {address,
-          static_cast<uint8_t>(~address),
-          command,
-          static_cast<uint8_t>(~command)};
+  return {address, static_cast<uint8_t>(~address), command, static_cast<uint8_t>(~command)};
 }
 
 bool parse_nec_bytes(const std::vector<uint8_t>& bytes,
@@ -309,8 +301,8 @@ bool parse_nec_bytes(const std::vector<uint8_t>& bytes,
     protocol = K_PROTOCOL_NEC;
     return true;
   }
-  protocol = static_cast<uint8_t>(bytes[2] ^ bytes[3]) == 0xffU ? K_PROTOCOL_NECX
-                                                                : K_PROTOCOL_NEC32;
+  protocol =
+      static_cast<uint8_t>(bytes[2] ^ bytes[3]) == 0xffU ? K_PROTOCOL_NECX : K_PROTOCOL_NEC32;
   return true;
 }
 
@@ -413,26 +405,27 @@ void finalize_receive(IrReceiveSnapshot& snapshot, const std::vector<uint32_t>& 
     const bool matched = !snapshot.address_filter_enabled || address == snapshot.expected_address;
 
     snapshot.data_changed    = decoded != snapshot.data || address != snapshot.address ||
-                             command != snapshot.command || protocol != snapshot.protocol ||
-                             matched != snapshot.address_matched;
+                               command != snapshot.command || protocol != snapshot.protocol ||
+                               matched != snapshot.address_matched;
     snapshot.data            = std::move(decoded);
     snapshot.address         = address;
     snapshot.command         = command;
     snapshot.protocol        = std::move(protocol);
     snapshot.address_matched = matched;
     snapshot.message = matched ? snapshot.protocol + " packet received" : "NEC address mismatch";
-    LOG_DEBUG("IR {} received: address={} command={} expected={} matched={}",
-              snapshot.protocol,
-              format_nec_address(address),
-              format_nec_command(command),
-              snapshot.address_filter_enabled ? format_nec_address(snapshot.expected_address) : "any",
-              matched ? "yes" : "no");
+    LOG_DEBUG(
+        "IR {} received: address={} command={} expected={} matched={}",
+        snapshot.protocol,
+        format_nec_address(address),
+        format_nec_command(command),
+        snapshot.address_filter_enabled ? format_nec_address(snapshot.expected_address) : "any",
+        matched ? "yes" : "no");
   } else {
     snapshot.message = "IR signal received (raw)";
   }
 }
 
-#if APP_USE_LIRC
+#if !USE_DESKTOP
 const char* scancode_protocol_name(uint16_t rc_proto) {
   switch (rc_proto) {
     case RC_PROTO_NEC:
@@ -452,29 +445,29 @@ bool decode_scancode(const lirc_scancode& scancode,
                      std::vector<uint8_t>& data,
                      std::string& protocol) {
   const uint8_t command_byte = static_cast<uint8_t>(scancode.scancode & 0xffU);
-  command = make_nec_command(command_byte);
+  command                    = make_nec_command(command_byte);
 
   switch (scancode.rc_proto) {
     case RC_PROTO_NEC: {
       const auto address_byte = static_cast<uint8_t>((scancode.scancode >> 8U) & 0xffU);
-      address  = static_cast<uint16_t>(address_byte) |
-                 static_cast<uint16_t>(static_cast<uint8_t>(~address_byte) << 8U);
-      data     = make_standard_nec_bytes(address_byte, command_byte);
-      protocol = K_PROTOCOL_NEC;
+      address                 = static_cast<uint16_t>(address_byte) |
+                                static_cast<uint16_t>(static_cast<uint8_t>(~address_byte) << 8U);
+      data                    = make_standard_nec_bytes(address_byte, command_byte);
+      protocol                = K_PROTOCOL_NEC;
       return true;
     }
     case RC_PROTO_NECX: {
-      address = static_cast<uint16_t>((scancode.scancode >> 8U) & 0xffffU);
-      data    = make_nec_bytes(address, command);
+      address  = static_cast<uint16_t>((scancode.scancode >> 8U) & 0xffffU);
+      data     = make_nec_bytes(address, command);
       protocol = K_PROTOCOL_NECX;
       return true;
     }
     case RC_PROTO_NEC32: {
       const uint32_t value = static_cast<uint32_t>(scancode.scancode & 0xffffffffULL);
-      address = static_cast<uint16_t>((value >> 16U) & 0xffffU);
-      command = static_cast<uint16_t>(value & 0xffffU);
-      data    = make_nec_bytes(address, command);
-      protocol = K_PROTOCOL_NEC32;
+      address              = static_cast<uint16_t>((value >> 16U) & 0xffffU);
+      command              = static_cast<uint16_t>(value & 0xffffU);
+      data                 = make_nec_bytes(address, command);
+      protocol             = K_PROTOCOL_NEC32;
       return true;
     }
     default:
@@ -499,18 +492,18 @@ void finalize_receive_scancode(IrReceiveSnapshot& snapshot, const lirc_scancode&
     return;
   }
 
-  const bool matched      = !snapshot.address_filter_enabled || address == snapshot.expected_address;
-  snapshot.signal_seen    = true;
-  snapshot.data_changed   = data != snapshot.data || address != snapshot.address ||
-                           command != snapshot.command || protocol != snapshot.protocol ||
-                           matched != snapshot.address_matched;
-  snapshot.address        = address;
-  snapshot.command        = command;
-  snapshot.data           = std::move(data);
-  snapshot.protocol       = std::move(protocol);
+  const bool matched    = !snapshot.address_filter_enabled || address == snapshot.expected_address;
+  snapshot.signal_seen  = true;
+  snapshot.data_changed = data != snapshot.data || address != snapshot.address ||
+                          command != snapshot.command || protocol != snapshot.protocol ||
+                          matched != snapshot.address_matched;
+  snapshot.address      = address;
+  snapshot.command      = command;
+  snapshot.data         = std::move(data);
+  snapshot.protocol     = std::move(protocol);
   snapshot.address_matched = matched;
-  snapshot.raw_summary    = {};
-  snapshot.message        = matched ? snapshot.protocol + " packet received" : "NEC address mismatch";
+  snapshot.raw_summary     = {};
+  snapshot.message = matched ? snapshot.protocol + " packet received" : "NEC address mismatch";
   LOG_DEBUG("IR {} scancode received: scancode=0x{:x} address={} command={} expected={} matched={}",
             snapshot.protocol,
             static_cast<unsigned long long>(scancode.scancode),
@@ -559,10 +552,10 @@ IrSendResult send_nec_packet(uint16_t address) {
 
 IrSendResult send_nec_packet(uint16_t address, uint16_t command) {
   IrSendResult result;
-  result.address  = address;
-  result.command  = command;
-  result.data     = make_nec_bytes(address, result.command);
-  result.protocol = K_PROTOCOL_NEC32;
+  result.address     = address;
+  result.command     = command;
+  result.data        = make_nec_bytes(address, result.command);
+  result.protocol    = K_PROTOCOL_NEC32;
   const auto encoded = encode_nec_packet(result.data);
   auto info          = read_sender_info();
   result.device_path = info.lirc_path;
@@ -572,7 +565,7 @@ IrSendResult send_nec_packet(uint16_t address, uint16_t command) {
     return result;
   }
 
-#if APP_USE_LIRC
+#if !USE_DESKTOP
   LOG_DEBUG("IR NEC32 send requested: path={} address={} command={} data={}",
             info.lirc_path,
             format_nec_address(result.address),
@@ -688,7 +681,7 @@ bool IrReceiverSession::start(const IrDeviceInfo& info,
     return false;
   }
 
-#if APP_USE_LIRC
+#if !USE_DESKTOP
   const bool nec_scancode_ready = enable_nec_protocols(info.rc_name.c_str());
   LOG_DEBUG("opening IR receiver: path={} expected_address={}",
             info.lirc_path,
@@ -700,9 +693,9 @@ bool IrReceiverSession::start(const IrDeviceInfo& info,
     return false;
   }
 
-  scancode_mode_ = false;
-  mode2_         = (info.features & LIRC_CAN_REC_MODE2) != 0;
-  uint32_t rec_mode = LIRC_MODE_RAW;
+  scancode_mode_             = false;
+  mode2_                     = (info.features & LIRC_CAN_REC_MODE2) != 0;
+  uint32_t rec_mode          = LIRC_MODE_RAW;
   const bool has_raw_receive = (info.features & (LIRC_CAN_REC_MODE2 | LIRC_CAN_REC_RAW)) != 0;
   if ((info.features & LIRC_CAN_REC_SCANCODE) && (nec_scancode_ready || !has_raw_receive)) {
     rec_mode = LIRC_MODE_SCANCODE;
@@ -757,11 +750,12 @@ IrReceiveSnapshot IrReceiverSession::poll() {
     return snapshot_;
   }
 
-#if APP_USE_LIRC
+#if !USE_DESKTOP
   if (scancode_mode_) {
     std::array<lirc_scancode, 8> scancodes{};
     while (true) {
-      const ssize_t bytes_read = read(fd_, scancodes.data(), scancodes.size() * sizeof(scancodes[0]));
+      const ssize_t bytes_read =
+          read(fd_, scancodes.data(), scancodes.size() * sizeof(scancodes[0]));
       if (bytes_read < 0) {
         if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
           break;

@@ -23,6 +23,7 @@ struct DeviceInfoField {
 
 ProductModel product_model();
 const char* product_model_name(ProductModel model);
+const char* product_model_sku(ProductModel model);
 std::string read_serial_number();
 std::string read_py32_firmware_version(bool force_refresh = false);
 std::vector<DeviceInfoField> read_device_info_fields();

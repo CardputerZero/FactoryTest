@@ -671,6 +671,16 @@ const char* product_model_name(ProductModel model) {
   }
 }
 
+const char* product_model_sku(ProductModel model) {
+  switch (model) {
+    case ProductModel::CARDPUTER_ZERO:
+      return "C154";
+    case ProductModel::CARDPUTER_ZERO_LITE:
+    default:
+      return "C155";
+  }
+}
+
 std::string read_serial_number() { return read_soc_serial_number(); }
 
 std::string read_py32_firmware_version(bool force_refresh) {

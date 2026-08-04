@@ -122,6 +122,7 @@ constexpr const char* ICON_TRANSLATE          = "\uE4A2";
 constexpr const char* ICON_CARET_DOWN         = "\uE136";
 constexpr const char* ICON_GIT_BRANCH          = "\uE278";
 constexpr const char* ICON_UPLOAD              = "\uE4BE";
+constexpr const char* ICON_UPLOAD_SIMPLE       = "\uE4C0";
 constexpr const char* ICON_BOX_ARROW_UP        = "\uEE54";
 constexpr const char* ICON_POWER               = "\uE3DA";
 

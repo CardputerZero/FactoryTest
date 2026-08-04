@@ -117,6 +117,7 @@ class SessionManager {
   bool finalize();
 
   std::string build_result_json(bool formatted = true) const;
+  std::string build_upload_result_json(bool formatted = false) const;
 
  private:
   TestRecord* find_test_(const std::string& test_id);

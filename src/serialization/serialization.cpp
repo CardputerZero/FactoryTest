@@ -6,30 +6,24 @@
 
 #include "serialization.h"
 
-#if defined(FACTORY_TEST_SCONS_BUILD)
-#include "factory_test_config.h"
-#endif
-
 #include <algorithm>
-#include <cerrno>
 #include <cctype>
+#include <cerrno>
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
+#include <iomanip>
+#include <limits>
 #include <sstream>
 #include <utility>
 
-#if APP_USE_LIBCJSON
 #if __has_include(<cjson/cJSON.h>)
 #include <cjson/cJSON.h>
 #else
 #include <cJSON.h>
 #endif
-#endif
 
-#if APP_USE_LIBYAML
 #include <yaml.h>
-#endif
 
 namespace platform::serialization {
 namespace {
@@ -111,7 +105,6 @@ std::string escape_string(const std::string& value) {
   return escaped;
 }
 
-#if APP_USE_LIBCJSON
 OutputValue output_value_from_json(const cJSON* item) {
   if (!item || cJSON_IsNull(item)) {
     return OutputValue::null();
@@ -143,9 +136,7 @@ OutputValue output_value_from_json(const cJSON* item) {
   }
   return OutputValue::null();
 }
-#endif
 
-#if APP_USE_LIBYAML
 struct YamlEventOwner {
   yaml_event_t event{};
   bool initialized{false};
@@ -251,7 +242,6 @@ OutputValue parse_yaml_node(yaml_parser_t& parser, std::string& error_message) {
       return OutputValue::null();
   }
 }
-#endif
 
 }  // namespace
 
@@ -294,7 +284,6 @@ OutputValue OutputValue::object(std::map<std::string, OutputValue> value) {
 
 ParseResult parse_json_output(const std::string& text) {
   ParseResult result;
-#if APP_USE_LIBCJSON
   cJSON* root = cJSON_ParseWithLength(text.data(), text.size());
   if (!root) {
     const char* error = cJSON_GetErrorPtr();
@@ -306,16 +295,10 @@ ParseResult parse_json_output(const std::string& text) {
   result.value = output_value_from_json(root);
   cJSON_Delete(root);
   return result;
-#else
-  (void)text;
-  result.error_message = "cJSON library is not available";
-  return result;
-#endif
 }
 
 ParseResult parse_yaml_output(const std::string& text) {
   ParseResult result;
-#if APP_USE_LIBYAML
   yaml_parser_t parser{};
   if (!yaml_parser_initialize(&parser)) {
     result.error_message = "failed to initialize YAML parser";
@@ -349,11 +332,6 @@ ParseResult parse_yaml_output(const std::string& text) {
   result.value = parse_yaml_node(parser, result.error_message);
   yaml_parser_delete(&parser);
   return result;
-#else
-  (void)text;
-  result.error_message = "libyaml is not available";
-  return result;
-#endif
 }
 
 ParseResult parse_json_file(const std::string& path) {
@@ -386,7 +364,12 @@ std::string output_value_to_string(const OutputValue& value) {
       return value.bool_value ? "true" : "false";
     case OutputValue::Type::Number: {
       std::ostringstream out;
-      out << value.number_value;
+      if (std::isfinite(value.number_value) &&
+          std::floor(value.number_value) == value.number_value) {
+        out << std::fixed << std::setprecision(0) << value.number_value;
+      } else {
+        out << std::setprecision(std::numeric_limits<double>::max_digits10) << value.number_value;
+      }
       return out.str();
     }
     case OutputValue::Type::String:
@@ -419,6 +402,50 @@ std::string output_value_to_string(const OutputValue& value) {
     }
   }
   return "null";
+}
+
+namespace {
+
+std::string pretty_output_value(const OutputValue& value,
+                                std::size_t indent_size,
+                                std::size_t depth) {
+  const bool is_array  = value.type == OutputValue::Type::Array;
+  const bool is_object = value.type == OutputValue::Type::Object;
+  if (!is_array && !is_object) {
+    return output_value_to_string(value);
+  }
+
+  const bool empty = is_array ? value.array_values.empty() : value.object_values.empty();
+  if (empty) {
+    return is_array ? "[]" : "{}";
+  }
+
+  const std::string item_indent((depth + 1) * indent_size, ' ');
+  const std::string closing_indent(depth * indent_size, ' ');
+  std::string output = is_array ? "[\n" : "{\n";
+  bool first         = true;
+  if (is_array) {
+    for (const auto& item : value.array_values) {
+      if (!first) output += ",\n";
+      first = false;
+      output += item_indent + pretty_output_value(item, indent_size, depth + 1);
+    }
+    return output + "\n" + closing_indent + "]";
+  }
+
+  for (const auto& item : value.object_values) {
+    if (!first) output += ",\n";
+    first = false;
+    output += item_indent + output_value_to_string(OutputValue::string(item.first)) + ": " +
+              pretty_output_value(item.second, indent_size, depth + 1);
+  }
+  return output + "\n" + closing_indent + "}";
+}
+
+}  // namespace
+
+std::string output_value_to_pretty_string(const OutputValue& value, std::size_t indent_size) {
+  return pretty_output_value(value, std::max<std::size_t>(indent_size, 1), 0);
 }
 
 }  // namespace platform::serialization

@@ -363,6 +363,10 @@ void LinkConnectivityView::apply_config_dialog_() {
   }
 
   view_model_.set_settings(std::move(settings));
+  if (app_view_model_) {
+    const auto& saved_settings = view_model_.settings();
+    app_view_model_->set_iperf_settings(saved_settings.iperf_host, saved_settings.iperf_port);
+  }
   hide_config_dialog_();
   restart();
 }

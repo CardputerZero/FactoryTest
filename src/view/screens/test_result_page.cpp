@@ -7,6 +7,7 @@
 #include "test_result_page.h"
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "asset_manager.h"
@@ -18,8 +19,9 @@
 namespace screen {
 namespace {
 
-constexpr int32_t K_LIST_WIDTH  = 300;
-constexpr int32_t K_LIST_HEIGHT = 106;
+constexpr int32_t K_LIST_WIDTH      = 300;
+constexpr int32_t K_LIST_HEIGHT     = 106;
+constexpr uint32_t K_UPLOAD_POLL_MS = 100;
 
 const char* icon_for_test_name(const std::string& name) {
   if (name == "Input Test") {
@@ -157,12 +159,20 @@ TestResultPage::TestResultPage(viewmodel::AppViewModel& app_view_model, app::Ass
   set_nav_action_('4', view::ICON_ARROW_U_UP_LEFT, [this]() {
     app_view_model_ref_().show_start_page();
   });
+  set_nav_action_('8', view::ICON_UPLOAD_SIMPLE, [this]() { start_upload_(); });
   init();
   platform::set_key_listener(key_listener, this);
+  last_upload_revision_ = app_view_model_ref_().test_upload_snapshot().revision;
+  upload_timer_         = lv_timer_create(upload_timer_cb, K_UPLOAD_POLL_MS, this);
 }
 
 TestResultPage::~TestResultPage() {
   platform::clear_key_listener(key_listener, this);
+  if (upload_timer_) {
+    lv_timer_delete(upload_timer_);
+    upload_timer_ = nullptr;
+  }
+  upload_popup_.reset();
   result_list_.reset();
 }
 
@@ -209,6 +219,80 @@ void TestResultPage::move_selection_(int32_t direction) {
   result_list_->set_selected_index(selected_index_);
 }
 
+void TestResultPage::start_upload_() {
+  std::string error_message;
+  if (!app_view_model_ref_().upload_test_result(error_message)) {
+    show_upload_popup_(error_message.empty() ? "Unable to upload test result" : error_message,
+                       view::widgets::PopupTone::ERROR,
+                       3500);
+    return;
+  }
+
+  upload_requested_ = true;
+  show_upload_popup_("Uploading test result", view::widgets::PopupTone::DEFAULT, 60000);
+}
+
+void TestResultPage::refresh_upload_() {
+  const auto snapshot = app_view_model_ref_().test_upload_snapshot();
+  if (snapshot.revision == last_upload_revision_) {
+    return;
+  }
+  last_upload_revision_ = snapshot.revision;
+  if (!upload_requested_) {
+    return;
+  }
+
+  switch (snapshot.state) {
+    case viewmodel::TestUploadState::SUCCEEDED:
+      show_upload_popup_(snapshot.message.empty() ? "Test result uploaded" : snapshot.message,
+                         view::widgets::PopupTone::SUCCESS,
+                         3000);
+      upload_requested_ = false;
+      break;
+    case viewmodel::TestUploadState::FAILED:
+    case viewmodel::TestUploadState::UNAVAILABLE:
+      show_upload_popup_(snapshot.message.empty() ? "Test result upload failed" : snapshot.message,
+                         view::widgets::PopupTone::ERROR,
+                         4500);
+      upload_requested_ = false;
+      break;
+    case viewmodel::TestUploadState::SEARCHING:
+    case viewmodel::TestUploadState::WAITING_HANDSHAKE:
+    case viewmodel::TestUploadState::QUEUED:
+    case viewmodel::TestUploadState::SENDING:
+    case viewmodel::TestUploadState::WAITING_RESULT_ACK:
+      show_upload_popup_(snapshot.message.empty() ? "Uploading test result" : snapshot.message,
+                         view::widgets::PopupTone::DEFAULT,
+                         60000);
+      break;
+    case viewmodel::TestUploadState::READY:
+    default:
+      break;
+  }
+}
+
+void TestResultPage::show_upload_popup_(const std::string& message,
+                                        view::widgets::PopupTone tone,
+                                        uint32_t duration_ms) {
+  upload_popup_.reset();
+  if (!root()) {
+    return;
+  }
+
+  view::widgets::PopupConfig config;
+  config.width       = 286;
+  config.height      = 46;
+  config.label_width = 268;
+  config.radius      = 6;
+  config.tone        = tone;
+  config.message     = app_view_model_ref_().tr(message.c_str());
+  config.font = assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-medium.ttf"), 13);
+  upload_popup_ =
+      std::make_unique<view::widgets::Popup>(root(), app_view_model_ref_(), std::move(config));
+  upload_popup_->build();
+  upload_popup_->show_for(duration_ms);
+}
+
 void TestResultPage::key_listener(uint32_t key, const char* key_name, void* user_data) {
   auto* page = static_cast<TestResultPage*>(user_data);
   if (!page) {
@@ -228,6 +312,13 @@ void TestResultPage::key_listener(uint32_t key, const char* key_name, void* user
       break;
     default:
       break;
+  }
+}
+
+void TestResultPage::upload_timer_cb(lv_timer_t* timer) {
+  auto* page = static_cast<TestResultPage*>(lv_timer_get_user_data(timer));
+  if (page) {
+    page->refresh_upload_();
   }
 }
 

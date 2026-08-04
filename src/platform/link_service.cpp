@@ -27,10 +27,10 @@
 #include "logger.h"
 #include "process_service.h"
 
-#if APP_USE_LIBNM
+#if !USE_DESKTOP
 #include <NetworkManager.h>
 #endif
-#if APP_USE_LIBIPERF
+#if !USE_DESKTOP
 #include <iperf_api.h>
 #endif
 #if defined(__linux__)
@@ -76,7 +76,7 @@ bool wireless_result_sort_less(const WirelessScanItem& left, const WirelessScanI
   return left.detail < right.detail;
 }
 
-#if APP_USE_LIBNM
+#if !USE_DESKTOP
 constexpr gint64 K_WIFI_SCAN_WAIT_TIMEOUT_US  = 12000000;
 constexpr gint64 K_WIFI_SCAN_POLL_INTERVAL_US = 100000;
 constexpr gint64 K_WIFI_SCAN_SETTLE_TIME_US   = 500000;
@@ -99,7 +99,6 @@ std::string take_error(GErrorOwner& owner, const char* fallback) {
   }
   return fallback ? fallback : "NetworkManager error";
 }
-
 
 struct GMainContextScope {
   GMainContext* context{nullptr};
@@ -547,7 +546,7 @@ struct LinkInterfaceSelection {
   std::string unavailable_message{};
 };
 
-#if APP_USE_LIBNM
+#if !USE_DESKTOP
 std::optional<std::string> active_nm_interface(NMDeviceType device_type) {
   std::string error;
   auto client = make_client(error);
@@ -665,7 +664,7 @@ std::optional<std::string> active_sysfs_interface(bool wireless, bool require_wi
 }
 
 LinkInterfaceSelection active_link_interface(bool wireless) {
-#if APP_USE_LIBNM
+#if !USE_DESKTOP
   if (wireless) {
     auto wifi = active_nm_wifi_interface();
     if (wifi.name) {
@@ -829,7 +828,7 @@ LinkIperfResult run_iperf_for_interface(const LinkTestSettings& settings,
     return result;
   }
 
-#if APP_USE_LIBIPERF
+#if !USE_DESKTOP
   struct iperf_test* test = iperf_new_test();
   if (!test) {
     result.message = "failed to create iperf test";
