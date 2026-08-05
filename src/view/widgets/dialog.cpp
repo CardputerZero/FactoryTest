@@ -10,6 +10,7 @@
 #include <cstring>
 #include <utility>
 
+#include "audio_service.h"
 #include "bindings.h"
 #include "theme.h"
 #include "ui_const.h"
@@ -79,6 +80,7 @@ void Dialog::build() {
   add_button_row_();
   bind_theme_(app_view_model_.dark_mode_subject(), app_view_model_.is_dark_mode());
   lv_obj_move_foreground(core_obj_);
+  platform::audio::play_ui_sound(platform::audio::UiSound::OPEN);
 }
 
 bool Dialog::visible() const { return core_obj_ && lv_obj_is_valid(core_obj_); }
@@ -129,6 +131,9 @@ void Dialog::trigger_cancel() {
 }
 
 void Dialog::close() {
+  if (visible()) {
+    platform::audio::play_ui_sound(platform::audio::UiSound::CLOSE);
+  }
   destroy_core_obj_();
   core_obj_      = nullptr;
   content_       = nullptr;

@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "app_viewmodel.h"
+#include "audio_service.h"
 #include "theme.h"
 
 namespace view::widgets {
@@ -90,6 +91,7 @@ void Popup::set_text(const char* text) {
 }
 
 void Popup::show() {
+  const bool was_visible = visible();
   if (!core_obj_) {
     build();
   }
@@ -99,6 +101,23 @@ void Popup::show() {
 
   lv_obj_move_foreground(core_obj_);
   lv_obj_remove_flag(core_obj_, LV_OBJ_FLAG_HIDDEN);
+  if (was_visible) {
+    return;
+  }
+  switch (config_.tone) {
+    case PopupTone::SUCCESS:
+      platform::audio::play_ui_sound(platform::audio::UiSound::SUCCESS);
+      break;
+    case PopupTone::WARNING:
+      platform::audio::play_ui_sound(platform::audio::UiSound::WARNING);
+      break;
+    case PopupTone::ERROR:
+      platform::audio::play_ui_sound(platform::audio::UiSound::ERROR);
+      break;
+    case PopupTone::DEFAULT:
+    default:
+      break;
+  }
 }
 
 void Popup::hide() {

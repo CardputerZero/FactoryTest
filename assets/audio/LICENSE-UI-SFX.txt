@@ -1,0 +1,11 @@
+UI SFX audio assets
+
+The WAV files in this directory were converted from the `scifi` sound pack in
+UI SFX 0.4.0 (https://uisfx.com/).
+
+The source audio is dedicated to the public domain under the Creative Commons
+CC0 1.0 Universal Public Domain Dedication. You may copy, modify, distribute,
+and use these files, including commercially, without asking permission.
+
+Legal code: https://creativecommons.org/publicdomain/zero/1.0/legalcode
+SPDX identifier: CC0-1.0

@@ -577,6 +577,13 @@ if(BUILD_TESTING AND USE_DESKTOP)
     add_executable(session_manager_test tests/session_manager_test.cpp)
     target_link_libraries(session_manager_test PRIVATE ${PROJECT_NAME}_model logger)
     add_test(NAME session_manager COMMAND session_manager_test)
+
+    add_executable(ui_sfx_test tests/ui_sfx_test.cpp)
+    target_compile_definitions(ui_sfx_test PRIVATE
+        TEST_AUDIO_ASSETS_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/assets/audio"
+    )
+    target_link_libraries(ui_sfx_test PRIVATE ${PROJECT_NAME}_platform logger)
+    add_test(NAME ui_sfx COMMAND ui_sfx_test)
 endif()
 
 include(cmake/cm0-package.cmake)

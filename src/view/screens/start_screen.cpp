@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "asset_manager.h"
+#include "audio_service.h"
 #include "bindings.h"
 #include "linux_input.h"
 #include "logger.h"
@@ -196,7 +197,12 @@ std::vector<view::widgets::IconList::Item> StartScreen::current_list_items_() {
   for (std::size_t i = 0; i < count; ++i) {
     const auto* item = menu_view_model_.item_for_category(category, i);
     if (item) {
-      items.push_back({item->icon, app_view_model_ref_().tr(item->title)});
+      auto title = app_view_model_ref_().tr(item->title);
+      if (std::strcmp(item->title, "Sound") == 0) {
+        title += ": ";
+        title += app_view_model_ref_().tr(app_view_model_ref_().ui_sounds_enabled() ? "ON" : "OFF");
+      }
+      items.push_back({item->icon, std::move(title)});
     }
   }
   return items;
@@ -289,6 +295,10 @@ void StartScreen::set_drawer_open_(bool open, bool animate) {
 
   drawer_open_ = open;
   menu_view_model_.set_drawer_hidden(!open);
+  if (animate) {
+    platform::audio::play_ui_sound(open ? platform::audio::UiSound::OPEN
+                                        : platform::audio::UiSound::CLOSE);
+  }
   if (!drawer_ || !list_viewport_) {
     return;
   }
@@ -510,6 +520,12 @@ void StartScreen::activate_selected_item_() {
     show_language_dialog_();
     return;
   }
+  if (std::strcmp(item.title, "Sound") == 0) {
+    if (app_view_model_ref_().set_ui_sounds_enabled(!app_view_model_ref_().ui_sounds_enabled())) {
+      rebuild_list_();
+    }
+    return;
+  }
   if (std::strcmp(item.title, "Poweroff") == 0) {
     show_power_dialog_(false);
     return;
@@ -605,6 +621,7 @@ bool StartScreen::handle_language_dialog_key_(uint32_t key, const char* key_name
         selected = selected + 1 >= count ? 0 : selected + 1;
       }
       lv_dropdown_set_selected(language_dropdown_, selected);
+      platform::audio::play_ui_sound(platform::audio::UiSound::SELECT);
     }
     return true;
   }
@@ -751,6 +768,7 @@ void StartScreen::execute_power_action_() {
   if (!requested) {
     LOG_ERROR("{} request failed: {}", reboot ? "reboot" : "shutdown", error_message);
     show_power_error_dialog_();
+    platform::audio::play_ui_sound(platform::audio::UiSound::ERROR);
   }
 }
 
@@ -892,18 +910,34 @@ void StartScreen::key_listener(uint32_t key, const char* key_name, void* user_da
     case 'f':
     case 'F':
       if (page->focus_area_ == FocusArea::DRAWER) {
+        const auto previous = page->menu_view_model_.selected_category_index();
         page->menu_view_model_.select_previous_category();
+        if (page->menu_view_model_.selected_category_index() != previous) {
+          platform::audio::play_ui_sound(platform::audio::UiSound::SELECT);
+        }
       } else {
+        const auto previous = page->menu_view_model_.selected_index();
         page->menu_view_model_.select_previous();
+        if (page->menu_view_model_.selected_index() != previous) {
+          platform::audio::play_ui_sound(platform::audio::UiSound::SELECT);
+        }
       }
       break;
     case LV_KEY_DOWN:
     case 'x':
     case 'X':
       if (page->focus_area_ == FocusArea::DRAWER) {
+        const auto previous = page->menu_view_model_.selected_category_index();
         page->menu_view_model_.select_next_category();
+        if (page->menu_view_model_.selected_category_index() != previous) {
+          platform::audio::play_ui_sound(platform::audio::UiSound::SELECT);
+        }
       } else {
+        const auto previous = page->menu_view_model_.selected_index();
         page->menu_view_model_.select_next();
+        if (page->menu_view_model_.selected_index() != previous) {
+          platform::audio::play_ui_sound(platform::audio::UiSound::SELECT);
+        }
       }
       break;
     case LV_KEY_ENTER:
@@ -946,6 +980,7 @@ void StartScreen::item_clicked_cb(std::size_t index, void* user_data) {
 
   page->set_focus_area_(FocusArea::LIST);
   page->menu_view_model_.set_selected_index(index);
+  platform::audio::play_ui_sound(platform::audio::UiSound::SELECT);
   page->activate_selected_item_();
 }
 
@@ -958,8 +993,12 @@ void StartScreen::tab_clicked_cb(lv_event_t* event) {
 
   for (const auto& tab : page->tabs_) {
     if (tab.button == target) {
+      const bool changed = page->menu_view_model_.selected_category() != tab.category;
       page->menu_view_model_.set_selected_category(tab.category);
       page->set_focus_area_(FocusArea::DRAWER);
+      if (changed) {
+        platform::audio::play_ui_sound(platform::audio::UiSound::SELECT);
+      }
       return;
     }
   }

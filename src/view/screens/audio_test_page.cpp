@@ -138,6 +138,7 @@ void AudioTestPage::start_recording_() {
   }
 
   recording_started_at_ = lv_tick_get();
+  platform::audio::stop_ui_sounds();
   job_state_->stage.store(JobStage::RECORDING);
   model::TestEvidence evidence;
   evidence.emplace("record_seconds", model::EvidenceValue::number(K_RECORD_SECONDS));

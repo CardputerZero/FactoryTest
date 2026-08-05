@@ -350,7 +350,7 @@ void route_key_state(uint32_t key, bool pressed, const char* source) {
       state.press_started_at               = lv_tick_get();
       state.long_press_sent                = false;
       state.pressed_key_consumed_by_global = false;
-      audio::play_key_click_sound();
+      audio::play_ui_sound(audio::UiSound::PRESS);
       state.pressed_key_consumed_by_global = emit_key(key);
       if (!modal_capture && !state.pressed_key_consumed_by_global) {
         dispatch_nav_key(key, LV_EVENT_PRESSED);

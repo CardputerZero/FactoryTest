@@ -85,10 +85,12 @@ class AppViewModel {
   lv_subject_t* quit_requested_subject();
 
   bool is_dark_mode() const;
+  bool ui_sounds_enabled() const;
   const std::string& language() const;
   const std::array<NavAction, 5>& nav_actions() const;
   void set_dark_mode(bool enabled);
   void toggle_dark_mode();
+  bool set_ui_sounds_enabled(bool enabled);
   bool set_language(const std::string& locale);
   int uart_baud_rate() const;
   bool set_uart_baud_rate(int baud_rate);

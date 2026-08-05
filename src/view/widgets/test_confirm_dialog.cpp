@@ -10,6 +10,7 @@
 #include <cstring>
 #include <utility>
 
+#include "audio_service.h"
 #include "bindings.h"
 #include "theme.h"
 
@@ -62,6 +63,7 @@ void TestConfirmDialog::build() {
   add_buttons_();
   bind_theme_(app_view_model_.dark_mode_subject(), app_view_model_.is_dark_mode());
   lv_obj_move_foreground(core_obj_);
+  platform::audio::play_ui_sound(platform::audio::UiSound::OPEN);
 }
 
 bool TestConfirmDialog::visible() const { return core_obj_ && lv_obj_is_valid(core_obj_); }
@@ -91,6 +93,9 @@ bool TestConfirmDialog::handle_key(uint32_t key, const char* key_name) {
 }
 
 void TestConfirmDialog::close() {
+  if (visible()) {
+    platform::audio::play_ui_sound(platform::audio::UiSound::CLOSE);
+  }
   destroy_core_obj_();
   core_obj_    = nullptr;
   title_label_ = nullptr;
@@ -235,6 +240,7 @@ void TestConfirmDialog::move_focus_(int32_t direction) {
   }
   focused_button_index_ = static_cast<std::size_t>(next);
   apply_theme(app_view_model_.is_dark_mode());
+  platform::audio::play_ui_sound(platform::audio::UiSound::SELECT);
 }
 
 void TestConfirmDialog::trigger_focused_button_() {

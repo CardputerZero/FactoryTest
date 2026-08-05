@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "asset_manager.h"
+#include "audio_service.h"
 #include "bindings.h"
 #include "linux_input.h"
 #include "theme.h"
@@ -211,12 +212,16 @@ void TestResultPage::move_selection_(int32_t direction) {
     return;
   }
 
+  const auto previous = selected_index_;
   if (direction < 0) {
     selected_index_ = selected_index_ == 0 ? 0 : selected_index_ - 1;
   } else if (selected_index_ + 1 < item_count_) {
     ++selected_index_;
   }
   result_list_->set_selected_index(selected_index_);
+  if (selected_index_ != previous) {
+    platform::audio::play_ui_sound(platform::audio::UiSound::SELECT);
+  }
 }
 
 void TestResultPage::start_upload_() {

@@ -10,6 +10,7 @@
 #include <array>
 #include <utility>
 
+#include "audio_service.h"
 #include "device_info_service.h"
 #include "factory_upload_service.h"
 #include "logger.h"
@@ -153,6 +154,8 @@ lv_subject_t* AppViewModel::quit_requested_subject() { return quit_requested_sub
 
 bool AppViewModel::is_dark_mode() const { return model_.dark_mode(); }
 
+bool AppViewModel::ui_sounds_enabled() const { return config_store_.config().ui.key_click_enabled; }
+
 const std::string& AppViewModel::language() const { return translations_.language(); }
 
 const std::array<NavAction, 5>& AppViewModel::nav_actions() const { return nav_actions_; }
@@ -169,6 +172,29 @@ void AppViewModel::toggle_dark_mode() {
   dark_mode_subject_.set(model_.dark_mode());
   config_store_.config().ui.dark_mode = model_.dark_mode();
   save_config_();
+}
+
+bool AppViewModel::set_ui_sounds_enabled(bool enabled) {
+  auto& preference = config_store_.config().ui.key_click_enabled;
+  if (preference == enabled) {
+    return true;
+  }
+
+  const bool previous = preference;
+  preference          = enabled;
+  if (!save_config_()) {
+    preference = previous;
+    return false;
+  }
+
+  platform::audio::set_ui_sounds_enabled(enabled);
+  if (enabled) {
+    if (!platform::audio::initialize_ui_sounds()) {
+      LOG_WARN("failed to initialize UI SFX after enabling sound");
+    }
+    platform::audio::play_ui_sound(platform::audio::UiSound::TOGGLE_ON);
+  }
+  return true;
 }
 
 bool AppViewModel::set_language(const std::string& locale) {
@@ -308,6 +334,7 @@ bool AppViewModel::start_full_test_sequence() {
   if (!session_manager_.start_new(test_sequence_plan(),
                                   session_metadata(config_store_.config().factory.station_id))) {
     LOG_ERROR("failed to start test session: {}", session_manager_.last_error());
+    platform::audio::play_ui_sound(platform::audio::UiSound::ERROR);
     return false;
   }
   model_.set_test_sequence_active(true);
@@ -316,6 +343,7 @@ bool AppViewModel::start_full_test_sequence() {
     model_.set_test_sequence_active(false);
     return false;
   }
+  platform::audio::play_ui_sound(platform::audio::UiSound::START);
   return true;
 }
 
@@ -338,10 +366,12 @@ bool AppViewModel::resume_full_test_sequence() {
   if (test_sequence_index_ >= test_sequence_size()) {
     if (!session_manager_.finalize()) {
       LOG_ERROR("failed to finalize recovered test session: {}", session_manager_.last_error());
+      platform::audio::play_ui_sound(platform::audio::UiSound::ERROR);
       return false;
     }
     model_.set_test_sequence_active(false);
     show_test_result_page();
+    platform::audio::play_ui_sound(platform::audio::UiSound::COMPLETE);
     return true;
   }
 
@@ -350,6 +380,7 @@ bool AppViewModel::resume_full_test_sequence() {
     model_.set_test_sequence_active(false);
     return false;
   }
+  platform::audio::play_ui_sound(platform::audio::UiSound::START);
   return true;
 }
 
@@ -383,10 +414,17 @@ void AppViewModel::complete_current_test(model::TestResult result) {
     const auto* item = sequence_item(test_sequence_index_);
     if (!item || !session_manager_.complete_test(item->id, result)) {
       LOG_ERROR("failed to persist test result: {}", session_manager_.last_error());
+      platform::audio::play_ui_sound(platform::audio::UiSound::ERROR);
       return;
     }
   }
 
+  const bool sequence_complete =
+      model_.test_sequence_active() && test_sequence_index_ + 1 >= test_sequence_size();
+  platform::audio::play_ui_sound(result == model::TestResult::FAIL
+                                     ? platform::audio::UiSound::ERROR
+                                     : (sequence_complete ? platform::audio::UiSound::COMPLETE
+                                                          : platform::audio::UiSound::SUCCESS));
   advance_test_sequence_();
 }
 
@@ -405,10 +443,17 @@ void AppViewModel::complete_current_test_with_details(
     }
     if (!session_manager_.complete_test(item->id, result, detail_results)) {
       LOG_ERROR("failed to persist detailed test result: {}", session_manager_.last_error());
+      platform::audio::play_ui_sound(platform::audio::UiSound::ERROR);
       return;
     }
   }
 
+  const bool sequence_complete =
+      model_.test_sequence_active() && test_sequence_index_ + 1 >= test_sequence_size();
+  platform::audio::play_ui_sound(result == model::TestResult::FAIL
+                                     ? platform::audio::UiSound::ERROR
+                                     : (sequence_complete ? platform::audio::UiSound::COMPLETE
+                                                          : platform::audio::UiSound::SUCCESS));
   advance_test_sequence_();
 }
 
@@ -422,6 +467,7 @@ void AppViewModel::advance_test_sequence_() {
   if (const auto* item = sequence_item(test_sequence_index_)) {
     if (!session_manager_.set_current_test(item->id)) {
       LOG_ERROR("failed to persist current test: {}", session_manager_.last_error());
+      platform::audio::play_ui_sound(platform::audio::UiSound::ERROR);
       model_.set_test_sequence_active(false);
       show_start_page();
       return;
@@ -442,6 +488,7 @@ bool AppViewModel::open_test_sequence_item_(std::size_t index) {
   }
   if (!session_manager_.set_current_test(item->id)) {
     LOG_ERROR("failed to persist current test: {}", session_manager_.last_error());
+    platform::audio::play_ui_sound(platform::audio::UiSound::ERROR);
     show_start_page();
     return false;
   }

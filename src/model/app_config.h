@@ -20,7 +20,7 @@ struct AppConfig {
     bool dark_mode{true};
     std::string language{"en"};
     bool key_click_enabled{true};
-    int key_click_volume_percent{50};
+    int key_click_volume_percent{70};
   } ui;
 
   struct Network {

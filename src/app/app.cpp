@@ -10,8 +10,10 @@
 #include "factory_test_config.h"
 #endif
 
+#include <array>
 #include <cstddef>
 #include <cstring>
+#include <filesystem>
 #include <utility>
 
 #include "app_config.h"
@@ -236,17 +238,35 @@ int Application::run() {
   for (const auto& root : assets.roots()) {
     LOG_INFO("asset root: {}", root.string());
   }
-  const auto click_sound_path = assets.resolve("audio/click.wav");
-  platform::audio::set_key_click_enabled(config.ui.key_click_enabled);
-  platform::audio::set_key_click_volume_level(
+  constexpr std::array<platform::audio::UiSound,
+                       static_cast<std::size_t>(platform::audio::UiSound::COUNT)>
+      K_UI_SOUNDS = {
+          platform::audio::UiSound::PRESS,
+          platform::audio::UiSound::SELECT,
+          platform::audio::UiSound::OPEN,
+          platform::audio::UiSound::CLOSE,
+          platform::audio::UiSound::SUCCESS,
+          platform::audio::UiSound::ERROR,
+          platform::audio::UiSound::WARNING,
+          platform::audio::UiSound::START,
+          platform::audio::UiSound::COMPLETE,
+          platform::audio::UiSound::TOGGLE_ON,
+      };
+  platform::audio::set_ui_sounds_enabled(config.ui.key_click_enabled);
+  platform::audio::set_ui_sounds_volume_level(
       static_cast<float>(config.ui.key_click_volume_percent) / 100.0F);
-  if (!click_sound_path.empty()) {
-    platform::audio::set_key_click_sound_path(click_sound_path.string());
-    if (config.ui.key_click_enabled && !platform::audio::initialize_key_click_sound()) {
-      LOG_WARN("failed to initialize global key click playback");
+  for (const auto sound : K_UI_SOUNDS) {
+    const char* filename = platform::audio::ui_sound_asset_filename(sound);
+    const auto sound_path =
+        filename ? assets.resolve(std::string("audio/") + filename) : std::filesystem::path{};
+    if (sound_path.empty()) {
+      LOG_WARN("UI SFX asset not found: audio/{}", filename ? filename : "unknown");
+      continue;
     }
-  } else {
-    LOG_WARN("key click sound asset not found: audio/click.wav");
+    platform::audio::set_ui_sound_path(sound, sound_path.string());
+  }
+  if (config.ui.key_click_enabled && !platform::audio::initialize_ui_sounds()) {
+    LOG_WARN("failed to initialize global UI SFX playback");
   }
 
   model::TranslationService translations;
@@ -306,6 +326,7 @@ int Application::run() {
     lv_observer_remove(dark_mode_observer_handle);
   }
   platform::clear_global_key_listener(global_key_listener, &app_view_model);
+  platform::audio::shutdown_ui_sounds();
 
   return 0;
 }

@@ -134,7 +134,7 @@ void test_partial_invalid_config_uses_and_writes_defaults(const std::filesystem:
   CHECK(!store.config().ui.dark_mode);
   CHECK(store.config().ui.language == "en");
   CHECK(store.config().ui.key_click_enabled);
-  CHECK(store.config().ui.key_click_volume_percent == 50);
+  CHECK(store.config().ui.key_click_volume_percent == 70);
   CHECK(store.config().network.iperf_host == "192.168.10.187");
   CHECK(store.config().network.iperf_port == 5201);
   CHECK(store.config().uart.baud_rate == 9600);

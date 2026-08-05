@@ -10,6 +10,7 @@
 #include <utility>
 
 #include "asset_manager.h"
+#include "audio_service.h"
 #include "bindings.h"
 #include "device_info_service.h"
 #include "linux_input.h"
@@ -148,6 +149,7 @@ void Py32UpgradePage::start_upgrade_() {
   completion_handled_ = false;
   reboot_prompt_handled_ = false;
   app_view_model_ref_().clear_nav_actions();
+  platform::audio::play_ui_sound(platform::audio::UiSound::START);
 
   const auto archive_path = archive_path_;
   worker_                 = std::thread([this, archive_path]() {
@@ -206,6 +208,9 @@ void Py32UpgradePage::refresh_() {
     restore_nav_actions_();
     if (success) {
       show_reboot_dialog_();
+      platform::audio::play_ui_sound(platform::audio::UiSound::COMPLETE);
+    } else {
+      platform::audio::play_ui_sound(platform::audio::UiSound::ERROR);
     }
   }
 }
@@ -258,6 +263,7 @@ void Py32UpgradePage::request_reboot_() {
   std::string error_message;
   if (!platform::power::safe_reboot(error_message)) {
     LOG_ERROR("reboot after PY32 upgrade failed: {}", error_message);
+    platform::audio::play_ui_sound(platform::audio::UiSound::ERROR);
     std::lock_guard<std::mutex> lock(job_state_.mutex);
     job_state_.status = "Reboot failed";
   }

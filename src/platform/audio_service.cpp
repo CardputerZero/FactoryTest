@@ -7,6 +7,7 @@
 #include "audio_service.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -34,7 +35,7 @@ namespace {
 constexpr ma_uint32 K_AUDIO_SAMPLE_RATE = 16000;
 constexpr ma_uint32 K_AUDIO_CHANNELS    = 1;
 constexpr ma_uint32 K_PLAYBACK_CHANNELS = 2;
-constexpr float K_DEFAULT_VOLUME_LEVEL  = 0.5F;
+constexpr float K_DEFAULT_VOLUME_LEVEL  = 0.7F;
 
 struct WavAudio {
   ma_uint32 sample_rate{0};
@@ -99,10 +100,10 @@ struct MiniaudioContext {
   MiniaudioContext& operator=(const MiniaudioContext&) = delete;
 };
 
-struct KeyClickState {
+struct UiSfxState {
   std::mutex mutex;
-  std::string path;
-  std::shared_ptr<WavAudio> audio;
+  std::array<std::shared_ptr<WavAudio>, static_cast<std::size_t>(UiSound::COUNT)> sounds;
+  std::shared_ptr<WavAudio> active_audio;
   std::unique_ptr<MiniaudioContext> context;
   ma_device device{};
   ma_uint32 sample_rate{0};
@@ -111,7 +112,7 @@ struct KeyClickState {
   std::atomic<std::size_t> frame_offset{0};
   std::atomic<bool> active{false};
 
-  ~KeyClickState() {
+  ~UiSfxState() {
     active.store(false);
     if (device_started) {
       ma_device_stop(&device);
@@ -134,12 +135,12 @@ std::atomic<float>& global_volume_level() {
 
 float current_volume_level() { return global_volume_level().load(); }
 
-std::atomic<bool>& key_click_enabled() {
+std::atomic<bool>& ui_sounds_enabled_state() {
   static std::atomic<bool> enabled{true};
   return enabled;
 }
 
-std::atomic<float>& key_click_volume_level() {
+std::atomic<float>& ui_sounds_volume_level() {
   static std::atomic<float> level{K_DEFAULT_VOLUME_LEVEL};
   return level;
 }
@@ -154,8 +155,8 @@ std::mutex& selected_audio_device_mutex() {
   return mutex;
 }
 
-KeyClickState& key_click_state() {
-  static KeyClickState state;
+UiSfxState& ui_sfx_state() {
+  static UiSfxState state;
   return state;
 }
 
@@ -347,12 +348,12 @@ void playback_data_callback(ma_device* device,
   }
 }
 
-void key_click_data_callback(ma_device* device,
-                             void* output,
-                             const void* input,
-                             ma_uint32 frame_count) {
+void ui_sfx_data_callback(ma_device* device,
+                          void* output,
+                          const void* input,
+                          ma_uint32 frame_count) {
   (void)input;
-  auto* state = static_cast<KeyClickState*>(device->pUserData);
+  auto* state = static_cast<UiSfxState*>(device->pUserData);
   auto* out   = static_cast<int16_t*>(output);
   if (!out || frame_count == 0) {
     return;
@@ -364,7 +365,7 @@ void key_click_data_callback(ma_device* device,
     return;
   }
 
-  std::shared_ptr<WavAudio> audio = std::atomic_load(&state->audio);
+  std::shared_ptr<WavAudio> audio = std::atomic_load(&state->active_audio);
   if (!audio || audio->samples.empty() || audio->sample_rate == 0 || audio->channels == 0) {
     state->active.store(false);
     return;
@@ -396,9 +397,10 @@ void key_click_data_callback(ma_device* device,
   }
 }
 
-void stop_key_click_device_locked(KeyClickState& state) {
+void stop_ui_sfx_device_locked(UiSfxState& state) {
   state.active.store(false);
   state.frame_offset.store(0);
+  std::atomic_store(&state.active_audio, std::shared_ptr<WavAudio>{});
   if (state.device_started) {
     ma_device_stop(&state.device);
     state.device_started = false;
@@ -411,13 +413,13 @@ void stop_key_click_device_locked(KeyClickState& state) {
   state.sample_rate = 0;
 }
 
-void stop_key_click_device() {
-  auto& state = key_click_state();
+void stop_ui_sfx_device() {
+  auto& state = ui_sfx_state();
   std::lock_guard<std::mutex> lock(state.mutex);
-  stop_key_click_device_locked(state);
+  stop_ui_sfx_device_locked(state);
 }
 
-bool ensure_key_click_device_locked(KeyClickState& state, const std::shared_ptr<WavAudio>& audio) {
+bool ensure_ui_sfx_device_locked(UiSfxState& state, const std::shared_ptr<WavAudio>& audio) {
   if (!audio || audio->sample_rate == 0 || audio->channels == 0 || audio->samples.empty()) {
     return false;
   }
@@ -426,7 +428,7 @@ bool ensure_key_click_device_locked(KeyClickState& state, const std::shared_ptr<
   }
 
   std::lock_guard<std::mutex> playback_lock(playback_mutex());
-  stop_key_click_device_locked(state);
+  stop_ui_sfx_device_locked(state);
 
   state.context = std::make_unique<MiniaudioContext>();
   if (!state.context->initialized) {
@@ -439,11 +441,11 @@ bool ensure_key_click_device_locked(KeyClickState& state, const std::shared_ptr<
   config.playback.channels  = K_PLAYBACK_CHANNELS;
   config.playback.shareMode = ma_share_mode_shared;
   config.sampleRate         = audio->sample_rate;
-  config.dataCallback       = key_click_data_callback;
+  config.dataCallback       = ui_sfx_data_callback;
   config.pUserData          = &state;
 
   LOG_INFO(
-      "initializing key click playback: backend={} device=default rate={} input_channels={} "
+      "initializing UI SFX playback: backend={} device=default rate={} input_channels={} "
       "output_channels={} share=shared",
       ma_get_backend_name(state.context->context.backend),
       audio->sample_rate,
@@ -452,23 +454,23 @@ bool ensure_key_click_device_locked(KeyClickState& state, const std::shared_ptr<
 
   ma_result result = ma_device_init(&state.context->context, &config, &state.device);
   if (result != MA_SUCCESS) {
-    LOG_ERROR("failed to initialize key click playback: {}", ma_result_description(result));
+    LOG_ERROR("failed to initialize UI SFX playback: {}", ma_result_description(result));
     state.context.reset();
     return false;
   }
   state.device_initialized = true;
 
-  result = ma_device_set_master_volume(&state.device, key_click_volume_level().load());
+  result = ma_device_set_master_volume(&state.device, ui_sounds_volume_level().load());
   if (result != MA_SUCCESS) {
-    LOG_ERROR("failed to set key click playback volume: {}", ma_result_description(result));
-    stop_key_click_device_locked(state);
+    LOG_ERROR("failed to set UI SFX playback volume: {}", ma_result_description(result));
+    stop_ui_sfx_device_locked(state);
     return false;
   }
 
   result = ma_device_start(&state.device);
   if (result != MA_SUCCESS) {
-    LOG_ERROR("failed to start key click playback: {}", ma_result_description(result));
-    stop_key_click_device_locked(state);
+    LOG_ERROR("failed to start UI SFX playback: {}", ma_result_description(result));
+    stop_ui_sfx_device_locked(state);
     return false;
   }
 
@@ -558,7 +560,7 @@ bool play_audio(const std::shared_ptr<WavAudio>& audio, std::chrono::millisecond
     return false;
   }
 
-  stop_key_click_device();
+  stop_ui_sfx_device();
   std::lock_guard<std::mutex> playback_lock(playback_mutex());
   MiniaudioContext context;
   if (!context.initialized) {
@@ -729,7 +731,7 @@ bool play_wav(const AudioDevice& device, const std::string& input_path) {
   }
   normalize_to_full_scale(*audio);
   const bool played = play_audio(audio, std::chrono::seconds(3));
-  initialize_key_click_sound();
+  initialize_ui_sounds();
   return played;
 }
 
@@ -738,13 +740,53 @@ void set_volume_level(float level) {
   global_volume_level().store(clamped_level);
 }
 
-void set_key_click_enabled(bool enabled) { key_click_enabled().store(enabled); }
+const char* ui_sound_asset_filename(UiSound sound) {
+  switch (sound) {
+    case UiSound::PRESS:
+      return "click.wav";
+    case UiSound::SELECT:
+      return "select.wav";
+    case UiSound::OPEN:
+      return "open.wav";
+    case UiSound::CLOSE:
+      return "close.wav";
+    case UiSound::SUCCESS:
+      return "success.wav";
+    case UiSound::ERROR:
+      return "error.wav";
+    case UiSound::WARNING:
+      return "warning.wav";
+    case UiSound::START:
+      return "start.wav";
+    case UiSound::COMPLETE:
+      return "complete.wav";
+    case UiSound::TOGGLE_ON:
+      return "toggle-on.wav";
+    case UiSound::COUNT:
+    default:
+      return nullptr;
+  }
+}
 
-void set_key_click_volume_level(float level) {
+void set_ui_sounds_enabled(bool enabled) {
+  auto& state = ui_sfx_state();
+  std::lock_guard<std::mutex> lock(state.mutex);
+  ui_sounds_enabled_state().store(enabled);
+  if (enabled) {
+    return;
+  }
+  state.active.store(false);
+  state.frame_offset.store(0);
+  std::atomic_store(&state.active_audio, std::shared_ptr<WavAudio>{});
+}
+
+bool ui_sounds_enabled() { return ui_sounds_enabled_state().load(); }
+
+void set_ui_sounds_volume_level(float level) {
   const float clamped_level = std::max(0.0F, std::min(1.0F, level));
-  key_click_volume_level().store(clamped_level);
+  ui_sounds_volume_level().store(clamped_level);
 
-  auto& state = key_click_state();
+  auto& state = ui_sfx_state();
   std::lock_guard<std::mutex> lock(state.mutex);
   if (!state.device_initialized) {
     return;
@@ -752,53 +794,78 @@ void set_key_click_volume_level(float level) {
 
   const ma_result result = ma_device_set_master_volume(&state.device, clamped_level);
   if (result != MA_SUCCESS) {
-    LOG_ERROR("failed to update key click playback volume: {}", ma_result_description(result));
+    LOG_ERROR("failed to update UI SFX playback volume: {}", ma_result_description(result));
   }
 }
 
-void set_key_click_sound_path(const std::string& input_path) {
+void set_ui_sound_path(UiSound sound, const std::string& input_path) {
+  const auto index = static_cast<std::size_t>(sound);
+  if (index >= static_cast<std::size_t>(UiSound::COUNT)) {
+    return;
+  }
   auto audio = load_wav_audio(input_path);
 
-  auto& state = key_click_state();
+  auto& state = ui_sfx_state();
   {
     std::lock_guard<std::mutex> lock(state.mutex);
-    state.path = audio ? input_path : std::string{};
-    std::atomic_store(&state.audio, audio);
-    if (!audio) {
-      stop_key_click_device_locked(state);
+    const auto previous   = state.sounds[index];
+    const bool was_active = previous && std::atomic_load(&state.active_audio) == previous;
+    state.sounds[index]   = audio;
+    if (!audio && was_active) {
+      state.active.store(false);
+      std::atomic_store(&state.active_audio, std::shared_ptr<WavAudio>{});
     }
   }
 }
 
-bool initialize_key_click_sound() {
-  auto& state                     = key_click_state();
-  std::shared_ptr<WavAudio> audio = std::atomic_load(&state.audio);
-  if (!audio) {
+bool initialize_ui_sounds() {
+  if (!ui_sounds_enabled_state().load()) {
+    return true;
+  }
+  auto& state = ui_sfx_state();
+  std::lock_guard<std::mutex> lock(state.mutex);
+  if (!ui_sounds_enabled_state().load()) {
+    return true;
+  }
+  const auto item = std::find_if(state.sounds.begin(), state.sounds.end(), [](const auto& sound) {
+    return static_cast<bool>(sound);
+  });
+  return item != state.sounds.end() && ensure_ui_sfx_device_locked(state, *item);
+}
+
+bool play_ui_sound(UiSound sound) {
+  if (!ui_sounds_enabled_state().load()) {
+    return false;
+  }
+  const auto index = static_cast<std::size_t>(sound);
+  if (index >= static_cast<std::size_t>(UiSound::COUNT)) {
     return false;
   }
 
+  auto& state = ui_sfx_state();
   std::lock_guard<std::mutex> lock(state.mutex);
-  return ensure_key_click_device_locked(state, audio);
+  if (!ui_sounds_enabled_state().load()) {
+    return false;
+  }
+  const auto& audio = state.sounds[index];
+  if (!audio || !ensure_ui_sfx_device_locked(state, audio)) {
+    return false;
+  }
+  state.active.store(false);
+  std::atomic_store(&state.active_audio, audio);
+  state.frame_offset.store(0);
+  state.active.store(true);
+  return true;
 }
 
-void play_key_click_sound() {
-  if (!key_click_enabled().load()) {
-    return;
-  }
-  auto& state                     = key_click_state();
-  std::shared_ptr<WavAudio> audio = std::atomic_load(&state.audio);
-  if (!audio) {
-    return;
-  }
-
-  {
-    std::lock_guard<std::mutex> lock(state.mutex);
-    if (!ensure_key_click_device_locked(state, audio)) {
-      return;
-    }
-    state.frame_offset.store(0);
-    state.active.store(true);
-  }
+void stop_ui_sounds() {
+  auto& state = ui_sfx_state();
+  std::lock_guard<std::mutex> lock(state.mutex);
+  state.active.store(false);
+  state.frame_offset.store(0);
+  std::atomic_store(&state.active_audio, std::shared_ptr<WavAudio>{});
 }
+
+void shutdown_ui_sounds() { stop_ui_sfx_device(); }
 
 }  // namespace platform::audio
