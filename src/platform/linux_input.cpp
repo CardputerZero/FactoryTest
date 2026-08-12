@@ -5,6 +5,7 @@
 #endif
 
 #include <array>
+#include <cstdlib>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -29,6 +30,18 @@
 
 #ifndef APP_KEY_INPUT_DEVICE
 #define APP_KEY_INPUT_DEVICE ""
+#endif
+
+#ifndef FACTORY_TEST_EXCLUSIVE_INPUT_ENV
+#define FACTORY_TEST_EXCLUSIVE_INPUT_ENV "FACTORY_TEST_EXCLUSIVE_INPUT"
+#endif
+
+#ifndef FACTORY_TEST_EXCLUSIVE_INPUT_DEVICE_ENV
+#define FACTORY_TEST_EXCLUSIVE_INPUT_DEVICE_ENV "FACTORY_TEST_EXCLUSIVE_INPUT_DEVICE"
+#endif
+
+#ifndef FACTORY_TEST_DEFAULT_EXCLUSIVE_INPUT_DEVICE
+#define FACTORY_TEST_DEFAULT_EXCLUSIVE_INPUT_DEVICE "tca8418c"
 #endif
 
 namespace platform {
@@ -169,6 +182,7 @@ constexpr std::array<KeyNameEntry, 21> K_SPECIAL_KEY_NAMES = {{
 #if !USE_DESKTOP
 struct EvdevKeypad {
   int fd{-1};
+  bool exclusive_grabbed{false};
   lv_indev_state_t state{LV_INDEV_STATE_RELEASED};
   uint32_t key{0};
   bool shift_pressed{false};
@@ -446,6 +460,35 @@ int sdl_modifier_event_watch(void* user_data, SDL_Event* event) {
 const char* named_lv_key(uint32_t key) { return lookup_name(K_LV_KEY_NAMES, key); }
 
 #if !USE_DESKTOP
+bool exclusive_input_requested() {
+  const char* value = std::getenv(FACTORY_TEST_EXCLUSIVE_INPUT_ENV);
+  if (!value || value[0] == '\0') {
+    return false;
+  }
+
+  return std::strcmp(value, "1") == 0 || std::strcmp(value, "true") == 0 ||
+         std::strcmp(value, "yes") == 0 || std::strcmp(value, "on") == 0;
+}
+
+const char* exclusive_input_device_name() {
+  const char* value = std::getenv(FACTORY_TEST_EXCLUSIVE_INPUT_DEVICE_ENV);
+  return value && value[0] != '\0' ? value : FACTORY_TEST_DEFAULT_EXCLUSIVE_INPUT_DEVICE;
+}
+
+std::string evdev_device_name(int fd) {
+  char name[256] = {};
+  if (ioctl(fd, EVIOCGNAME(sizeof(name)), name) < 0) {
+    return {};
+  }
+  return name;
+}
+
+struct KeypadDiscoveryResult {
+  int initialized_count{0};
+  bool exclusive_target_found{false};
+  bool exclusive_target_grabbed{false};
+};
+
 struct EvdevPrintableKeyMapEntry {
   uint16_t code;
   uint32_t key;
@@ -709,14 +752,18 @@ void evdev_delete_cb(lv_event_t* event) {
   }
 
   if (keypad->fd >= 0) {
+    if (keypad->exclusive_grabbed && ioctl(keypad->fd, EVIOCGRAB, 0) < 0) {
+      LOG_WARN("failed to release exclusive key input grab: {}", strerror(errno));
+    }
     close(keypad->fd);
   }
   delete keypad;
 }
 
-lv_indev_t* create_keypad_from_fd(int fd) {
+lv_indev_t* create_keypad_from_fd(int fd, bool exclusive_grabbed) {
   auto* keypad = new EvdevKeypad;
-  keypad->fd   = fd;
+  keypad->fd                = fd;
+  keypad->exclusive_grabbed = exclusive_grabbed;
 
   auto* indev = lv_indev_create();
   if (!indev) {
@@ -734,7 +781,10 @@ lv_indev_t* create_keypad_from_fd(int fd) {
   return indev;
 }
 
-lv_indev_t* try_create_keypad(const char* path) {
+lv_indev_t* try_create_keypad(const char* path,
+                              bool exclusive_requested,
+                              const char* exclusive_device_name,
+                              KeypadDiscoveryResult& result) {
   if (!path || path[0] == '\0') {
     return nullptr;
   }
@@ -753,23 +803,50 @@ lv_indev_t* try_create_keypad(const char* path) {
     return nullptr;
   }
 
-  LOG_DEBUG("using evdev key input device: {}", path);
-  LV_LOG_INFO("using evdev key input %s", path);
-  return create_keypad_from_fd(fd);
+  const auto device_name = evdev_device_name(fd);
+  const bool exclusive_target =
+      exclusive_requested && exclusive_device_name && device_name == exclusive_device_name;
+  if (exclusive_target) {
+    result.exclusive_target_found = true;
+  }
+  if (exclusive_target && ioctl(fd, EVIOCGRAB, 1) < 0) {
+    LOG_ERROR("failed to acquire exclusive key input {}: {}", path, strerror(errno));
+    LV_LOG_ERROR("failed to acquire exclusive key input %s: %s", path, strerror(errno));
+    close(fd);
+    return nullptr;
+  }
+  LOG_DEBUG("using evdev key input device: {} name='{}' mode={}",
+            path,
+            device_name.empty() ? "unknown" : device_name,
+            exclusive_target ? "exclusive" : "shared");
+  LV_LOG_INFO("using evdev key input %s name='%s' mode=%s",
+              path,
+              device_name.empty() ? "unknown" : device_name.c_str(),
+              exclusive_target ? "exclusive" : "shared");
+  auto* indev = create_keypad_from_fd(fd, exclusive_target);
+  if (indev && exclusive_target) {
+    result.exclusive_target_grabbed = true;
+  }
+  return indev;
 }
 
-void discover_keypads(lv_display_t* display) {
+KeypadDiscoveryResult discover_keypads(lv_display_t* display,
+                                       bool exclusive_requested,
+                                       const char* exclusive_device_name) {
+  KeypadDiscoveryResult result;
   const char* configured_device = APP_KEY_INPUT_DEVICE;
   if (configured_device[0] != '\0') {
     LOG_DEBUG("initializing configured key input device: {}", configured_device);
-    auto* indev = try_create_keypad(configured_device);
+    auto* indev = try_create_keypad(
+        configured_device, exclusive_requested, exclusive_device_name, result);
     if (indev) {
       lv_indev_set_display(indev, display);
+      result.initialized_count = 1;
       LOG_INFO("configured key input initialized successfully: {}", configured_device);
     } else {
       LOG_ERROR("configured key input initialization failed: {}", configured_device);
     }
-    return;
+    return result;
   }
 
   LOG_VERBOSE("discovering key input devices under /dev/input");
@@ -777,10 +854,9 @@ void discover_keypads(lv_display_t* display) {
   if (!dir) {
     LOG_WARN("failed to open /dev/input: {}", strerror(errno));
     LV_LOG_WARN("failed to open /dev/input: %s", strerror(errno));
-    return;
+    return result;
   }
 
-  int initialized_count = 0;
   while (auto* entry = readdir(dir)) {
     if (std::strncmp(entry->d_name, "event", 5) != 0) {
       continue;
@@ -788,27 +864,41 @@ void discover_keypads(lv_display_t* display) {
 
     std::string path = "/dev/input/";
     path += entry->d_name;
-    auto* indev = try_create_keypad(path.c_str());
+    auto* indev =
+        try_create_keypad(path.c_str(), exclusive_requested, exclusive_device_name, result);
     if (indev) {
       lv_indev_set_display(indev, display);
-      ++initialized_count;
+      ++result.initialized_count;
     }
   }
 
   closedir(dir);
-  LOG_INFO("key input discovery completed: {} device(s) initialized", initialized_count);
+  LOG_INFO("key input discovery completed: {} device(s) initialized", result.initialized_count);
+  return result;
 }
 #endif
 
 }  // namespace
 
-void init_key_input(lv_display_t* display) {
+bool init_key_input(lv_display_t* display) {
 #if !USE_DESKTOP
-  LOG_DEBUG("initializing Linux evdev key input");
-  discover_keypads(display);
+  const bool exclusive = exclusive_input_requested();
+  const char* exclusive_device = exclusive_input_device_name();
+  LOG_INFO("initializing Linux evdev key input mode={} exclusive_device='{}'",
+           exclusive ? "exclusive" : "shared",
+           exclusive_device);
+  const auto result = discover_keypads(display, exclusive, exclusive_device);
+  if (exclusive && !result.exclusive_target_grabbed) {
+    LOG_ERROR("exclusive key input device '{}' {}",
+              exclusive_device,
+              result.exclusive_target_found ? "could not be grabbed" : "was not found");
+    return false;
+  }
+  return true;
 #else
   LV_UNUSED(display);
   LOG_DEBUG("desktop key input initialized through SDL/LVGL");
+  return true;
 #endif
 }
 

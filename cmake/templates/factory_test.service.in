@@ -1,12 +1,24 @@
 [Unit]
 Description=@APP_DISPLAY_NAME@
-After=multi-user.target
+After=fb_load.service dev-dri-card1.device user@1000.service rpi-resize.service
+Requires=dev-dri-card1.device
+Wants=user@1000.service
+Conflicts=fb_load.service
+StartLimitIntervalSec=30s
+StartLimitBurst=5
 
 [Service]
 Type=simple
+StateDirectory=factory-test
+Environment=HOME=/var/lib/factory-test
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=PIPEWIRE_RUNTIME_DIR=/run/user/1000
+Environment=PULSE_SERVER=unix:/run/user/1000/pulse/native
+Environment=FACTORY_TEST_EXCLUSIVE_INPUT=1
+Environment=FACTORY_TEST_EXCLUSIVE_INPUT_DEVICE=tca8418c
 ExecStart=/usr/bin/@PROJECT_NAME@
-Restart=on-failure
-RestartSec=2
+Restart=always
+RestartSec=2s
 
 [Install]
 WantedBy=multi-user.target

@@ -195,7 +195,10 @@ lv_display_t* init_display() {
     return nullptr;
   }
 
-  platform::init_key_input(display);
+  if (!platform::init_key_input(display)) {
+    lv_display_delete(display);
+    return nullptr;
+  }
   return display;
 #endif
 }

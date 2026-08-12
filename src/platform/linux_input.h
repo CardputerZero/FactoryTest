@@ -21,7 +21,7 @@ enum class NavTriggerMode {
   LONG_PRESS,
 };
 
-void init_key_input(lv_display_t* display);
+bool init_key_input(lv_display_t* display);
 void attach_key_router(lv_indev_t* indev);
 void register_nav_button(size_t index, lv_obj_t* button);
 void unregister_nav_button(size_t index, lv_obj_t* button);

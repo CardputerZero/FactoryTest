@@ -173,8 +173,9 @@ GVariantOwner bluez_managed_objects(GDBusConnection* connection, std::string& er
                                                   nullptr,
                                                   &error.error)};
   if (!reply.value) {
-    error_message = "Bluetooth is not enabled";
-    LOG_TRACE("connectivity BlueZ ObjectManager query failed: {}", error_message);
+    const auto detail = take_error(error, "BlueZ ObjectManager query failed");
+    error_message     = "Please enable Bluetooth";
+    LOG_TRACE("connectivity BlueZ ObjectManager query failed: {}", detail);
   } else {
     LOG_TRACE("connectivity BlueZ ObjectManager query completed");
   }
@@ -253,8 +254,9 @@ bool set_bluez_adapter_powered(GDBusConnection* connection,
       nullptr,
       &error.error)};
   if (!reply.value) {
-    error_message = take_error(error, "Failed to power on Bluetooth adapter");
-    LOG_TRACE("connectivity BlueZ adapter power request failed: {}", error_message);
+    const auto detail = take_error(error, "Failed to power on Bluetooth adapter");
+    error_message     = "Please enable Bluetooth";
+    LOG_TRACE("connectivity BlueZ adapter power request failed: {}", detail);
     return false;
   }
 
@@ -285,8 +287,9 @@ void start_bluez_discovery(GDBusConnection* connection,
                                                   nullptr,
                                                   &error.error)};
   if (!reply.value && error_message.empty()) {
-    error_message = "Bluetooth is not enabled";
-    LOG_TRACE("connectivity BlueZ discovery failed: {}", error_message);
+    const auto detail = take_error(error, "BlueZ discovery failed");
+    error_message     = "Please enable Bluetooth";
+    LOG_TRACE("connectivity BlueZ discovery failed: {}", detail);
   } else if (reply.value) {
     LOG_TRACE("connectivity BlueZ discovery started on adapter '{}'", adapter_path);
   }

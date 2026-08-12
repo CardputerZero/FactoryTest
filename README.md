@@ -16,6 +16,12 @@ wget https://github.com/CardputerZero/FactoryTest/releases/download/0.3.0/Factor
 sudo apt install ./FactoryTest_0.3.0_m5stack1_arm64.deb
 ```
 
+The packaged systemd service enables exclusive evdev input for the built-in `tca8418c` keyboard
+with `FACTORY_TEST_EXCLUSIVE_INPUT=1`. Direct launches use shared input by default. Set the same
+environment variable to `1`, `true`, `yes`, or `on` to request exclusive input outside systemd.
+`FACTORY_TEST_EXCLUSIVE_INPUT_DEVICE` can override the target evdev device name. Other keyboards,
+including USB keyboards, remain shared. Startup fails if the named device cannot be grabbed.
+
 
 ## Manually build
 
@@ -23,6 +29,12 @@ TODO
 
 
 ## Changelog
+
+### Unreleased - 2026-08-12
+
+- Harden the packaged systemd startup order and runtime environment, and restart the factory test service automatically.
+- Add optional exclusive evdev input for the built-in keyboard, with configurable device selection, clean grab release, and startup failure when exclusive input cannot be acquired.
+- Shorten recovery and error dialog titles, and replace raw BlueZ failures with localized guidance to enable Bluetooth while retaining diagnostic details in logs.
 
 ### 0.3.0 - 2026-08-04
 

@@ -639,7 +639,7 @@ void StartScreen::show_session_recovery_dialog_() {
   view::widgets::DialogConfig config;
   config.width               = 286;
   config.height              = 150;
-  config.title               = "Resume Test Session";
+  config.title               = "Resume";
   config.shortcut_text       = "4: Close  6: New  8: Resume";
   config.ok_button_label     = "Resume";
   config.cancel_button_label = "Start New";
@@ -788,7 +788,7 @@ void StartScreen::show_power_error_dialog_() {
   view::widgets::DialogConfig config;
   config.width              = 270;
   config.height             = 136;
-  config.title              = "Power operation failed";
+  config.title              = "Error";
   config.show_cancel_button = false;
   config.ok_button_label    = "OK";
   config.button_width       = 92;
