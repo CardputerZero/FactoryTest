@@ -30,13 +30,11 @@ TODO
 
 ## Changelog
 
-### Unreleased - 2026-08-12
+### 0.3.0 - 2026-08-12
 
 - Harden the packaged systemd startup order and runtime environment, and restart the factory test service automatically.
 - Add optional exclusive evdev input for the built-in keyboard, with configurable device selection, clean grab release, and startup failure when exclusive input cannot be acquired.
 - Shorten recovery and error dialog titles, and replace raw BlueZ failures with localized guidance to enable Bluetooth while retaining diagnostic details in logs.
-
-### 0.3.0 - 2026-08-04
 
 - Add a versioned JSON configuration store for persistent theme, language, key-click, iperf, UART, logging, and factory-station settings.
 - Add thread-safe file logging with UTC timestamps, bounded segment rotation, directory retention, graceful fallback, and desktop coverage.
