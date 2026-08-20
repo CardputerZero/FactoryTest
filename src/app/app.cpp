@@ -246,6 +246,66 @@ lv_display_t* init_fb_display() {
 
   return nullptr;
 }
+#else
+lv_display_t* try_fb_display(const char* device_path) {
+  if (!device_path || device_path[0] == '\0') {
+    return nullptr;
+  }
+
+  if (access(device_path, R_OK | W_OK) != 0) {
+    LOG_DEBUG("framebuffer display device is not accessible: {}", device_path);
+    return nullptr;
+  }
+
+  auto* display = lv_linux_fbdev_create();
+  if (!display) {
+    LOG_ERROR("failed to create framebuffer display object for {}", device_path);
+    return nullptr;
+  }
+
+  LOG_INFO("trying framebuffer display device: {}", device_path);
+  if (lv_linux_fbdev_set_file(display, device_path) == LV_RESULT_OK) {
+    LOG_INFO("using framebuffer display device: {}", device_path);
+    return display;
+  }
+
+  lv_display_delete(display);
+  LOG_WARN("framebuffer display device failed: {}", device_path);
+  return nullptr;
+}
+
+lv_display_t* init_fb_display() {
+  const char* configured_device = std::getenv("LV_LINUX_FBDEV_DEVICE");
+  if (!configured_device || configured_device[0] == '\0') {
+    configured_device = std::getenv("APPLAUNCH_LINUX_FBDEV_DEVICE");
+  }
+  if (!configured_device || configured_device[0] == '\0') {
+    configured_device = APP_FB_DEVICE;
+  }
+
+  const char* candidates[] = {
+      configured_device,
+      "/dev/fb0",
+      "/dev/fb1",
+  };
+  const char* tried[sizeof(candidates) / sizeof(candidates[0])] = {};
+  std::size_t tried_count                                  = 0;
+
+  for (const char* candidate : candidates) {
+    if (is_duplicate_candidate(candidate, tried, tried_count)) {
+      continue;
+    }
+    tried[tried_count++] = candidate;
+
+    if (auto* display = try_fb_display(candidate)) {
+      return display;
+    }
+  }
+
+  return nullptr;
+}
+
+#endif
 #endif
 #endif
 

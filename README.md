@@ -116,6 +116,26 @@ watchdog, resetting the system. Logs go to the journal instead.
 - Harden CAP fixture testing with software-reset retries, corrected `303a:4005` USB detection, GPIO ownership checks, deterministic USB/GPIO switching, and cleaner resource release.
 - Improve UART lifecycle and USB serial discovery, persist manual UART and link settings, and refine audio channel handling and configurable key-click playback.
 - Simplify target builds around the DRM backend and required hardware libraries, fail early on missing BSP dependencies, and add configuration, logger, UART, and session tests.
+- Add compile-time `app` and `product` display modes. The default `app` build starts through the Linux framebuffer, while `product` keeps the DRM startup path.
+
+### Display modes
+
+The default build is `app` mode and uses the Linux framebuffer device (normally `/dev/fb0`). Select `product` mode at compile time with `FACTORY_TEST_PRODUCT_MODE=1`; this changes the compiled display backend to DRM/KMS and does not require both display drivers to be built:
+
+```bash
+CONFIG_DEFAULT_FILE=linux_x86_cross_cp0_config_defaults.mk scons -j8
+FACTORY_TEST_PRODUCT_MODE=1 CONFIG_DEFAULT_FILE=linux_x86_cross_cp0_config_defaults.mk scons -j8
+```
+
+For CMake builds, use `-DFACTORY_TEST_PRODUCT_MODE=ON` for `product` mode. Without this option, CMake builds `app` mode.
+
+The framebuffer device can be overridden in `app` mode with the same environment variables used by APPLaunch; `LV_LINUX_FBDEV_DEVICE` takes precedence over `APPLAUNCH_LINUX_FBDEV_DEVICE`:
+
+```bash
+LV_LINUX_FBDEV_DEVICE=/dev/fb1 ./FactoryTest
+```
+
+The compile-time macro defaults to `0`, so a normal build uses `app` mode.
 
 ### 0.2.10 - 2026-07-30
 
