@@ -25,6 +25,7 @@
     "Upgrading firmware. The screen may go black...": "正在升级固件，屏幕可能会黑屏...",
     "Verifying upgraded version...": "正在确认升级后版本...",
     "Upgrade complete (0x5A01). Please reboot.": "升级完成（0x5A01），请重启。",
+    "After the upgrade completes, the device will reboot.\nThe screen may go black during the upgrade.": "升级完成后设备将重启。\n升级过程中屏幕可能会黑屏。",
     "Upgrade failed": "升级失败",
     "Firmware package not found": "未找到固件包",
     "Firmware checksum file not found": "未找到固件校验文件",

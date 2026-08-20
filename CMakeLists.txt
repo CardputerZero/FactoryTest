@@ -37,11 +37,13 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 set(USE_DESKTOP ON CACHE BOOL "Build the desktop emulator target with LVGL SDL support")
+option(FACTORY_TEST_PRODUCT_MODE "Build the device using the DRM/KMS product display path" OFF)
 set(APP_NAME "${PROJECT_NAME}" CACHE STRING "Application name used for installed asset lookup")
 set(APP_ASSETS_ROOT "" CACHE PATH "Optional runtime assets root. Expected subdirectories include fonts/")
 set(APP_KEY_INPUT_DEVICE "" CACHE STRING "Optional Linux evdev keyboard/keypad device path, e.g. /dev/input/event0")
 set(APP_DRM_DEVICE "/dev/dri/card1" CACHE STRING "Linux DRM device path used by device builds")
 set(APP_DRM_CONNECTOR_ID "-1" CACHE STRING "DRM connector id used by device builds; -1 auto-selects")
+set(APP_FB_DEVICE "/dev/fb0" CACHE STRING "Linux framebuffer device path used by app mode")
 set(CM0_ALLOW_FETCH_DEPS ON CACHE BOOL "Allow downloading missing CM0 BSP/dependencies during cross builds")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "Export compile_commands.json" FORCE)
 
@@ -239,15 +241,17 @@ else()
         endif()
     endfunction()
 
-    cm0_find_header(DRM_XF86_INCLUDE_DIR xf86drm.h "${CM0_SYSROOT}/usr/include" "${CM0_SYSROOT}/usr/include/libdrm")
-    cm0_find_header(DRM_XF86_MODE_INCLUDE_DIR xf86drmMode.h "${CM0_SYSROOT}/usr/include" "${CM0_SYSROOT}/usr/include/libdrm")
-    cm0_find_header(DRM_MODE_INCLUDE_DIR drm.h "${CM0_SYSROOT}/usr/include/drm" "${CM0_SYSROOT}/usr/include/libdrm" "${CM0_SYSROOT}/usr/include")
-    cm0_find_library(DRM_LIBRARY drm libdrm.so libdrm.so.2)
-    if(NOT DRM_XF86_INCLUDE_DIR OR NOT DRM_XF86_MODE_INCLUDE_DIR OR NOT DRM_MODE_INCLUDE_DIR OR NOT DRM_LIBRARY)
-        message(FATAL_ERROR "Missing libdrm headers/library in BSP sysroot: ${CM0_SYSROOT}")
+    if(FACTORY_TEST_PRODUCT_MODE)
+        cm0_find_header(DRM_XF86_INCLUDE_DIR xf86drm.h "${CM0_SYSROOT}/usr/include" "${CM0_SYSROOT}/usr/include/libdrm")
+        cm0_find_header(DRM_XF86_MODE_INCLUDE_DIR xf86drmMode.h "${CM0_SYSROOT}/usr/include" "${CM0_SYSROOT}/usr/include/libdrm")
+        cm0_find_header(DRM_MODE_INCLUDE_DIR drm.h "${CM0_SYSROOT}/usr/include/drm" "${CM0_SYSROOT}/usr/include/libdrm" "${CM0_SYSROOT}/usr/include")
+        cm0_find_library(DRM_LIBRARY drm libdrm.so libdrm.so.2)
+        if(NOT DRM_XF86_INCLUDE_DIR OR NOT DRM_XF86_MODE_INCLUDE_DIR OR NOT DRM_MODE_INCLUDE_DIR OR NOT DRM_LIBRARY)
+            message(FATAL_ERROR "Missing libdrm headers/library in BSP sysroot: ${CM0_SYSROOT}")
+        endif()
+        cm0_add_imported_library(CM0::DRM "${DRM_LIBRARY}" "${DRM_XF86_INCLUDE_DIR};${DRM_XF86_MODE_INCLUDE_DIR};${DRM_MODE_INCLUDE_DIR}")
+        message(STATUS "CM0 DRM display support enabled")
     endif()
-    cm0_add_imported_library(CM0::DRM "${DRM_LIBRARY}" "${DRM_XF86_INCLUDE_DIR};${DRM_XF86_MODE_INCLUDE_DIR};${DRM_MODE_INCLUDE_DIR}")
-    message(STATUS "CM0 DRM display support enabled")
 
     cm0_find_header(FREETYPE_INCLUDE_DIR ft2build.h "${CM0_SYSROOT}/usr/include/freetype2" "${CM0_SYSROOT}/usr/include")
     cm0_find_library(FREETYPE_LIBRARY freetype)
@@ -414,7 +418,12 @@ else()
     endif()
 
     cm0_find_header(LIBSERIALPORT_INCLUDE_DIR libserialport.h "${CM0_SYSROOT}/usr/include" "${CM0_SDK_ROOT}/usr/include")
-    cm0_find_library(LIBSERIALPORT_LIBRARY serialport libserialport.so libserialport.a)
+    cm0_find_library(LIBSERIALPORT_STATIC_LIBRARY serialport libserialport.a)
+    if(LIBSERIALPORT_STATIC_LIBRARY)
+        set(LIBSERIALPORT_LIBRARY "${LIBSERIALPORT_STATIC_LIBRARY}")
+    else()
+        cm0_find_library(LIBSERIALPORT_LIBRARY serialport libserialport.so)
+    endif()
     if(LIBSERIALPORT_INCLUDE_DIR AND LIBSERIALPORT_LIBRARY)
         cm0_add_imported_library(CM0::Libserialport "${LIBSERIALPORT_LIBRARY}" "${LIBSERIALPORT_INCLUDE_DIR}")
         list(APPEND PLATFORM_INCLUDE_DIR "${LIBSERIALPORT_INCLUDE_DIR}")
@@ -450,8 +459,11 @@ else()
     endif()
 
     set(LVGL_INCLUDE_DIR ${FREETYPE_INCLUDE_DIR} ${PNG_INCLUDE_DIR} ${JPEG_INCLUDE_DIR} ${ZLIB_INCLUDE_DIR})
-    set(LVGL_LIBS CM0::Freetype CM0::PNG CM0::JPEG ZLIB::ZLIB CM0::DRM)
-    list(APPEND LVGL_INCLUDE_DIR ${DRM_XF86_INCLUDE_DIR} ${DRM_XF86_MODE_INCLUDE_DIR} ${DRM_MODE_INCLUDE_DIR})
+    set(LVGL_LIBS CM0::Freetype CM0::PNG CM0::JPEG ZLIB::ZLIB)
+    if(FACTORY_TEST_PRODUCT_MODE)
+        list(APPEND LVGL_LIBS CM0::DRM)
+        list(APPEND LVGL_INCLUDE_DIR ${DRM_XF86_INCLUDE_DIR} ${DRM_XF86_MODE_INCLUDE_DIR} ${DRM_MODE_INCLUDE_DIR})
+    endif()
 
     list(REMOVE_DUPLICATES PLATFORM_INCLUDE_DIR)
     list(REMOVE_DUPLICATES PLATFORM_LIBS)
@@ -460,7 +472,10 @@ else()
     list(REMOVE_DUPLICATES LVGL_INCLUDE_DIR)
     list(REMOVE_DUPLICATES LVGL_LIBS)
 
-    target_compile_definitions(lvgl PUBLIC USE_DESKTOP=0)
+    target_compile_definitions(lvgl PUBLIC
+        USE_DESKTOP=0
+        FACTORY_TEST_PRODUCT_MODE=$<BOOL:${FACTORY_TEST_PRODUCT_MODE}>
+    )
     target_include_directories(lvgl PUBLIC ${LVGL_INCLUDE_DIR} ${PLATFORM_INCLUDE_DIR})
     target_link_libraries(lvgl PUBLIC ${LVGL_LIBS} ${PLATFORM_LIBS})
 endif()
@@ -485,10 +500,12 @@ file(GLOB_RECURSE PLATFORM_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR
 add_library(${PROJECT_NAME}_platform STATIC ${PLATFORM_SOURCES})
 target_include_directories(${PROJECT_NAME}_platform PUBLIC ${LVGL_INCLUDE_DIR} ${PLATFORM_INCLUDE_DIR} "${CMAKE_CURRENT_SOURCE_DIR}/src/platform" "${CMAKE_CURRENT_SOURCE_DIR}/src/serialization" "${CMAKE_CURRENT_SOURCE_DIR}/src/logger" "${CMAKE_CURRENT_SOURCE_DIR}/src/view" "${CMAKE_CURRENT_SOURCE_DIR}/src/view/widgets")
 target_compile_definitions(${PROJECT_NAME}_platform PUBLIC
+    FACTORY_TEST_PRODUCT_MODE=$<BOOL:${FACTORY_TEST_PRODUCT_MODE}>
     APP_KEY_INPUT_DEVICE="${APP_KEY_INPUT_DEVICE}"
     APP_MINIAUDIO_HEADER="${MINIAUDIO_INCLUDE_DIR}/miniaudio.h"
     APP_DRM_DEVICE="${APP_DRM_DEVICE}"
     APP_DRM_CONNECTOR_ID=\(${APP_DRM_CONNECTOR_ID}\)
+    APP_FB_DEVICE="${APP_FB_DEVICE}"
 )
 target_link_libraries(${PROJECT_NAME}_platform PUBLIC lvgl fmt::fmt Threads::Threads serialization ${PLATFORM_LIBS})
 
@@ -549,10 +566,12 @@ target_include_directories(${PROJECT_NAME}_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/platform
 )
 target_compile_definitions(${PROJECT_NAME}_core PUBLIC
+    FACTORY_TEST_PRODUCT_MODE=$<BOOL:${FACTORY_TEST_PRODUCT_MODE}>
     APP_NAME="${APP_NAME}"
     APP_CMAKE_ASSETS_ROOT="${APP_ASSETS_ROOT}"
     APP_SOURCE_ASSETS_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/assets"
     APP_DRM_DEVICE="${APP_DRM_DEVICE}"
+    APP_FB_DEVICE="${APP_FB_DEVICE}"
     APP_DRM_CONNECTOR_ID=\(${APP_DRM_CONNECTOR_ID}\)
 )
 target_link_libraries(${PROJECT_NAME}_core PUBLIC lvgl logger ${PROJECT_NAME}_view ${PROJECT_NAME}_viewmodel ${PROJECT_NAME}_platform)

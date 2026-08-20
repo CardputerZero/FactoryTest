@@ -37,11 +37,11 @@ class Py32UpgradePage : public BaseScreen {
   };
 
   void apply_progress_theme_(bool dark_mode);
+  void show_upgrade_confirm_dialog_();
   void start_upgrade_();
   void refresh_();
   void restore_nav_actions_();
-  void show_reboot_dialog_();
-  void close_reboot_dialog_();
+  void close_upgrade_confirm_dialog_();
   void request_reboot_();
   static void key_listener(uint32_t key, const char* key_name, void* user_data);
   static void theme_observer(lv_observer_t* observer, lv_subject_t* subject);
@@ -54,9 +54,8 @@ class Py32UpgradePage : public BaseScreen {
   std::filesystem::path archive_path_{};
   JobState job_state_{};
   std::thread worker_{};
-  std::unique_ptr<view::widgets::Dialog> reboot_dialog_{};
+  std::unique_ptr<view::widgets::Dialog> upgrade_confirm_dialog_{};
   bool completion_handled_{false};
-  bool reboot_prompt_handled_{false};
 };
 
 }  // namespace screen

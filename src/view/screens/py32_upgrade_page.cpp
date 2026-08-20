@@ -41,7 +41,7 @@ Py32UpgradePage::Py32UpgradePage(viewmodel::AppViewModel& app_view_model, app::A
   platform::set_nav_trigger_mode(platform::NavTriggerMode::CLICK);
   archive_path_ = assets.resolve("py32_firmware/cardputerzero_ioe1_upgrade.tar.gz");
   set_default_test_nav_(false);
-  set_nav_action_('8', view::ICON_UPLOAD, [this]() { start_upgrade_(); });
+  set_nav_action_('8', view::ICON_UPLOAD, [this]() { show_upgrade_confirm_dialog_(); });
   init();
   platform::set_key_listener(key_listener, this);
   refresh_timer_ = lv_timer_create(refresh_timer_cb, K_REFRESH_INTERVAL_MS, this);
@@ -49,6 +49,7 @@ Py32UpgradePage::Py32UpgradePage(viewmodel::AppViewModel& app_view_model, app::A
 
 Py32UpgradePage::~Py32UpgradePage() {
   platform::clear_key_listener(key_listener, this);
+  platform::reset_key_router_state();
   if (refresh_timer_) {
     lv_timer_delete(refresh_timer_);
     refresh_timer_ = nullptr;
@@ -56,7 +57,7 @@ Py32UpgradePage::~Py32UpgradePage() {
   if (worker_.joinable()) {
     worker_.join();
   }
-  reboot_dialog_.reset();
+  upgrade_confirm_dialog_.reset();
   platform::set_modal_key_capture(false);
 }
 
@@ -147,7 +148,7 @@ void Py32UpgradePage::start_upgrade_() {
   job_state_.done.store(false);
   job_state_.running.store(true);
   completion_handled_ = false;
-  reboot_prompt_handled_ = false;
+  platform::reset_key_router_state();
   app_view_model_ref_().clear_nav_actions();
   platform::audio::play_ui_sound(platform::audio::UiSound::START);
 
@@ -166,12 +167,47 @@ void Py32UpgradePage::start_upgrade_() {
       job_state_.error_status = std::move(result.error_status);
       if (result.success) {
         job_state_.percent = 100;
-        job_state_.status  = "Upgrade complete (0x5A01). Please reboot.";
+        job_state_.status  = "Upgrade complete (0x5A01). Rebooting...";
       }
     }
     job_state_.running.store(false);
     job_state_.done.store(true);
   });
+}
+
+void Py32UpgradePage::show_upgrade_confirm_dialog_() {
+  if (!root() || (upgrade_confirm_dialog_ && upgrade_confirm_dialog_->visible())) {
+    return;
+  }
+
+  platform::set_modal_key_capture(true);
+  view::widgets::DialogConfig config;
+  config.width               = 270;
+  config.height              = 150;
+  config.title               = "Confirm upgrade";
+  config.shortcut_text       = "ESC: Cancel  Enter: OK";
+  config.ok_button_label     = "Upgrade";
+  config.cancel_button_label = "Cancel";
+  config.button_width        = 92;
+  config.button_row_width    = 206;
+  config.button_bottom_pad   = 4;
+  config.body_font_size      = 13;
+  config.ok_button_tone      = view::widgets::DialogButtonTone::WARNING;
+
+  view::widgets::DialogCallbacks callbacks;
+  callbacks.ok_action     = [this]() {
+    close_upgrade_confirm_dialog_();
+    start_upgrade_();
+  };
+  callbacks.cancel_action = [this]() { close_upgrade_confirm_dialog_(); };
+  upgrade_confirm_dialog_ = std::make_unique<view::widgets::Dialog>(
+      root(), app_view_model_ref_(), assets_ref_(), config, callbacks);
+  upgrade_confirm_dialog_->build();
+  upgrade_confirm_dialog_->add_label(
+      "After the upgrade completes, the device will reboot.\n"
+      "The screen may go black during the upgrade.",
+      246,
+      LV_TEXT_ALIGN_CENTER);
 }
 
 void Py32UpgradePage::refresh_() {
@@ -207,8 +243,8 @@ void Py32UpgradePage::refresh_() {
     completion_handled_ = true;
     restore_nav_actions_();
     if (success) {
-      show_reboot_dialog_();
       platform::audio::play_ui_sound(platform::audio::UiSound::COMPLETE);
+      request_reboot_();
     } else {
       platform::audio::play_ui_sound(platform::audio::UiSound::ERROR);
     }
@@ -216,50 +252,21 @@ void Py32UpgradePage::refresh_() {
 }
 
 void Py32UpgradePage::restore_nav_actions_() {
+  platform::reset_key_router_state();
   set_default_test_nav_(false);
-  set_nav_action_('8', view::ICON_UPLOAD, [this]() { start_upgrade_(); });
+  set_nav_action_('8', view::ICON_UPLOAD, [this]() { show_upgrade_confirm_dialog_(); });
 }
 
-void Py32UpgradePage::show_reboot_dialog_() {
-  if (!root() || reboot_prompt_handled_ || (reboot_dialog_ && reboot_dialog_->visible())) {
-    return;
-  }
-
-  platform::set_modal_key_capture(true);
-  view::widgets::DialogConfig config;
-  config.width               = 270;
-  config.height              = 136;
-  config.title               = "Complete";
-  config.shortcut_text       = "ESC: Cancel  Enter: OK";
-  config.ok_button_label     = "Reboot";
-  config.cancel_button_label = "Cancel";
-  config.button_width        = 92;
-  config.button_row_width    = 206;
-  config.button_bottom_pad   = 4;
-  config.body_font_size      = 13;
-  config.ok_button_tone      = view::widgets::DialogButtonTone::WARNING;
-
-  view::widgets::DialogCallbacks callbacks;
-  callbacks.ok_action     = [this]() { request_reboot_(); };
-  callbacks.cancel_action = [this]() { close_reboot_dialog_(); };
-  reboot_dialog_ = std::make_unique<view::widgets::Dialog>(
-      root(), app_view_model_ref_(), assets_ref_(), config, callbacks);
-  reboot_dialog_->build();
-  reboot_dialog_->add_label("Upgrade completed successfully. Reboot now?",
-                            246,
-                            LV_TEXT_ALIGN_CENTER);
-}
-
-void Py32UpgradePage::close_reboot_dialog_() {
-  reboot_prompt_handled_ = true;
-  if (reboot_dialog_) {
-    reboot_dialog_->close();
+void Py32UpgradePage::close_upgrade_confirm_dialog_() {
+  if (upgrade_confirm_dialog_) {
+    upgrade_confirm_dialog_->close();
   }
   platform::set_modal_key_capture(false);
+  platform::reset_key_router_state();
 }
 
 void Py32UpgradePage::request_reboot_() {
-  close_reboot_dialog_();
+  close_upgrade_confirm_dialog_();
   std::string error_message;
   if (!platform::power::safe_reboot(error_message)) {
     LOG_ERROR("reboot after PY32 upgrade failed: {}", error_message);
@@ -274,12 +281,12 @@ void Py32UpgradePage::key_listener(uint32_t key, const char* key_name, void* use
   if (!page) {
     return;
   }
-  if (page->reboot_dialog_ && page->reboot_dialog_->visible()) {
-    page->reboot_dialog_->handle_key(key, key_name);
+  if (page->upgrade_confirm_dialog_ && page->upgrade_confirm_dialog_->visible()) {
+    page->upgrade_confirm_dialog_->handle_key(key, key_name);
     return;
   }
   if (is_enter_key(key)) {
-    page->start_upgrade_();
+    page->show_upgrade_confirm_dialog_();
   }
 }
 
