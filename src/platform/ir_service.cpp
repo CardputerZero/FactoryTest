@@ -422,6 +422,9 @@ void finalize_receive(IrReceiveSnapshot& snapshot, const std::vector<uint32_t>& 
         matched ? "yes" : "no");
   } else {
     snapshot.message = "IR signal received (raw)";
+    LOG_DEBUG("IR raw signal received but NEC decode failed: samples={} raw={}",
+              durations.size(),
+              snapshot.raw_summary);
   }
 }
 
@@ -675,6 +678,8 @@ bool IrReceiverSession::start(const IrDeviceInfo& info,
   snapshot_.expected_address       = expected_address;
   snapshot_.address_filter_enabled = filter_address;
   snapshot_.device_path            = info.lirc_path;
+  pending_receives_.clear();
+  receive_state_ = snapshot_;
   if (!info.available) {
     snapshot_.message = info.error_message.empty() ? "IR receiver unavailable" : info.error_message;
     LOG_WARN("IR receiver unavailable: {}", snapshot_.message);
@@ -708,7 +713,15 @@ bool IrReceiverSession::start(const IrDeviceInfo& info,
   }
   if (!scancode_mode_) {
     rec_mode = mode2_ ? LIRC_MODE_MODE2 : LIRC_MODE_RAW;
-    ioctl(fd_, LIRC_SET_REC_MODE, &rec_mode);
+    if (ioctl(fd_, LIRC_SET_REC_MODE, &rec_mode) < 0) {
+      snapshot_.message = errno_message("Set receiver mode failed");
+      LOG_WARN("IR receiver mode setup failed: path={} mode={} error={}",
+               info.lirc_path,
+               mode2_ ? "mode2" : "raw",
+               snapshot_.message);
+      stop();
+      return false;
+    }
   }
 
   if (!scancode_mode_ && (info.features & LIRC_CAN_SET_REC_TIMEOUT)) {
@@ -739,6 +752,8 @@ void IrReceiverSession::stop() {
   close_fd(fd_);
   scancode_mode_ = false;
   pulse_space_buffer_.clear();
+  pending_receives_.clear();
+  receive_state_ = {};
   if (snapshot_.opened) {
     snapshot_.opened = false;
   }
@@ -770,8 +785,16 @@ IrReceiveSnapshot IrReceiverSession::poll() {
 
       const std::size_t count = static_cast<std::size_t>(bytes_read) / sizeof(scancodes[0]);
       for (std::size_t i = 0; i < count; ++i) {
-        finalize_receive_scancode(snapshot_, scancodes[i]);
+        receive_state_.data_changed = false;
+        finalize_receive_scancode(receive_state_, scancodes[i]);
+        if (receive_state_.data_changed) {
+          pending_receives_.push_back(receive_state_);
+        }
       }
+    }
+    if (!pending_receives_.empty()) {
+      snapshot_ = pending_receives_.front();
+      pending_receives_.pop_front();
     }
     return snapshot_;
   }
@@ -797,16 +820,29 @@ IrReceiveSnapshot IrReceiverSession::poll() {
       if (mode2_) {
         if (LIRC_IS_TIMEOUT(word) || LIRC_IS_OVERFLOW(word)) {
           if (!pulse_space_buffer_.empty()) {
-            finalize_receive(snapshot_, pulse_space_buffer_);
+            receive_state_.data_changed = false;
+            finalize_receive(receive_state_, pulse_space_buffer_);
+            if (receive_state_.data_changed) {
+              pending_receives_.push_back(receive_state_);
+            }
             pulse_space_buffer_.clear();
           }
           continue;
         }
         if (LIRC_IS_SPACE(word) || LIRC_IS_PULSE(word)) {
           const uint32_t value = LIRC_VALUE(word);
-          if (LIRC_IS_SPACE(word) && value > 12000 && !pulse_space_buffer_.empty()) {
-            finalize_receive(snapshot_, pulse_space_buffer_);
-            pulse_space_buffer_.clear();
+          if (LIRC_IS_SPACE(word) && value > 12000) {
+            if (!pulse_space_buffer_.empty()) {
+              receive_state_.data_changed = false;
+              finalize_receive(receive_state_, pulse_space_buffer_);
+              if (receive_state_.data_changed) {
+                pending_receives_.push_back(receive_state_);
+              }
+              pulse_space_buffer_.clear();
+            }
+            // A long space is a frame boundary/idle gap, never NEC data.
+            // Do not append it to the next pulse train.
+            continue;
           }
           pulse_space_buffer_.push_back(value);
         }
@@ -817,17 +853,29 @@ IrReceiveSnapshot IrReceiverSession::poll() {
       if (pulse_space_buffer_.size() >= 2 + K_PACKET_BYTES * 16 + 1) {
         std::vector<uint8_t> decoded;
         if (decode_nec_packet(pulse_space_buffer_, decoded)) {
-          finalize_receive(snapshot_, pulse_space_buffer_);
+          receive_state_.data_changed = false;
+          finalize_receive(receive_state_, pulse_space_buffer_);
+          if (receive_state_.data_changed) {
+            pending_receives_.push_back(receive_state_);
+          }
           pulse_space_buffer_.clear();
         }
       }
       if (pulse_space_buffer_.size() > 160) {
-        finalize_receive(snapshot_, pulse_space_buffer_);
+        receive_state_.data_changed = false;
+        finalize_receive(receive_state_, pulse_space_buffer_);
+        if (receive_state_.data_changed) {
+          pending_receives_.push_back(receive_state_);
+        }
         pulse_space_buffer_.clear();
       }
     }
   }
 #endif
+  if (!pending_receives_.empty()) {
+    snapshot_ = pending_receives_.front();
+    pending_receives_.pop_front();
+  }
   return snapshot_;
 }
 

@@ -13,6 +13,20 @@ if [ "$1" = "configure" ]; then
     # Runtime account membership belongs to image provisioning or first-boot setup.
     # Package installation may run in a chroot with an unrelated SUDO_USER.
 
+    # Make newly installed systemd and DRM udev units available immediately.
+    # These commands are intentionally best-effort because package installation
+    # may run in a chroot or before either daemon is active.
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl daemon-reload >/dev/null 2>&1 || true
+        # Enable the HDMI precheck service at boot. The unit's [Install] section
+        # (WantedBy=multi-user.target) makes this create the
+        # /etc/systemd/system/multi-user.target.wants/factory_precheck.service symlink.
+        systemctl enable factory_precheck.service >/dev/null 2>&1 || true
+    fi
+    if command -v udevadm >/dev/null 2>&1; then
+        udevadm control --reload >/dev/null 2>&1 || true
+    fi
+
 fi
 
 exit 0

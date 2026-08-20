@@ -13,6 +13,7 @@
 #include <array>
 #include <cstddef>
 #include <cstring>
+#include <cstdlib>
 #include <filesystem>
 #include <utility>
 
@@ -32,18 +33,33 @@
 #include "theme.h"
 #include "translation_service.h"
 
+#ifndef FACTORY_TEST_PRODUCT_MODE
+#define FACTORY_TEST_PRODUCT_MODE 0
+#endif
+
 #if !USE_DESKTOP
 #include <unistd.h>
 
+#if FACTORY_TEST_PRODUCT_MODE
 #include "src/drivers/display/drm/lv_linux_drm.h"
+#else
+#include "src/drivers/display/fb/lv_linux_fbdev.h"
+#endif
 #endif
 
+#define FACTORY_TEST_DEFAULT_DRM_DEVICE "/dev/dri/cardputer-zero-internal"
+#define FACTORY_TEST_FALLBACK_DRM_DEVICE "/dev/dri/card1"
+
 #ifndef APP_DRM_DEVICE
-#define APP_DRM_DEVICE "/dev/dri/card1"
+#define APP_DRM_DEVICE FACTORY_TEST_DEFAULT_DRM_DEVICE
 #endif
 
 #ifndef APP_DRM_CONNECTOR_ID
 #define APP_DRM_CONNECTOR_ID (-1)
+#endif
+
+#ifndef APP_FB_DEVICE
+#define APP_FB_DEVICE "/dev/fb0"
 #endif
 
 namespace app {
@@ -96,6 +112,7 @@ bool is_duplicate_candidate(const char* candidate,
   return false;
 }
 
+#if FACTORY_TEST_PRODUCT_MODE
 lv_display_t* try_drm_display(const char* device_path) {
   if (!device_path || device_path[0] == '\0') {
     return nullptr;
@@ -124,9 +141,22 @@ lv_display_t* try_drm_display(const char* device_path) {
 }
 
 lv_display_t* init_drm_display() {
+  const bool has_fallback_device =
+      std::strcmp(APP_DRM_DEVICE, FACTORY_TEST_FALLBACK_DRM_DEVICE) != 0;
+  const bool preferred_device_available = access(APP_DRM_DEVICE, F_OK) == 0;
+  if (!preferred_device_available) {
+    if (has_fallback_device) {
+      LOG_WARN("preferred DRM device link {} is unavailable; falling back to {}",
+               APP_DRM_DEVICE,
+               FACTORY_TEST_FALLBACK_DRM_DEVICE);
+    } else {
+      LOG_WARN("configured DRM device {} is unavailable", APP_DRM_DEVICE);
+    }
+  }
+
   const char* candidates[] = {
       APP_DRM_DEVICE,
-      "/dev/dri/card1",
+      FACTORY_TEST_FALLBACK_DRM_DEVICE,
       "/dev/dri/card0",
       "/dev/dri/card2",
       "/dev/dri/card3",
@@ -140,13 +170,83 @@ lv_display_t* init_drm_display() {
     }
     tried[tried_count++] = candidate;
 
+    if (std::strcmp(candidate, APP_DRM_DEVICE) == 0 && !preferred_device_available) {
+      continue;
+    }
+
     if (auto* display = try_drm_display(candidate)) {
+      return display;
+    }
+
+    if (std::strcmp(candidate, APP_DRM_DEVICE) == 0 &&
+        has_fallback_device) {
+      LOG_WARN("preferred DRM device {} failed; falling back to {}",
+               APP_DRM_DEVICE,
+               FACTORY_TEST_FALLBACK_DRM_DEVICE);
+    }
+  }
+
+  return nullptr;
+}
+#else
+lv_display_t* try_fb_display(const char* device_path) {
+  if (!device_path || device_path[0] == '\0') {
+    return nullptr;
+  }
+
+  if (access(device_path, R_OK | W_OK) != 0) {
+    LOG_DEBUG("framebuffer display device is not accessible: {}", device_path);
+    return nullptr;
+  }
+
+  auto* display = lv_linux_fbdev_create();
+  if (!display) {
+    LOG_ERROR("failed to create framebuffer display object for {}", device_path);
+    return nullptr;
+  }
+
+  LOG_INFO("trying framebuffer display device: {}", device_path);
+  if (lv_linux_fbdev_set_file(display, device_path) == LV_RESULT_OK) {
+    LOG_INFO("using framebuffer display device: {}", device_path);
+    return display;
+  }
+
+  lv_display_delete(display);
+  LOG_WARN("framebuffer display device failed: {}", device_path);
+  return nullptr;
+}
+
+lv_display_t* init_fb_display() {
+  const char* configured_device = std::getenv("LV_LINUX_FBDEV_DEVICE");
+  if (!configured_device || configured_device[0] == '\0') {
+    configured_device = std::getenv("APPLAUNCH_LINUX_FBDEV_DEVICE");
+  }
+  if (!configured_device || configured_device[0] == '\0') {
+    configured_device = APP_FB_DEVICE;
+  }
+
+  const char* candidates[] = {
+      configured_device,
+      "/dev/fb0",
+      "/dev/fb1",
+  };
+  const char* tried[sizeof(candidates) / sizeof(candidates[0])] = {};
+  std::size_t tried_count                                  = 0;
+
+  for (const char* candidate : candidates) {
+    if (is_duplicate_candidate(candidate, tried, tried_count)) {
+      continue;
+    }
+    tried[tried_count++] = candidate;
+
+    if (auto* display = try_fb_display(candidate)) {
       return display;
     }
   }
 
   return nullptr;
 }
+#endif
 #endif
 
 bool global_key_listener(uint32_t key, const char* key_name, bool long_pressed, void* user_data) {
@@ -190,7 +290,11 @@ lv_display_t* init_display() {
   platform::attach_key_router(keyboard);
   return display;
 #else
+#if FACTORY_TEST_PRODUCT_MODE
   auto* display = init_drm_display();
+#else
+  auto* display = init_fb_display();
+#endif
   if (!display) {
     return nullptr;
   }
@@ -231,6 +335,7 @@ int Application::run() {
 
   lv_init();
 
+  LOG_INFO("starting in {} mode", FACTORY_TEST_PRODUCT_MODE ? "product" : "app");
   auto* display = init_display();
   if (!display) {
     LOG_ERROR("failed to initialize display");

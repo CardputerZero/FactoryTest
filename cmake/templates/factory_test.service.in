@@ -1,9 +1,8 @@
 [Unit]
 Description=@APP_DISPLAY_NAME@
-After=fb_load.service dev-dri-card1.device user@1000.service rpi-resize.service
+After=dev-dri-card1.device user@1000.service
 Requires=dev-dri-card1.device
 Wants=user@1000.service
-Conflicts=fb_load.service
 StartLimitIntervalSec=30s
 StartLimitBurst=5
 

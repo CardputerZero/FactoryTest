@@ -1,0 +1,22 @@
+#!/bin/sh
+set -eu
+
+# HDMI presence gate used by factory_precheck.service.
+# Returns 0 when a DRM HDMI connector reports "connected", 1 otherwise.
+# systemd evaluates this via ExecCondition=; a non-zero exit skips the
+# service (and does not count against Restart=).  This script must not
+# depend on /usr/libexec/cardputerzero/hdmi-ui existing; the DRM status
+# files alone are authoritative for whether an HDMI sink is present.
+
+# 1. Ensure the precheck UI executable is present before proceeding.
+[ -x /usr/bin/factory_precheck ] || exit 1
+
+# 2. Scan the system for connected HDMI interfaces.
+for status in /sys/class/drm/card*-HDMI-*/status; do
+	[ -e "${status}" ] || continue
+	if [ "$(cat "${status}" 2>/dev/null)" = "connected" ]; then
+		exit 0
+	fi
+done
+
+exit 1

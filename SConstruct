@@ -1,5 +1,6 @@
 import os
 import subprocess
+from datetime import datetime
 
 Import('env')
 with open(env['PROJECT_TOOL_S']) as f:
@@ -17,6 +18,7 @@ def config_enabled(name):
 
 
 is_desktop = config_enabled('CONFIG_FACTORY_TEST_USE_DESKTOP')
+is_product_mode = config_enabled('FACTORY_TEST_PRODUCT_MODE')
 
 for config_header_name in ('global_config.h', 'lvgl_config.h'):
     config_header = os.path.join(
@@ -44,6 +46,7 @@ INCLUDE = [
     ADir('src/view/screens'),
     ADir('src/view/widgets'),
     ADir('src/viewmodel'),
+    os.path.join(env['PROJECT_PATH'], 'build', 'scons-generated'),
     os.path.join(
         os.environ['SDK_PATH'],
         'components',
@@ -65,14 +68,15 @@ REQUIREMENTS = [
     'jpeg',
     'z',
     'm',
-] + ['libyaml', 'libcjson']
+] + ['libyaml', 'cjson']
 if toolchain_sysroot:
     REQUIREMENTS += [':libfmt.so.10']
+if is_product_mode and not is_desktop:
+    REQUIREMENTS += ['drm']
 if is_desktop:
     REQUIREMENTS += pkg_config_ldflags('sdl2')
 else:
     REQUIREMENTS += [
-        'drm',
         'libcamera',
         'libcamera-base',
         'libnm',
@@ -87,11 +91,22 @@ else:
         'libsctp',
         'liblirc',
         'libgpiod',
-        'libserialport',
     ]
 REQUIREMENTS = list(dict.fromkeys(REQUIREMENTS))
 STATIC_LIB = []
 DYNAMIC_LIB = []
+
+if not is_desktop:
+    if toolchain_sysroot:
+        serialport_static_lib = os.path.join(
+            toolchain_lib_path, 'libserialport.a'
+        )
+        if os.path.exists(serialport_static_lib):
+            STATIC_LIB.append(serialport_static_lib)
+        else:
+            REQUIREMENTS.append('libserialport')
+    else:
+        REQUIREMENTS.append('libserialport')
 
 desktop_dependency_includes = []
 if is_desktop:
@@ -110,6 +125,7 @@ if is_desktop:
         pass
 DEFINITIONS = [
     '-DFACTORY_TEST_SCONS_BUILD',
+    '-DFACTORY_TEST_PRODUCT_MODE={}'.format(1 if is_product_mode else 0),
     '-std=c++17',
     '-g',
 ]
@@ -133,6 +149,51 @@ if (not os.path.exists(factory_test_config_header)
         != factory_test_config_content):
     with open(factory_test_config_header, 'w', encoding='utf-8') as config_file:
         config_file.write(factory_test_config_content)
+
+generated_include_dir = os.path.join(
+    env['PROJECT_PATH'], 'build', 'scons-generated'
+)
+os.makedirs(generated_include_dir, exist_ok=True)
+version_header = os.path.join(generated_include_dir, 'version.h')
+try:
+    git_commit = subprocess.check_output(
+        ['git', 'rev-parse', '--short=8', 'HEAD'],
+        cwd=env['PROJECT_PATH'],
+        text=True,
+        stderr=subprocess.DEVNULL,
+    ).strip()
+except (OSError, subprocess.CalledProcessError):
+    git_commit = 'UNKNOWN'
+version_content = '''#pragma once
+
+#define FACTORY_TEST_MAJOR 0
+#define FACTORY_TEST_MINOR 3
+#define FACTORY_TEST_PATCH 1
+#define FACTORY_TEST_BUILD_TIME "{}"
+#define FACTORY_TEST_GIT_COMMIT "{}"
+
+#define FACTORY_TEST_VERSION_STRINGIFY_IMPL(value) #value
+#define FACTORY_TEST_VERSION_STRINGIFY(value) FACTORY_TEST_VERSION_STRINGIFY_IMPL(value)
+
+namespace factory_test {{
+
+inline constexpr char kVersion[] =
+    FACTORY_TEST_VERSION_STRINGIFY(FACTORY_TEST_MAJOR) "."
+    FACTORY_TEST_VERSION_STRINGIFY(FACTORY_TEST_MINOR) "."
+    FACTORY_TEST_VERSION_STRINGIFY(FACTORY_TEST_PATCH);
+inline constexpr char kBuildTime[] = FACTORY_TEST_BUILD_TIME;
+
+constexpr const char* get_version_str() noexcept {{ return kVersion; }}
+constexpr const char* get_build_time_str() noexcept {{ return kBuildTime; }}
+
+}}  // namespace factory_test
+
+#undef FACTORY_TEST_VERSION_STRINGIFY
+#undef FACTORY_TEST_VERSION_STRINGIFY_IMPL
+'''.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), git_commit)
+if not os.path.exists(version_header):
+    with open(version_header, 'w', encoding='utf-8') as version_file:
+        version_file.write(version_content)
 if toolchain_sysroot:
     INCLUDE += [
         os.path.join(toolchain_sysroot, 'usr', 'include'),
@@ -152,7 +213,7 @@ if not is_desktop:
     ]
 if not is_desktop:
     INCLUDE += [os.path.join(toolchain_sysroot, 'usr', 'include', 'libnm')]
-if not is_desktop:
+if is_product_mode and not is_desktop:
     INCLUDE += [os.path.join(toolchain_sysroot, 'usr', 'include', 'libdrm')]
 
 lvgl_component = list(filter(
@@ -166,7 +227,7 @@ if toolchain_sysroot:
     ]
 elif is_desktop:
     lvgl_component['INCLUDE'] += desktop_dependency_includes
-if not is_desktop:
+if is_product_mode and not is_desktop:
     lvgl_component['INCLUDE'] += [
         os.path.join(toolchain_sysroot, 'usr', 'include', 'libdrm')
     ]

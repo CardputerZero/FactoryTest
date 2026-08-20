@@ -34,6 +34,8 @@ class AssetManager {
   std::filesystem::path resolve_font(const std::filesystem::path& file_name) const;
 
   lv_font_t* load_font(const std::filesystem::path& file_name, uint32_t size);
+  // Load a font at the requested size without legacy per-font normalization.
+  lv_font_t* load_font_exact(const std::filesystem::path& file_name, uint32_t size);
 
  protected:
   struct LoadedFont;

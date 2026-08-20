@@ -1,0 +1,24 @@
+[Unit]
+Description=Factory HDMI Precheck
+After=dev-dri-card0.device user@1000.service
+Wants=user@1000.service
+StartLimitIntervalSec=30s
+StartLimitBurst=5
+
+[Service]
+Type=simple
+StateDirectory=factory-precheck
+Environment=HOME=/var/lib/factory-precheck
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=PIPEWIRE_RUNTIME_DIR=/run/user/1000
+Environment=PULSE_SERVER=unix:/run/user/1000/pulse/native
+Environment=FACTORY_PRECHECK_DRM_DEVICE=/dev/dri/card0
+ExecCondition=/usr/libexec/cardputerzero-hdmi-check
+ExecStart=/usr/bin/factory_precheck
+Restart=on-failure
+RestartSec=2s
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

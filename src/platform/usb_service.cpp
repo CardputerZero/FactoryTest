@@ -131,6 +131,13 @@ std::string sysattr(udev_device* device, const char* name) {
   return value ? value : "";
 }
 
+uint32_t parse_uint(const char* text) {
+  if (!text || text[0] == '\0') {
+    return 0;
+  }
+  return static_cast<uint32_t>(std::strtoul(text, nullptr, 10));
+}
+
 std::string devtype(udev_device* device) {
   const char* value = device ? udev_device_get_devtype(device) : nullptr;
   return value ? value : "";
@@ -276,4 +283,77 @@ std::vector<UsbDeviceInfo> list_usb_devices(std::string& error_message) {
   return {};
 #endif
 }
+
+std::vector<UsbPortDeviceInfo> list_usb_bus_devices(std::string& error_message) {
+  error_message.clear();
+#if !USE_DESKTOP
+  LOG_TRACE("connectivity USB bus/device enumeration requested");
+  UdevOwner udev_context{udev_new()};
+  if (!udev_context.context) {
+    error_message = "libudev is not available";
+    return {};
+  }
+
+  UdevEnumerateOwner enumerate{udev_enumerate_new(udev_context.context)};
+  if (!enumerate.enumerate) {
+    error_message = "failed to enumerate USB devices";
+    return {};
+  }
+
+  udev_enumerate_add_match_subsystem(enumerate.enumerate, "usb");
+  if (udev_enumerate_scan_devices(enumerate.enumerate) < 0) {
+    error_message = "failed to scan USB bus";
+    return {};
+  }
+
+  std::vector<UsbPortDeviceInfo> devices;
+  auto* entries          = udev_enumerate_get_list_entry(enumerate.enumerate);
+  udev_list_entry* entry = nullptr;
+  udev_list_entry_foreach(entry, entries) {
+    const char* path = udev_list_entry_get_name(entry);
+    UdevDeviceOwner device{udev_device_new_from_syspath(udev_context.context, path)};
+    if (!device.device || !is_usb_bus_device(device.device)) {
+      continue;
+    }
+
+    UsbPortDeviceInfo info;
+    info.bus      = parse_uint(udev_device_get_property_value(device.device, "BUSNUM"));
+    info.device   = parse_uint(udev_device_get_property_value(device.device, "DEVNUM"));
+    info.vid      = sysattr(device.device, "idVendor");
+    info.pid      = sysattr(device.device, "idProduct");
+    info.name     = usb_device_name(device.device);
+    info.sys_path = path ? path : "";
+    devices.push_back(std::move(info));
+  }
+
+  std::sort(devices.begin(), devices.end(), [](const auto& left, const auto& right) {
+    if (left.bus != right.bus) {
+      return left.bus < right.bus;
+    }
+    if (left.device != right.device) {
+      return left.device < right.device;
+    }
+    return left.sys_path < right.sys_path;
+  });
+  if (devices.empty()) {
+    error_message = "No USB devices found";
+  }
+  LOG_INFO("connectivity usb bus/device enumeration: {} device(s)", devices.size());
+  for (const auto& device : devices) {
+    LOG_INFO("connectivity usb bus device: bus={} device={} vid:pid={}:{} name='{}' syspath='{}'",
+             device.bus,
+             device.device,
+             device.vid.empty() ? "????" : device.vid,
+             device.pid.empty() ? "????" : device.pid,
+             device.name,
+             device.sys_path);
+  }
+  return devices;
+#else
+  LOG_TRACE("connectivity USB bus/device enumeration requested but libudev backend is disabled");
+  error_message = "libudev backend is not enabled";
+  return {};
+#endif
+}
+
 }  // namespace platform::connectivity

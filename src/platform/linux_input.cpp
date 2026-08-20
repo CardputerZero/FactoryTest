@@ -806,6 +806,14 @@ lv_indev_t* try_create_keypad(const char* path,
   const auto device_name = evdev_device_name(fd);
   const bool exclusive_target =
       exclusive_requested && exclusive_device_name && device_name == exclusive_device_name;
+  if (exclusive_requested && !exclusive_target) {
+    LOG_VERBOSE("ignoring non-target evdev input device: {} name='{}' target='{}'",
+                path,
+                device_name.empty() ? "unknown" : device_name,
+                exclusive_device_name ? exclusive_device_name : "unknown");
+    close(fd);
+    return nullptr;
+  }
   if (exclusive_target) {
     result.exclusive_target_found = true;
   }

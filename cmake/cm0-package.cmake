@@ -32,6 +32,27 @@ if(APP_INSTALL_SYSTEMD_SERVICE)
         "${APP_GENERATED_DIR}/${PROJECT_NAME}.service"
         @ONLY
     )
+    configure_file(
+        "${CMAKE_CURRENT_LIST_DIR}/templates/factory_precheck.service.in"
+        "${APP_GENERATED_DIR}/factory_precheck.service"
+        @ONLY
+    )
+    configure_file(
+        "${CMAKE_CURRENT_LIST_DIR}/templates/cardputerzero-hdmi-check.in"
+        "${APP_GENERATED_DIR}/cardputerzero-hdmi-check"
+        @ONLY
+    )
+    file(CHMOD "${APP_GENERATED_DIR}/cardputerzero-hdmi-check"
+        PERMISSIONS
+            OWNER_READ OWNER_WRITE OWNER_EXECUTE
+            GROUP_READ GROUP_EXECUTE
+            WORLD_READ WORLD_EXECUTE
+    )
+    configure_file(
+        "${CMAKE_CURRENT_LIST_DIR}/templates/factory-precheck-drm.rules.in"
+        "${APP_GENERATED_DIR}/99-factory-precheck-drm.rules"
+        @ONLY
+    )
 endif()
 
 if(NOT USE_DESKTOP)
@@ -62,6 +83,7 @@ file(CHMOD "${APP_GENERATED_DIR}/postinst"
 set(APP_DEBIAN_CONTROL_EXTRA "${APP_GENERATED_DIR}/postinst")
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS factory_precheck RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/assets/audio/"
@@ -103,6 +125,22 @@ if(APP_INSTALL_SYSTEMD_SERVICE)
     install(
         FILES "${APP_GENERATED_DIR}/${PROJECT_NAME}.service"
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/system"
+    )
+    install(
+        FILES "${APP_GENERATED_DIR}/factory_precheck.service"
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/system"
+    )
+    # Install the HDMI precheck gate to the exact path the service unit expects.
+    # factory_precheck.service.in hardcodes ExecCondition=/usr/libexec/cardputerzero-hdmi-check,
+    # so the destination must be the package-prefix-relative "libexec" (CPACK_PACKAGING_INSTALL_PREFIX
+    # is "/usr", which yields /usr/libexec). Keep these two values in sync.
+    install(
+        PROGRAMS "${APP_GENERATED_DIR}/cardputerzero-hdmi-check"
+        DESTINATION "libexec"
+    )
+    install(
+        FILES "${APP_GENERATED_DIR}/99-factory-precheck-drm.rules"
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/udev/rules.d"
     )
 endif()
 

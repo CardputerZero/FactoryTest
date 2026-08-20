@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstdint>
+#include <deque>
 #include <string>
 #include <vector>
 
@@ -75,6 +76,9 @@ class IrReceiverSession {
   bool scancode_mode_{false};
   bool mode2_{true};
   std::vector<uint32_t> pulse_space_buffer_{};
+  // A single read can contain several fixture replies. Preserve their order.
+  std::deque<IrReceiveSnapshot> pending_receives_{};
+  IrReceiveSnapshot receive_state_{};
   IrReceiveSnapshot snapshot_{};
 };
 

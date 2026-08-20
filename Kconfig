@@ -5,9 +5,14 @@
 menuconfig FACTORY_TEST_SCONS_CONFIG
     bool "Configure FactoryTest SCons build"
     default y
-    select V9_5_LV_USE_LINUX_DRM if !FACTORY_TEST_USE_DESKTOP
+    select V9_5_LV_USE_LINUX_DRM if FACTORY_TEST_PRODUCT_MODE && !FACTORY_TEST_USE_DESKTOP
+    select V9_5_LV_USE_LINUX_FBDEV if !FACTORY_TEST_PRODUCT_MODE && !FACTORY_TEST_USE_DESKTOP
 
 if FACTORY_TEST_SCONS_CONFIG
+
+config FACTORY_TEST_PRODUCT_MODE
+    bool "Build the product DRM/KMS display mode"
+    default n
 
 config FACTORY_TEST_USE_DESKTOP
     bool "Build the SDL desktop backend"

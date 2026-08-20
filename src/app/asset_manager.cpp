@@ -106,6 +106,17 @@ std::filesystem::path AssetManager::resolve_font(const std::filesystem::path& fi
 lv_font_t* AssetManager::load_font(const std::filesystem::path& file_name, uint32_t size) {
 #if LV_USE_FREETYPE
   size      = normalized_font_size(file_name, size);
+  return load_font_exact(file_name, size);
+#else
+  LV_UNUSED(file_name);
+  LV_UNUSED(size);
+  LOG_WARN("FreeType font loading requested but LV_USE_FREETYPE is disabled");
+  return nullptr;
+#endif
+}
+
+lv_font_t* AssetManager::load_font_exact(const std::filesystem::path& file_name, uint32_t size) {
+#if LV_USE_FREETYPE
   auto path = resolve_font(file_name);
   if (path.empty()) {
     LOG_WARN("font asset not found: {}", file_name.string());

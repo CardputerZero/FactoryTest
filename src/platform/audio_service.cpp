@@ -13,6 +13,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <mutex>
@@ -78,6 +79,11 @@ struct MiniaudioContext {
   MiniaudioContext() {
     ma_result result;
 #if defined(__linux__)
+    const char* pulse_server = std::getenv("PULSE_SERVER");
+    const char* runtime_dir = std::getenv("XDG_RUNTIME_DIR");
+    LOG_INFO("initializing miniaudio PulseAudio backend: PULSE_SERVER='{}' XDG_RUNTIME_DIR='{}'",
+             pulse_server && pulse_server[0] != '\0' ? pulse_server : "<unset>",
+             runtime_dir && runtime_dir[0] != '\0' ? runtime_dir : "<unset>");
     const ma_backend backends[] = {ma_backend_pulseaudio};
     result                      = ma_context_init(backends, 1, nullptr, &context);
 #else
@@ -201,6 +207,14 @@ SelectedDevice select_system_audio_device(ma_backend backend,
   if (device_count == 0) {
     LOG_ERROR("no miniaudio {} system device found", direction);
     return selected;
+  }
+  for (ma_uint32 i = 0; i < device_count; ++i) {
+    LOG_INFO("miniaudio {} device[{}]: name='{}' default={} id='{}'",
+             direction,
+             i,
+             devices[i].name,
+             devices[i].isDefault ? "yes" : "no",
+             miniaudio_device_id(backend, devices[i].id));
   }
   for (ma_uint32 i = 0; i < device_count; ++i) {
     if (devices[i].isDefault) {

@@ -7,13 +7,13 @@ This repository holds the factory test application of CardputerZero.
 + Download the debian release
 
 ```
-wget https://github.com/CardputerZero/FactoryTest/releases/download/0.3.0/FactoryTest_0.3.0_m5stack1_arm64.deb
+wget https://github.com/CardputerZero/FactoryTest/releases/download/0.3.1/FactoryTest_0.3.1_m5stack1_arm64.deb
 ```
 
 + Install the package
 
 ```
-sudo apt install ./FactoryTest_0.3.0_m5stack1_arm64.deb
+sudo apt install ./FactoryTest_0.3.1_m5stack1_arm64.deb
 ```
 
 The packaged systemd service enables exclusive evdev input for the built-in `tca8418c` keyboard
@@ -25,10 +25,84 @@ including USB keyboards, remain shared. Startup fails if the named device cannot
 
 ## Manually build
 
-TODO
+Choose one of the following build systems for a CardputerZero target build.
+
+### SCons
+
+The default SCons build uses `app` mode and starts the main application through
+the Linux framebuffer:
+
+```
+CONFIG_DEFAULT_FILE=linux_x86_cross_cp0_config_defaults.mk scons -j8
+```
+
+To build the main application in `product` mode with the DRM/KMS backend:
+
+```
+FACTORY_TEST_PRODUCT_MODE=1 CONFIG_DEFAULT_FILE=linux_x86_cross_cp0_config_defaults.mk scons -j8
+```
+
+### CMake
+
+The CMake CardputerZero preset uses the CM0/aarch64 cross toolchain and keeps
+the main application in framebuffer `app` mode by default:
+
+```
+cmake --workflow --preset cp0-cross-package
+```
+
+For a build without packaging:
+
+```
+cmake --preset cp0-cross
+cmake --build --preset cp0-cross-rel
+```
+
+Pass `-DFACTORY_TEST_PRODUCT_MODE=ON` when configuring CMake if the main
+application should use DRM/KMS instead. The standalone `factory_precheck`
+target always uses DRM independently of the main application display mode.
+
+The cross-built binaries must report `ELF 64-bit ... ARM aarch64`. The generated
+package is `dist/FactoryTest_<version>_m5stack1_arm64.deb`. Do not run
+`package` from a desktop build directory; desktop binaries are Mach-O and are
+not valid for the target device.
+
+The HDMI precheck service is enabled at boot (`WantedBy=multi-user.target`) and
+is also started by the DRM udev hotplug rule when an HDMI connector reports
+`status=connected`. The unit is gated by `ExecCondition=/usr/libexec/cardputerzero-hdmi-check`
+(the package installs this helper under `/usr/libexec`); the check only passes
+when at least one DRM HDMI connector reports `connected`, so no HDMI means the
+service is skipped rather than started. It connects to the PulseAudio user
+socket at `/run/user/1000/pulse/native`, matching the main factory-test service.
+If audio is unavailable, check that the user PulseAudio/PipeWire session is
+running and inspect the service log for the reported `PULSE_SERVER` and
+`XDG_RUNTIME_DIR`. Default audio routing is a system-level PipeWire/WirePlumber
+concern and is not changed by the application package. Configure the board I2S
+sink/source as the higher-priority default in the system WirePlumber profile so
+HDMI hotplug does not replace it.
+
+Both `factory_test` and `factory_precheck` are installed in `/usr/bin`. Do not
+launch `factory_precheck` manually while `factory_precheck.service` is active;
+the executable uses a shared instance lock and will refuse a second DRM owner.
+Stop the service first when a manual run is needed.
+
+The precheck service deliberately does **not** bind a TTY/VT (`tty1`): the
+precheck UI is a DRM application, and a `TTYPath`/`VTDisallocate` combination
+torn down on stop was found to wedge the kernel console and trip the board
+watchdog, resetting the system. Logs go to the journal instead.
 
 
 ## Changelog
+
+### 0.3.1 - 2026-08-13
+
+- Add the standalone HDMI factory precheck executable and systemd service.
+- Use a responsive LVGL Flex layout with Chinese-first status output.
+- Add compile-time `app` and `product` display modes for framebuffer and DRM/KMS output.
+- Add DRM-based HDMI hotplug precheck packaging, exclusive instance locking, and LCD/HDMI display smoke tests.
+- Add SCons and CMake cross-build support with separate main-application and precheck display backends.
+- Require confirmation before PY32 firmware upgrades, reboot automatically after success, and localize the upgrade warning.
+- Improve USB factory-result upload, input routing, IR handling, UI audio setup, and runtime asset resolution.
 
 ### 0.3.0 - 2026-08-12
 
