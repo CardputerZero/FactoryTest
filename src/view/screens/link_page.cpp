@@ -255,6 +255,7 @@ void LinkConnectivityView::show_config_dialog() {
   config.title          = "iperf Settings";
   config.shortcut_text  = "ESC: Cancel  Enter: OK";
   config.shortcut_width = 154;
+  config.body_offset_y  = -4;
 
   view::widgets::DialogCallbacks callbacks;
   callbacks.ok_action     = [this]() { apply_config_dialog_(); };
@@ -270,10 +271,15 @@ void LinkConnectivityView::show_config_dialog() {
   view::widgets::DialogTextareaOptions host_options;
   host_options.accepted_chars = "0123456789.";
   host_options.enter_confirms = false;
+  host_options.height         = 28;
   host_input_ = dialog_->add_textarea(view_model_.settings().iperf_host.c_str(), host_options);
-  // Keep the caret at the end of the last glyph instead of covering it.
-  lv_obj_set_style_border_width(host_input_, 1, LV_PART_CURSOR);
-  lv_obj_set_style_pad_left(host_input_, -1, LV_PART_CURSOR);
+  // Override the default focused caret so it does not cover the last digit.
+  if (host_input_) {
+    constexpr lv_style_selector_t cursor_selector = LV_PART_CURSOR | LV_STATE_FOCUSED;
+    lv_obj_set_style_border_width(host_input_, 1, cursor_selector);
+    lv_obj_set_style_pad_left(host_input_, 0, cursor_selector);
+    lv_obj_set_style_pad_right(host_input_, 0, cursor_selector);
+  }
   lv_obj_add_event_cb(host_input_, dialog_host_focus_cb, LV_EVENT_CLICKED, this);
   lv_obj_add_event_cb(host_input_, dialog_host_focus_cb, LV_EVENT_FOCUSED, this);
   if (host_input_) {
