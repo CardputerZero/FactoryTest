@@ -27,6 +27,7 @@ bool write_register(uint8_t reg, uint8_t value, std::string& error_message);
 bool read_register(uint8_t reg, uint8_t* data, std::size_t size, std::string& error_message);
 
 bool set_ext_5v_enabled(bool enabled, std::string& error_message);
+bool reset_usb_hub(std::string& error_message);
 bool select_usb_function(std::string& error_message);
 bool select_gpio_function(std::string& error_message);
 bool read_charge_report(uint8_t& report, std::string& detail, std::string& error_message);

@@ -35,9 +35,10 @@ class CapFixtureTestPage : public BaseScreen {
   lv_obj_t* grid_{nullptr};
   lv_obj_t* headline_label_{nullptr};
   lv_obj_t* error_label_{nullptr};
-  std::array<lv_obj_t*, 6> row_objects_{};
-  std::array<lv_obj_t*, 6> status_labels_{};
-  std::array<lv_obj_t*, 6> detail_labels_{};
+  // Keep these view arrays in sync with CapFixtureSnapshot::items (8 tests).
+  std::array<lv_obj_t*, 8> row_objects_{};
+  std::array<lv_obj_t*, 8> status_labels_{};
+  std::array<lv_obj_t*, 8> detail_labels_{};
   lv_timer_t* refresh_timer_{nullptr};
   unsigned int displayed_revision_{static_cast<unsigned int>(-1)};
 };

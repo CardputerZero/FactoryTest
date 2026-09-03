@@ -20,6 +20,11 @@ constexpr std::size_t category_to_index(StartMenuCategory category) {
 const std::array<StartMenuItem, StartMenuModel::K_ITEM_COUNT>& start_menu_items() {
   static const std::array<StartMenuItem, StartMenuModel::K_ITEM_COUNT> ITEMS = {{
       {"Start Full Test", view::ICON_FLASK, StartMenuCategory::AUTO, AppPage::KEYBOARD_TEST, true},
+      {"Fire in the Pi",
+       view::ICON_FIRE_SIMPLE,
+       StartMenuCategory::AUTO,
+       AppPage::FIRE_IN_THE_PI,
+       false},
       {"Language", view::ICON_TRANSLATE, StartMenuCategory::AUTO, AppPage::START, false},
       {"Sound", view::ICON_SPK_HIFI, StartMenuCategory::AUTO, AppPage::START, false},
       {"Device Information", view::ICON_INFO, StartMenuCategory::AUTO, AppPage::DEVICE_INFO, false},

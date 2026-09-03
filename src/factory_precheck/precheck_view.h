@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -31,6 +32,7 @@ class PrecheckView {
 
  private:
   void refresh_();
+  void scroll_list_(int32_t direction);
   static void refresh_timer_cb(lv_timer_t* timer);
   static void power_action_cb(PowerAction action, void* user_data);
   void open_power_dialog_();

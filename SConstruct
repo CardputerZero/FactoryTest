@@ -168,7 +168,7 @@ version_content = '''#pragma once
 
 #define FACTORY_TEST_MAJOR 0
 #define FACTORY_TEST_MINOR 3
-#define FACTORY_TEST_PATCH 1
+#define FACTORY_TEST_PATCH 2
 #define FACTORY_TEST_BUILD_TIME "{}"
 #define FACTORY_TEST_GIT_COMMIT "{}"
 

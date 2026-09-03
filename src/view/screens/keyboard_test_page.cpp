@@ -48,11 +48,12 @@ struct LayerMetrics {
   int32_t layout_height;
 };
 
-constexpr int32_t K_KEY_SIZE      = 32;
-constexpr int32_t K_KEY_STRIDE    = 26;
-constexpr int32_t K_ROW_STRIDE    = 20;
-constexpr int32_t K_LAYOUT_WIDTH  = K_KEY_SIZE + 10 * K_KEY_STRIDE;
-constexpr int32_t K_LAYOUT_HEIGHT = K_KEY_SIZE + 4 * K_ROW_STRIDE;
+constexpr int32_t K_KEY_SIZE               = 32;
+constexpr int32_t K_KEY_STRIDE             = 26;
+constexpr int32_t K_ROW_STRIDE             = 20;
+constexpr int32_t K_LAYOUT_WIDTH           = K_KEY_SIZE + 10 * K_KEY_STRIDE;
+constexpr int32_t K_LAYOUT_HEIGHT          = K_KEY_SIZE + 4 * K_ROW_STRIDE;
+constexpr uint32_t K_AUTO_ADVANCE_DELAY_MS = 300;
 
 constexpr const char* K_MATCH_0               = "0";
 constexpr const char* K_MATCH_1               = "1";
@@ -376,18 +377,20 @@ std::size_t layer_index(KeyLayer layer) {
   }
 }
 
-bool is_counted_key(const KeySpec& spec) {
-  if (spec.disabled) {
-    return false;
-  }
+constexpr bool is_counted_key(const KeySpec& spec) { return !spec.disabled; }
 
-  if (spec.layer != STANDARD_KEY) {
-    return true;
+constexpr std::size_t counted_keys_for_layer(KeyLayer layer) {
+  std::size_t count = 0;
+  for (const auto& spec : K_KEYS) {
+    if (spec.layer == layer && is_counted_key(spec)) {
+      ++count;
+    }
   }
-
-  const std::string_view match = spec.match ? spec.match : "";
-  return match != K_MATCH_FN && match != K_MATCH_SHIFT && match != K_MATCH_SYM;
+  return count;
 }
+
+static_assert(counted_keys_for_layer(STANDARD_KEY) == 46,
+              "the standard keyboard layer must contain 46 testable keys");
 
 std::string normalize_key_name(uint32_t key, const char* key_name) {
   std::string normalized = key_name ? key_name : "";
@@ -525,6 +528,10 @@ KeyboardTestPage::~KeyboardTestPage() {
   platform::clear_long_key_listener(long_key_listener, this);
   platform::clear_key_release_listener(key_release_listener, this);
   platform::clear_key_listener(key_listener, this);
+  if (auto_advance_timer_) {
+    lv_timer_delete(auto_advance_timer_);
+    auto_advance_timer_ = nullptr;
+  }
   hold_popup_.reset();
 }
 
@@ -669,6 +676,10 @@ void KeyboardTestPage::build_layer_(KeyLayer layer) {
 }
 
 void KeyboardTestPage::transition_to_(KeyLayer layer, bool animate) {
+  if (auto_advance_timer_) {
+    lv_timer_delete(auto_advance_timer_);
+    auto_advance_timer_ = nullptr;
+  }
   active_layer_ = layer;
   update_progress_();
   update_nav_actions_();
@@ -680,6 +691,36 @@ void KeyboardTestPage::transition_to_(KeyLayer layer, bool animate) {
   }
 
   lv_tileview_set_tile(tileview_, layer_tiles_[index], animate ? LV_ANIM_ON : LV_ANIM_OFF);
+}
+
+void KeyboardTestPage::schedule_auto_advance_(KeyLayer source_layer) {
+  const auto target_layer = next_layer(source_layer);
+  if (target_layer == source_layer || auto_advance_timer_) {
+    return;
+  }
+
+  auto_advance_source_layer_ = source_layer;
+  auto_advance_timer_ = lv_timer_create(auto_advance_timer_cb, K_AUTO_ADVANCE_DELAY_MS, this);
+  if (!auto_advance_timer_) {
+    transition_to_(target_layer);
+    return;
+  }
+  lv_timer_set_repeat_count(auto_advance_timer_, 1);
+  lv_timer_set_auto_delete(auto_advance_timer_, true);
+}
+
+void KeyboardTestPage::auto_advance_timer_cb(lv_timer_t* timer) {
+  auto* page = static_cast<KeyboardTestPage*>(lv_timer_get_user_data(timer));
+  if (!page) {
+    return;
+  }
+
+  page->auto_advance_timer_ = nullptr;
+  const auto source_layer   = page->auto_advance_source_layer_;
+  if (page->active_layer_ != source_layer) {
+    return;
+  }
+  page->transition_to_(next_layer(source_layer));
 }
 
 void KeyboardTestPage::sync_active_tile_() {
@@ -788,12 +829,12 @@ void KeyboardTestPage::mark_key_pressed_(uint32_t key, const char* key_name) {
       update_button_state_(i);
     }
 
-    const auto index = layer_index(K_KEYS[i].layer);
-    if (counted && K_KEYS[i].layer == active_layer_ &&
-        layer_pressed_counts_[index] >= layer_total_counts_[index]) {
-      transition_to_(next_layer(K_KEYS[i].layer));
-    } else {
-      update_progress_();
+    const auto index          = layer_index(K_KEYS[i].layer);
+    const bool layer_complete = counted && K_KEYS[i].layer == active_layer_ &&
+                                layer_pressed_counts_[index] >= layer_total_counts_[index];
+    update_progress_();
+    if (layer_complete) {
+      schedule_auto_advance_(K_KEYS[i].layer);
     }
     return;
   }

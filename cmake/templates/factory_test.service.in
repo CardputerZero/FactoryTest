@@ -15,6 +15,9 @@ Environment=PIPEWIRE_RUNTIME_DIR=/run/user/1000
 Environment=PULSE_SERVER=unix:/run/user/1000/pulse/native
 Environment=FACTORY_TEST_EXCLUSIVE_INPUT=1
 Environment=FACTORY_TEST_EXCLUSIVE_INPUT_DEVICE=tca8418c
+# The configured DRM path is a udev-created alias and may appear shortly after
+# the underlying card device unit becomes active.
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do test -e "@APP_DRM_DEVICE@" && exit 0; sleep 0.1; done; exit 1'
 ExecStart=/usr/bin/@PROJECT_NAME@
 Restart=always
 RestartSec=2s

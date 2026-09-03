@@ -508,6 +508,8 @@ const char* AppViewModel::current_test_name() const {
       return "Input Test";
     case model::AppPage::LCD_TEST:
       return "Display Test";
+    case model::AppPage::FIRE_IN_THE_PI:
+      return "Fire in the Pi";
     case model::AppPage::AUDIO_TEST:
       return "Audio Test";
     case model::AppPage::CAMERA_TEST:

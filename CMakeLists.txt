@@ -6,7 +6,7 @@
 
 cmake_minimum_required(VERSION 3.23)
 
-project(factory_test VERSION 0.3.1 LANGUAGES C CXX)
+project(factory_test VERSION 0.3.2 LANGUAGES C CXX)
 
 string(TIMESTAMP FACTORY_TEST_BUILD_TIME "%Y-%m-%d %H:%M:%S")
 execute_process(
@@ -662,6 +662,10 @@ if(BUILD_TESTING AND USE_DESKTOP)
     add_executable(uart_service_test tests/uart_service_test.cpp)
     target_link_libraries(uart_service_test PRIVATE ${PROJECT_NAME}_platform)
     add_test(NAME uart_service COMMAND uart_service_test)
+
+    add_executable(usb_service_test tests/usb_service_test.cpp)
+    target_link_libraries(usb_service_test PRIVATE ${PROJECT_NAME}_platform)
+    add_test(NAME usb_service COMMAND usb_service_test)
 
     add_executable(session_manager_test tests/session_manager_test.cpp)
     target_link_libraries(session_manager_test PRIVATE ${PROJECT_NAME}_model logger)

@@ -7,13 +7,13 @@ This repository holds the factory test application of CardputerZero.
 + Download the debian release
 
 ```
-wget https://github.com/CardputerZero/FactoryTest/releases/download/0.3.1/FactoryTest_0.3.1_m5stack1_arm64.deb
+wget https://github.com/CardputerZero/FactoryTest/releases/download/0.3.2/FactoryTest_0.3.2_m5stack1_arm64.deb
 ```
 
 + Install the package
 
 ```
-sudo apt install ./FactoryTest_0.3.1_m5stack1_arm64.deb
+sudo apt install ./FactoryTest_0.3.2_m5stack1_arm64.deb
 ```
 
 The packaged systemd service enables exclusive evdev input for the built-in `tca8418c` keyboard
@@ -93,6 +93,15 @@ watchdog, resetting the system. Logs go to the journal instead.
 
 
 ## Changelog
+
+### 0.3.2 - 2026-09-03
+
+- Add the "Fire in the Pi" stress-test page with CPU, memory, and storage workloads, thermal/battery telemetry, live charts, rotating cycles, and JSONL metrics.
+- Expand CAP fixture validation from six to eight checks with Grove I2C/UART routing, protocol handshakes, fixed settling delays, USB hub recovery, and deterministic cleanup.
+- Identify CAP USB devices by physical sysfs port topology instead of volatile device numbers, and add desktop coverage for port matching.
+- Improve keyboard-layer accounting and delayed automatic progression, with timer cleanup when leaving the page.
+- Make DRM startup more resilient with device-open retries and an immediate first frame; wait for the configured DRM alias in the systemd service.
+- Enhance HDMI precheck with an eight-item CAP summary, physical USB-port checks, scrollable results, and updated controls/localization.
 
 ### 0.3.1 - 2026-08-13
 

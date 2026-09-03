@@ -33,10 +33,12 @@ struct UsbDeviceInfo {
   std::string sys_path;
 };
 
-// USB 设备按总线枚举位置描述：对应 lsusb 输出中的 "Bus 001 Device 004"。
+// USB 设备按物理拓扑位置描述。port_path 对应 sysfs devpath，例如 Hub 位于
+// "1" 时，其下游 Port 001 / 002 分别为 "1.1" / "1.2"。
 struct UsbPortDeviceInfo {
   uint32_t bus{0};
   uint32_t device{0};
+  std::string port_path;
   std::string vid;
   std::string pid;
   std::string name;

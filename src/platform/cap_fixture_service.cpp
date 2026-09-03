@@ -27,7 +27,9 @@
 #include <linux/input.h>
 #include <linux/spi/spidev.h>
 #include <poll.h>
+#include <signal.h>
 #include <sys/ioctl.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #endif
 
@@ -35,6 +37,7 @@ namespace platform::fixture {
 namespace {
 
 constexpr auto K_POLL_INTERVAL = std::chrono::milliseconds(50);
+constexpr auto K_USB_HUB_RESET_TIMEOUT = std::chrono::seconds(3);
 const std::array<platform::gpio::OutputLineConfig, 3> K_GPIO_TEST_LINES = {{
     {"/dev/gpiochip0", 26, "factory-test-cap-gpio26"},
     {"/dev/gpiochip0", 23, "factory-test-cap-gpio23"},
@@ -298,18 +301,31 @@ bool read_register(uint8_t reg, uint8_t* data, std::size_t size, std::string& er
     error_message = errno_error("open /dev/i2c-1");
     return false;
   }
-  std::array<i2c_msg, 2> messages{};
-  messages[0].addr  = K_I2C_ADDRESS;
-  messages[0].flags = 0;
-  messages[0].len   = 1;
-  messages[0].buf   = &reg;
-  messages[1].addr  = K_I2C_ADDRESS;
-  messages[1].flags = I2C_M_RD;
-  messages[1].len   = static_cast<__u16>(size);
-  messages[1].buf   = data;
-  i2c_rdwr_ioctl_data transfer{messages.data(), static_cast<__u32>(messages.size())};
-  if (ioctl(bus.value, I2C_RDWR, &transfer) < 0) {
-    error_message = errno_error("I2C repeated-start register read");
+  // Match the ADV host's Arduino-Wire timing: terminate the register-pointer
+  // write with STOP, allow the slave callback to publish it, then issue a
+  // separate read transaction. Some Arduino I2C slave implementations do not
+  // dispatch the receive callback until STOP has been observed.
+  i2c_msg pointer_message{};
+  pointer_message.addr  = K_I2C_ADDRESS;
+  pointer_message.flags = 0;
+  pointer_message.len   = 1;
+  pointer_message.buf   = &reg;
+  i2c_rdwr_ioctl_data pointer_transfer{&pointer_message, 1};
+  if (ioctl(bus.value, I2C_RDWR, &pointer_transfer) < 0) {
+    error_message = errno_error("I2C register pointer write");
+    return false;
+  }
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(2));
+
+  i2c_msg read_message{};
+  read_message.addr  = K_I2C_ADDRESS;
+  read_message.flags = I2C_M_RD;
+  read_message.len   = static_cast<__u16>(size);
+  read_message.buf   = data;
+  i2c_rdwr_ioctl_data read_transfer{&read_message, 1};
+  if (ioctl(bus.value, I2C_RDWR, &read_transfer) < 0) {
+    error_message = errno_error("I2C register read");
     return false;
   }
   return true;
@@ -324,6 +340,55 @@ bool read_register(uint8_t reg, uint8_t* data, std::size_t size, std::string& er
 
 bool set_ext_5v_enabled(bool enabled, std::string& error_message) {
   return platform::gpio::write_sysfs_binary_value(K_EXT_5V_PATH, enabled, error_message);
+}
+
+bool reset_usb_hub(std::string& error_message) {
+#if defined(__linux__)
+  error_message.clear();
+  const pid_t child = fork();
+  if (child < 0) {
+    error_message = errno_error("fork usbreset");
+    return false;
+  }
+  if (child == 0) {
+    execlp("usbreset", "usbreset", "05e3:0610", static_cast<char*>(nullptr));
+    _exit(127);
+  }
+
+  const auto deadline = std::chrono::steady_clock::now() + K_USB_HUB_RESET_TIMEOUT;
+  int status = 0;
+  while (std::chrono::steady_clock::now() < deadline) {
+    const pid_t result = waitpid(child, &status, WNOHANG);
+    if (result == child) {
+      if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+        return true;
+      }
+      if (WIFEXITED(status)) {
+        error_message = "usbreset exited with status " +
+                        std::to_string(WEXITSTATUS(status));
+      } else if (WIFSIGNALED(status)) {
+        error_message = "usbreset terminated by signal " +
+                        std::to_string(WTERMSIG(status));
+      } else {
+        error_message = "usbreset did not complete successfully";
+      }
+      return false;
+    }
+    if (result < 0) {
+      error_message = errno_error("waitpid usbreset");
+      return false;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  }
+
+  kill(child, SIGTERM);
+  waitpid(child, &status, 0);
+  error_message = "usbreset timed out";
+  return false;
+#else
+  error_message = "USB hub reset is only available on Linux";
+  return false;
+#endif
 }
 
 bool select_usb_function(std::string& error_message) {
@@ -341,7 +406,7 @@ bool select_usb_function(std::string& error_message) {
                       " before USB function switch: " + line_error;
       return false;
     }
-    LOG_INFO("[CAP-FIXTURE][USB] GPIO{} released; used={} consumer='{}'",
+    LOG_VERBOSE("[CAP-FIXTURE][USB] GPIO{} released; used={} consumer='{}'",
              line.line_offset,
              used,
              consumer.empty() ? "<none>" : consumer);
@@ -555,7 +620,7 @@ bool receive_usb_hid_text(uint16_t vendor_id,
         for (const auto& event_path : find_target_input_events(usb_path)) {
           const int fd = open(event_path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
           if (fd >= 0) {
-            LOG_INFO("CAP fixture USB HID input opened: {}", event_path);
+            LOG_DEBUG("CAP fixture USB HID input opened: {}", event_path);
             inputs.emplace_back(fd);
           }
         }

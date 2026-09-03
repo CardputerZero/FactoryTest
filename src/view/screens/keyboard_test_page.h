@@ -6,10 +6,9 @@
 
 #pragma once
 
-#include <cstdint>
-
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -51,11 +50,13 @@ class KeyboardTestPage : public BaseScreen {
   void build_layer_(KeyLayer layer);
   void mark_key_pressed_(uint32_t key, const char* key_name);
   void transition_to_(KeyLayer layer, bool animate = true);
+  void schedule_auto_advance_(KeyLayer source_layer);
   void update_nav_actions_();
   void switch_to_next_layout_();
   void sync_active_tile_();
   void show_hold_popup_(const char* message, view::widgets::PopupTone tone);
   void hide_hold_popup_();
+  static void auto_advance_timer_cb(lv_timer_t* timer);
   static void tile_scroll_end_cb(lv_event_t* event);
   static void long_key_listener(uint32_t key, const char* key_name, void* user_data);
 
@@ -68,9 +69,11 @@ class KeyboardTestPage : public BaseScreen {
   std::array<std::size_t, K_LAYER_COUNT> layer_pressed_counts_{};
   std::array<std::size_t, K_LAYER_COUNT> layer_total_counts_{};
   KeyLayer active_layer_{KeyLayer::STANDARD_KEY};
+  KeyLayer auto_advance_source_layer_{KeyLayer::STANDARD_KEY};
   lv_font_t* key_font_{nullptr};
   lv_font_t* extra_key_font_{nullptr};
   lv_obj_t* tileview_{nullptr};
+  lv_timer_t* auto_advance_timer_{nullptr};
   std::unique_ptr<view::widgets::Popup> hold_popup_{};
   view::widgets::PopupTone hold_popup_tone_{view::widgets::PopupTone::DEFAULT};
 };

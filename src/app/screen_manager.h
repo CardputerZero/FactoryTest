@@ -38,6 +38,7 @@ class ScreenManager {
   void show_start_page();
   void show_keyboard_test_page();
   void show_lcd_test_page();
+  void show_fire_in_the_pi_page();
   void show_audio_test_page();
   void show_camera_test_page();
   void show_io_test_page(model::AppPage page);

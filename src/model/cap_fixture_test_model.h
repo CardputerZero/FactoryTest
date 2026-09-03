@@ -9,9 +9,14 @@
 #include <array>
 #include <atomic>
 #include <cstddef>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
+
+namespace platform::connectivity {
+class UartDebugSession;
+}
 
 namespace model {
 
@@ -38,7 +43,7 @@ struct CapFixtureItemSnapshot {
 
 struct CapFixtureSnapshot {
   CapFixtureRunState state{CapFixtureRunState::IDLE};
-  std::array<CapFixtureItemSnapshot, 6> items{};
+  std::array<CapFixtureItemSnapshot, 8> items{};
   std::size_t active_index{0};
   std::string headline{"Install CAP fixture, then press Enter"};
   std::string error_message{};
@@ -60,11 +65,14 @@ class CapFixtureTestModel {
  private:
   void run_();
   bool run_i2c_();
+  bool run_grove_i2c_();
   bool run_power_();
   bool run_uart_();
+  bool run_grove_uart_();
   bool run_spi_();
   bool run_usb_();
   bool run_gpio_();
+  bool prepare_uart_test_(const char* stage);
   bool select_host_pin_function_(bool usb_enabled, std::string& error_message);
   bool delay_(const char* stage, unsigned int milliseconds, const char* reason);
   bool hold_gpio_outputs_high_(const char* stage, unsigned int milliseconds, const char* reason);
@@ -85,6 +93,10 @@ class CapFixtureTestModel {
   bool host_pin_function_known_{false};
   bool host_usb_function_selected_{false};
   bool gpio_test_lines_released_{false};
+  bool cap_grove_i2c_active_{false};
+  bool cap_grove_uart_active_{false};
+  bool host_external_uart_selected_{false};
+  std::unique_ptr<platform::connectivity::UartDebugSession> uart_session_{};
 };
 
 const char* cap_fixture_item_state_text(CapFixtureItemState state);

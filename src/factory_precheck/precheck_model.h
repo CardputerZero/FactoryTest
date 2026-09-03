@@ -25,8 +25,8 @@ namespace precheck {
 enum class RunState { IDLE, RUNNING, PASSED, FAILED, CANCELED };
 enum class CheckState { PENDING, RUNNING, PASSED, FAILED, CANCELED, SKIPPED };
 
-// One aggregate row of the factory_test CAP fixture page (I2C, Power, UART,
-// SPI, USB, GPIO).  The precheck keeps its own display copy; the detection
+// One aggregate row of the factory_test CAP fixture page (Power, I2C,
+// Grove I2C, UART, Grove UART, SPI, USB, GPIO).  The precheck keeps its own display copy; the detection
 // order and results themselves come from model::CapFixtureTestModel.
 struct CapFixtureSubItem {
   std::string name;
@@ -82,7 +82,9 @@ class PrecheckModel {
   bool run_check_(std::size_t index);
   bool run_cap_fixture_check_(std::size_t index);
   bool run_ir_fixture_check_(std::size_t index);
-  bool run_usb_port_check_(std::size_t index, uint32_t expected_bus, uint32_t expected_device);
+  bool run_usb_port_check_(std::size_t index,
+                           uint32_t expected_bus,
+                           const std::string& expected_port_path);
   void publish_(RunState state, const std::string& headline);
   bool canceled_() const;
 
