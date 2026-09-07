@@ -7,13 +7,13 @@ This repository holds the factory test application of CardputerZero.
 + Download the debian release
 
 ```
-wget https://github.com/CardputerZero/FactoryTest/releases/download/0.3.2/FactoryTest_0.3.2_m5stack1_arm64.deb
+wget https://github.com/CardputerZero/FactoryTest/releases/download/0.3.3/FactoryTest_0.3.3_m5stack1_arm64.deb
 ```
 
 + Install the package
 
 ```
-sudo apt install ./FactoryTest_0.3.2_m5stack1_arm64.deb
+sudo apt install ./FactoryTest_0.3.3_m5stack1_arm64.deb
 ```
 
 The packaged systemd service enables exclusive evdev input for the built-in `tca8418c` keyboard
@@ -93,6 +93,13 @@ watchdog, resetting the system. Logs go to the journal instead.
 
 
 ## Changelog
+
+### 0.3.3 - 2026-09-07
+
+- Add controlled EXT 5V power-up, settling delay, failure reporting, and cleanup to the CC1101 and LoRa-1262 tests.
+- Add Grove 5V power control for Grove I2C testing and disable both EXT and Grove 5V outputs during fixture cleanup.
+- Use `/dev/dri/card1` as the default product DRM device and align the CMake preset, systemd dependency, and LCD smoke test with the device path.
+- Simplify product DRM initialization to use the configured device directly, removing the previous retry and multi-device fallback behavior.
 
 ### 0.3.2 - 2026-09-03
 

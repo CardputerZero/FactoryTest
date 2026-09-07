@@ -48,6 +48,7 @@ constexpr unsigned int K_UART_COMMAND_READY_TIMEOUT_MS      = 1000;
 constexpr unsigned int K_UART_COMMAND_READY_POLL_DELAY_MS  = 100;
 constexpr unsigned int K_GROVE_I2C_SWITCH_DELAY_MS         = 3000;
 constexpr unsigned int K_FIXTURE_POWER_SETTLE_MS           = 300;
+constexpr unsigned int K_GROVE_POWER_SETTLE_MS             = 300;
 constexpr unsigned int K_SYSFS_SWITCH_DELAY_MS             = 150;
 constexpr unsigned int K_USB_FUNCTION_SETTLE_DELAY_MS      = 500;
 constexpr unsigned int K_USB_INITIAL_ENUM_TIMEOUT_MS        = 6000;
@@ -365,6 +366,11 @@ bool CapFixtureTestModel::run_grove_i2c_() {
   constexpr const char* STAGE = "GROVE-I2C";
   begin_item_(K_GROVE_I2C_ITEM, "Switch and verify Grove I2C");
   std::string error;
+  LOG_DEBUG("[CAP-FIXTURE][{}] enabling Grove 5V output", STAGE);
+  if (!platform::fixture::set_grove_5v_enabled(true, error) ||
+      !delay_(STAGE, K_GROVE_POWER_SETTLE_MS, "Grove 5V power settle")) {
+    return fail_(STAGE, "Grove 5V enable failed: " + error);
+  }
   LOG_DEBUG("[CAP-FIXTURE][{}] request CAP I2C channel toggle HAT -> Grove", STAGE);
   if (!write_reg_(STAGE, 0x01, 0x08)) {
     return false;
@@ -1170,10 +1176,16 @@ void CapFixtureTestModel::cleanup_() {
     LOG_DEBUG("[CAP-FIXTURE][CLEANUP] GPIO26/23/22 released in input/high-Z state");
   }
   error.clear();
-  if (!platform::fixture::set_ext_5v_enabled(true, error)) {
-    LOG_ERROR("[CAP-FIXTURE][CLEANUP] failed to restore EXT 5V output: {}", error);
+  if (!platform::fixture::set_ext_5v_enabled(false, error)) {
+    LOG_ERROR("[CAP-FIXTURE][CLEANUP] failed to disable EXT 5V output: {}", error);
   } else {
-    LOG_DEBUG("[CAP-FIXTURE][CLEANUP] EXT 5V output restored: brightness=1");
+    LOG_DEBUG("[CAP-FIXTURE][CLEANUP] EXT 5V output disabled: brightness=0");
+  }
+  error.clear();
+  if (!platform::fixture::set_grove_5v_enabled(false, error)) {
+    LOG_ERROR("[CAP-FIXTURE][CLEANUP] failed to disable Grove 5V output: {}", error);
+  } else {
+    LOG_DEBUG("[CAP-FIXTURE][CLEANUP] Grove 5V output disabled: brightness=0");
   }
   uart_session_.reset();
   LOG_DEBUG("[CAP-FIXTURE][CLEANUP] host UART session closed");

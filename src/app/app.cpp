@@ -15,7 +15,6 @@
 #include <cstring>
 #include <cstdlib>
 #include <filesystem>
-#include <string_view>
 #include <utility>
 
 #include "app_config.h"
@@ -48,13 +47,8 @@
 #endif
 #endif
 
-#define FACTORY_TEST_DEFAULT_DRM_DEVICE "/dev/dri/cardputer-zero-internal"
-#define FACTORY_TEST_FALLBACK_DRM_DEVICE "/dev/dri/card1"
-#define FACTORY_TEST_DRM_OPEN_RETRIES 10
-#define FACTORY_TEST_DRM_RETRY_DELAY_US 100000
-
 #ifndef APP_DRM_DEVICE
-#define APP_DRM_DEVICE FACTORY_TEST_DEFAULT_DRM_DEVICE
+#define APP_DRM_DEVICE "/dev/dri/card1"
 #endif
 
 #ifndef APP_DRM_CONNECTOR_ID
@@ -100,6 +94,36 @@ bool page_handles_global_key_locally(model::AppPage page, uint32_t key) {
 }
 
 #if !USE_DESKTOP
+#if FACTORY_TEST_PRODUCT_MODE
+lv_display_t* try_drm_display(const char* device_path) {
+  if (!device_path || device_path[0] == '\0') {
+    return nullptr;
+  }
+
+  if (access(device_path, R_OK | W_OK) != 0) {
+    LOG_DEBUG("DRM display device is not accessible: {}", device_path);
+    return nullptr;
+  }
+
+  auto* display = lv_linux_drm_create();
+  if (!display) {
+    LOG_ERROR("failed to create DRM display object for {}", device_path);
+    return nullptr;
+  }
+
+  LOG_INFO("trying DRM display device: {} connector={}", device_path, APP_DRM_CONNECTOR_ID);
+  if (lv_linux_drm_set_file(display, device_path, APP_DRM_CONNECTOR_ID) == LV_RESULT_OK) {
+    LOG_INFO("using DRM display device: {} connector={}", device_path, APP_DRM_CONNECTOR_ID);
+    return display;
+  }
+
+  lv_display_delete(display);
+  LOG_WARN("DRM display device failed: {}", device_path);
+  return nullptr;
+}
+
+lv_display_t* init_drm_display() { return try_drm_display(APP_DRM_DEVICE); }
+#else
 bool is_duplicate_candidate(const char* candidate,
                             const char* const* candidates,
                             std::size_t count) {
@@ -115,94 +139,6 @@ bool is_duplicate_candidate(const char* candidate,
   return false;
 }
 
-#if FACTORY_TEST_PRODUCT_MODE
-lv_display_t* try_drm_display(const char* device_path) {
-  if (!device_path || device_path[0] == '\0') {
-    return nullptr;
-  }
-
-  const bool is_preferred_device = std::string_view(device_path) == APP_DRM_DEVICE;
-  const int attempts = is_preferred_device ? FACTORY_TEST_DRM_OPEN_RETRIES : 1;
-  for (int attempt = 1; attempt <= attempts; ++attempt) {
-    if (access(device_path, R_OK | W_OK) != 0) {
-      if (attempt == attempts) {
-        LOG_DEBUG("DRM display device is not accessible: {}", device_path);
-      }
-    } else {
-      auto* display = lv_linux_drm_create();
-      if (!display) {
-        LOG_ERROR("failed to create DRM display object for {}", device_path);
-      } else {
-        LOG_INFO("trying DRM display device: {} connector={} attempt={}/{}",
-                 device_path,
-                 APP_DRM_CONNECTOR_ID,
-                 attempt,
-                 attempts);
-        if (lv_linux_drm_set_file(display, device_path, APP_DRM_CONNECTOR_ID) == LV_RESULT_OK) {
-          LOG_INFO("using DRM display device: {} connector={}", device_path, APP_DRM_CONNECTOR_ID);
-          return display;
-        }
-        lv_display_delete(display);
-        LOG_WARN("DRM display device failed: {}", device_path);
-      }
-    }
-
-    if (attempt < attempts) {
-      usleep(FACTORY_TEST_DRM_RETRY_DELAY_US);
-    }
-  }
-  return nullptr;
-}
-
-lv_display_t* init_drm_display() {
-  const bool has_fallback_device =
-      std::strcmp(APP_DRM_DEVICE, FACTORY_TEST_FALLBACK_DRM_DEVICE) != 0;
-  const bool preferred_device_available = access(APP_DRM_DEVICE, F_OK) == 0;
-  if (!preferred_device_available) {
-    if (has_fallback_device) {
-      LOG_WARN("preferred DRM device link {} is unavailable; falling back to {}",
-               APP_DRM_DEVICE,
-               FACTORY_TEST_FALLBACK_DRM_DEVICE);
-    } else {
-      LOG_WARN("configured DRM device {} is unavailable", APP_DRM_DEVICE);
-    }
-  }
-
-  const char* candidates[] = {
-      APP_DRM_DEVICE,
-      FACTORY_TEST_FALLBACK_DRM_DEVICE,
-      "/dev/dri/card0",
-      "/dev/dri/card2",
-      "/dev/dri/card3",
-  };
-  const char* tried[sizeof(candidates) / sizeof(candidates[0])] = {};
-  std::size_t tried_count                                       = 0;
-
-  for (const char* candidate : candidates) {
-    if (is_duplicate_candidate(candidate, tried, tried_count)) {
-      continue;
-    }
-    tried[tried_count++] = candidate;
-
-    if (std::strcmp(candidate, APP_DRM_DEVICE) == 0 && !preferred_device_available) {
-      continue;
-    }
-
-    if (auto* display = try_drm_display(candidate)) {
-      return display;
-    }
-
-    if (std::strcmp(candidate, APP_DRM_DEVICE) == 0 &&
-        has_fallback_device) {
-      LOG_WARN("preferred DRM device {} failed; falling back to {}",
-               APP_DRM_DEVICE,
-               FACTORY_TEST_FALLBACK_DRM_DEVICE);
-    }
-  }
-
-  return nullptr;
-}
-#else
 lv_display_t* try_fb_display(const char* device_path) {
   if (!device_path || device_path[0] == '\0') {
     return nullptr;
@@ -355,10 +291,6 @@ int Application::run() {
     LOG_ERROR("failed to initialize display");
     return 1;
   }
-  // Submit the first frame immediately; DRM backends otherwise may wait for
-  // the first timer-driven invalidation before updating the panel.
-  lv_refr_now(display);
-
   AssetManager assets;
   for (const auto& root : assets.roots()) {
     LOG_INFO("asset root: {}", root.string());

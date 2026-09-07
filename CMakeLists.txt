@@ -6,7 +6,7 @@
 
 cmake_minimum_required(VERSION 3.23)
 
-project(factory_test VERSION 0.3.2 LANGUAGES C CXX)
+project(factory_test VERSION 0.3.3 LANGUAGES C CXX)
 
 string(TIMESTAMP FACTORY_TEST_BUILD_TIME "%Y-%m-%d %H:%M:%S")
 execute_process(
@@ -41,7 +41,7 @@ option(FACTORY_TEST_PRODUCT_MODE "Build the device using the DRM/KMS product dis
 set(APP_NAME "${PROJECT_NAME}" CACHE STRING "Application name used for installed asset lookup")
 set(APP_ASSETS_ROOT "" CACHE PATH "Optional runtime assets root. Expected subdirectories include fonts/")
 set(APP_KEY_INPUT_DEVICE "" CACHE STRING "Optional Linux evdev keyboard/keypad device path, e.g. /dev/input/event0")
-set(APP_DRM_DEVICE "/dev/dri/cardputer-zero-internal" CACHE STRING "Linux DRM device path used by device builds")
+set(APP_DRM_DEVICE "/dev/dri/card1" CACHE STRING "Linux DRM device path used by device builds")
 set(APP_DRM_CONNECTOR_ID "-1" CACHE STRING "DRM connector id used by device builds; -1 auto-selects")
 set(APP_FB_DEVICE "/dev/fb0" CACHE STRING "Linux framebuffer device path used by app mode")
 set(PRECHECK_DRM_DEVICE "/dev/dri/card0" CACHE STRING "DRM device path used by the factory precheck target")

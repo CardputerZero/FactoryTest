@@ -342,6 +342,10 @@ bool set_ext_5v_enabled(bool enabled, std::string& error_message) {
   return platform::gpio::write_sysfs_binary_value(K_EXT_5V_PATH, enabled, error_message);
 }
 
+bool set_grove_5v_enabled(bool enabled, std::string& error_message) {
+  return platform::gpio::write_sysfs_binary_value(K_GROVE_5V_PATH, enabled, error_message);
+}
+
 bool reset_usb_hub(std::string& error_message) {
 #if defined(__linux__)
   error_message.clear();
