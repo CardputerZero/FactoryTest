@@ -525,6 +525,9 @@ target_link_libraries(${PROJECT_NAME}_platform PUBLIC lvgl fmt::fmt Threads::Thr
 file(GLOB_RECURSE MODEL_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/model/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/model/*.cpp")
 add_library(${PROJECT_NAME}_model STATIC ${MODEL_SOURCES})
 target_include_directories(${PROJECT_NAME}_model PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src/model")
+target_compile_definitions(${PROJECT_NAME}_model PUBLIC
+    FACTORY_TEST_PRODUCT_MODE=$<BOOL:${FACTORY_TEST_PRODUCT_MODE}>
+)
 target_link_libraries(${PROJECT_NAME}_model PRIVATE ${PROJECT_NAME}_platform serialization)
 
 # lvgl reactive src

@@ -28,11 +28,13 @@ const std::array<StartMenuItem, StartMenuModel::K_ITEM_COUNT>& start_menu_items(
       {"Language", view::ICON_TRANSLATE, StartMenuCategory::AUTO, AppPage::START, false},
       {"Sound", view::ICON_SPK_HIFI, StartMenuCategory::AUTO, AppPage::START, false},
       {"Device Information", view::ICON_INFO, StartMenuCategory::AUTO, AppPage::DEVICE_INFO, false},
+#if FACTORY_TEST_PRODUCT_MODE
       {"IOE1 Upgrade",
        view::ICON_BOX_ARROW_UP,
        StartMenuCategory::AUTO,
        AppPage::PY32_UPGRADE,
        false},
+#endif
       {"Power Information",
        view::ICON_LIGHTNING,
        StartMenuCategory::AUTO,

@@ -11,6 +11,10 @@
 
 #include "app_model.h"
 
+#ifndef FACTORY_TEST_PRODUCT_MODE
+#define FACTORY_TEST_PRODUCT_MODE 0
+#endif
+
 namespace model {
 
 enum class StartMenuCategory {
@@ -29,7 +33,7 @@ struct StartMenuItem {
 
 class StartMenuModel {
  public:
-  static constexpr std::size_t K_ITEM_COUNT     = 31;
+  static constexpr std::size_t K_ITEM_COUNT     = 30 + (FACTORY_TEST_PRODUCT_MODE ? 1 : 0);
   static constexpr std::size_t K_CATEGORY_COUNT = 3;
 
   const std::array<StartMenuItem, K_ITEM_COUNT>& items() const;
