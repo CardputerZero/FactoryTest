@@ -31,36 +31,34 @@ constexpr const char* K_AUDIO_RECORDING = "/tmp/factory-precheck-audio.wav";
 constexpr unsigned int K_CAMERA_FRAME_TIMEOUT_MS = 3000;
 constexpr unsigned int K_CAMERA_FRAME_POLL_INTERVAL_MS = 20;
 
-
-// USB-C = Bus 001 Device 004，USB-A = Bus 001 Device 005。
-constexpr uint32_t K_USB_C_BUS    = 1;
-constexpr uint32_t K_USB_C_DEVICE = 4;
-constexpr uint32_t K_USB_A_BUS    = 1;
-constexpr uint32_t K_USB_A_DEVICE = 5;
+constexpr uint32_t K_USB_C_BUS          = 1;
+constexpr const char* K_USB_C_PORT_PATH = "1.3";
+constexpr uint32_t K_USB_A_BUS          = 1;
+constexpr const char* K_USB_A_PORT_PATH = "1.2";
 
 
 constexpr std::size_t K_DEVICE_INFO_ITEM     = 0;
-constexpr std::size_t K_GROVE_I2C_ITEM       = 1;
-constexpr std::size_t K_GROVE_UART_ITEM      = 2;
-constexpr std::size_t K_USB_A_ITEM           = 3;
-constexpr std::size_t K_USB_C_ITEM           = 4;
-constexpr std::size_t K_HDMI_ITEM            = 5;
-constexpr std::size_t K_CAP_FIXTURE_ITEM     = 6;
-constexpr std::size_t K_IR_FIXTURE_ITEM      = 7;
-constexpr std::size_t K_ETHERNET_ITEM        = 8;
-constexpr std::size_t K_BATTERY_STATUS_ITEM  = 9;
-constexpr std::size_t K_BATTERY_LEVEL_ITEM   = 10;
-constexpr std::size_t K_BATTERY_VOLTAGE_ITEM = 11;
-constexpr std::size_t K_BATTERY_CURRENT_ITEM = 12;
-constexpr std::size_t K_AUDIO_ITEM           = 13;
-constexpr std::size_t K_CAMERA_ITEM          = 14;
-constexpr std::size_t K_IMU_ITEM             = 15;
+constexpr std::size_t K_USB_A_ITEM           = 1;
+constexpr std::size_t K_USB_C_ITEM           = 2;
+constexpr std::size_t K_HDMI_ITEM            = 3;
+constexpr std::size_t K_CAP_FIXTURE_ITEM     = 4;
+constexpr std::size_t K_IR_FIXTURE_ITEM      = 5;
+constexpr std::size_t K_ETHERNET_ITEM        = 6;
+constexpr std::size_t K_BATTERY_STATUS_ITEM  = 7;
+constexpr std::size_t K_BATTERY_LEVEL_ITEM   = 8;
+constexpr std::size_t K_BATTERY_VOLTAGE_ITEM = 9;
+constexpr std::size_t K_BATTERY_CURRENT_ITEM = 10;
+constexpr std::size_t K_AUDIO_ITEM           = 11;
+constexpr std::size_t K_CAMERA_ITEM          = 12;
+constexpr std::size_t K_IMU_ITEM             = 13;
 
 std::vector<CapFixtureSubItem> make_cap_fixture_sub_items() {
   return {
-      {"I2C", CheckState::PENDING, "等待"},
       {"Power", CheckState::PENDING, "等待"},
+      {"I2C", CheckState::PENDING, "等待"},
+      {"Grove I2C", CheckState::PENDING, "等待"},
       {"UART", CheckState::PENDING, "等待"},
+      {"Grove UART", CheckState::PENDING, "等待"},
       {"SPI", CheckState::PENDING, "等待"},
       {"USB", CheckState::PENDING, "等待"},
       {"GPIO", CheckState::PENDING, "等待"},
@@ -77,8 +75,6 @@ std::vector<IrFixtureSubItem> make_ir_fixture_sub_items() {
 std::vector<CheckItem> make_items() {
   return {
       {"device_info", "设备信息", CheckState::PENDING, "等待"},
-      {"grove_i2c", "Grove I2C", CheckState::PENDING, "等待"},
-      {"grove_uart", "Grove UART", CheckState::PENDING, "等待"},
       {"usb_a", "左侧 USB-A", CheckState::PENDING, "等待"},
       {"usb_c", "左侧 USB-C", CheckState::PENDING, "等待"},
       {"hdmi", "HDMI 状态", CheckState::PENDING, "等待"},
@@ -93,11 +89,6 @@ std::vector<CheckItem> make_items() {
       {"camera", "相机", CheckState::PENDING, "等待"},
       {"imu", "IMU", CheckState::PENDING, "等待"},
   };
-}
-
-
-bool is_placeholder_item(const std::string& id) {
-  return id == "grove_i2c" || id == "grove_uart";
 }
 
 CheckState cap_fixture_sub_state(model::CapFixtureItemState state) {
@@ -271,13 +262,6 @@ void PrecheckModel::run_() {
     if (snapshot().items[i].state != CheckState::PENDING) {
       continue;
     }
-    if (is_placeholder_item(snapshot().items[i].id)) {
-      std::lock_guard<std::mutex> lock(mutex_);
-      snapshot_.items[i].state = CheckState::SKIPPED;
-      snapshot_.items[i].detail = "待添加";
-      ++snapshot_.completed;
-      continue;
-    }
     {
       std::lock_guard<std::mutex> lock(mutex_);
       snapshot_.current_index = i;
@@ -324,15 +308,10 @@ bool PrecheckModel::run_check_(std::size_t index) {
       snapshot_.items[index].detail = error.empty() ? info.status : error;
       return error.empty() && info.connected;
     }
-
-
-    case K_GROVE_I2C_ITEM:
-    case K_GROVE_UART_ITEM:
-      return false;
     case K_USB_C_ITEM:
-      return run_usb_port_check_(index, K_USB_C_BUS, K_USB_C_DEVICE);
+      return run_usb_port_check_(index, K_USB_C_BUS, K_USB_C_PORT_PATH);
     case K_USB_A_ITEM:
-      return run_usb_port_check_(index, K_USB_A_BUS, K_USB_A_DEVICE);
+      return run_usb_port_check_(index, K_USB_A_BUS, K_USB_A_PORT_PATH);
     case K_CAP_FIXTURE_ITEM:
       return run_cap_fixture_check_(index);
     case K_IR_FIXTURE_ITEM:
@@ -462,9 +441,10 @@ bool PrecheckModel::run_check_(std::size_t index) {
   }
 }
 
-// Runs the factory_test CAP fixture aggregate sequence (I2C -> Power -> UART ->
-// SPI -> USB -> GPIO) through the shared model and mirrors each sub item into
-// the precheck snapshot so the HDMI view can render the aggregate result.
+// Runs the same CAP fixture sequence used by factory_test through the shared
+// model and mirrors each sub item into the precheck snapshot. The shared model
+// owns Grove routing: grove_fun is enabled only inside run_grove_i2c_(), never
+// as part of precheck initialization or another CAP sub-test.
 bool PrecheckModel::run_cap_fixture_check_(std::size_t index) {
   // Replacing the previous instance first destroys it, which joins its worker
   // and waits for hardware cleanup before a new sequence starts.
@@ -489,7 +469,7 @@ bool PrecheckModel::run_cap_fixture_check_(std::size_t index) {
     }
     if (fixture.state == model::CapFixtureRunState::PASSED) {
       std::lock_guard<std::mutex> lock(mutex_);
-      snapshot_.items[index].detail = "6 项全部通过";
+      snapshot_.items[index].detail = "8 项全部通过";
       return true;
     }
     if (fixture.state == model::CapFixtureRunState::FAILED ||
@@ -542,13 +522,11 @@ bool PrecheckModel::run_ir_fixture_check_(std::size_t index) {
   }
 }
 
-
-
 bool PrecheckModel::run_usb_port_check_(std::size_t index,
                                         uint32_t expected_bus,
-                                        uint32_t expected_device) {
+                                        const std::string& expected_port_path) {
   std::string error;
-  const auto devices = platform::connectivity::list_usb_bus_devices(error);
+  const auto devices = platform::connectivity::list_usb_port_devices(error);
   std::lock_guard<std::mutex> lock(mutex_);
   auto& item = snapshot_.items[index];
   if (!error.empty()) {
@@ -556,15 +534,15 @@ bool PrecheckModel::run_usb_port_check_(std::size_t index,
     return false;
   }
   for (const auto& device : devices) {
-    if (device.bus == expected_bus && device.device == expected_device) {
+    if (platform::connectivity::is_usb_device_at_port(
+            device, expected_bus, expected_port_path)) {
       const std::string vid = device.vid.empty() ? "????" : device.vid;
       const std::string pid = device.pid.empty() ? "????" : device.pid;
       item.detail = vid + ":" + pid + " " + (device.name.empty() ? "USB 设备" : device.name);
       return true;
     }
   }
-  item.detail = "未枚举到 Bus " + std::to_string(expected_bus) + " Device " +
-                std::to_string(expected_device);
+  item.detail = "未枚举到 Bus " + std::to_string(expected_bus) + " Port " + expected_port_path;
   return false;
 }
 

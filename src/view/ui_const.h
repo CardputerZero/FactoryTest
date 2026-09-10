@@ -24,6 +24,7 @@ constexpr const char* ICON_CLOCK              = "\uE19A";
 constexpr const char* ICON_MAPPIN             = "\uE316";
 constexpr const char* ICON_X_SQUARE           = "\uE4F6";
 constexpr const char* ICON_FLASK              = "\uE79E";
+constexpr const char* ICON_FIRE_SIMPLE        = "\uE620";
 constexpr const char* ICON_KEYBOARD           = "\uE2D8";
 constexpr const char* ICON_KB_0               = "\uE001";
 constexpr const char* ICON_KB_1               = "\uE003";

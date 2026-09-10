@@ -20,6 +20,7 @@ constexpr uint8_t K_I2C_ADDRESS                = 0x42;
 constexpr const char* K_UART_PATH              = "/dev/ttyS0";
 constexpr const char* K_SPI_PATH               = "/dev/spidev0.1";
 constexpr const char* K_EXT_5V_PATH            = "/sys/class/leds/ext_5v_out/brightness";
+constexpr const char* K_GROVE_5V_PATH          = "/sys/class/leds/grove_5v_out/brightness";
 constexpr const char* K_USB_GPIO_FUNCTION_PATH = "/sys/class/leds/ext_usb_gpio_fun/brightness";
 
 bool write_register(uint8_t reg, const uint8_t* data, std::size_t size, std::string& error_message);
@@ -27,6 +28,8 @@ bool write_register(uint8_t reg, uint8_t value, std::string& error_message);
 bool read_register(uint8_t reg, uint8_t* data, std::size_t size, std::string& error_message);
 
 bool set_ext_5v_enabled(bool enabled, std::string& error_message);
+bool set_grove_5v_enabled(bool enabled, std::string& error_message);
+bool reset_usb_hub(std::string& error_message);
 bool select_usb_function(std::string& error_message);
 bool select_gpio_function(std::string& error_message);
 bool read_charge_report(uint8_t& report, std::string& detail, std::string& error_message);

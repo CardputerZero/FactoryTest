@@ -11,7 +11,7 @@
 #include "src/drivers/display/drm/lv_linux_drm.h"
 
 #ifndef TEST_LCD_DRM_DEVICE
-#define TEST_LCD_DRM_DEVICE "/dev/dri/cardputer-zero-internal"
+#define TEST_LCD_DRM_DEVICE "/dev/dri/card1"
 #endif
 
 int main() {

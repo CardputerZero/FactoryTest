@@ -10,6 +10,7 @@
 #include "cap_cc1101_test_page.h"
 #include "cap_lora_1262_test_page.h"
 #include "device_info_page.h"
+#include "fire_in_the_pi_page.h"
 #include "imu_test_page.h"
 #include "io_test_page.h"
 #include "ir_test_page.h"
@@ -65,6 +66,8 @@ const char* placeholder_title(model::AppPage page) {
       return "Device Information";
     case model::AppPage::PY32_UPGRADE:
       return "IOE1 Upgrade";
+    case model::AppPage::FIRE_IN_THE_PI:
+      return "Fire in the Pi";
     case model::AppPage::PERF_TEST:
       return "Performance Test";
     case model::AppPage::WIFI_TEST:
@@ -168,6 +171,12 @@ void ScreenManager::show_keyboard_test_page() {
 void ScreenManager::show_lcd_test_page() {
   load_screen_(std::make_unique<screen::LcdTestPage>(app_view_model_, lcd_view_model_, assets_));
   loaded_page_     = model::AppPage::LCD_TEST;
+  has_loaded_page_ = true;
+}
+
+void ScreenManager::show_fire_in_the_pi_page() {
+  load_screen_(std::make_unique<screen::FireInThePiPage>(app_view_model_, assets_));
+  loaded_page_     = model::AppPage::FIRE_IN_THE_PI;
   has_loaded_page_ = true;
 }
 
@@ -309,6 +318,9 @@ void ScreenManager::flush_requested_page() {
       return;
     case model::AppPage::LCD_TEST:
       show_lcd_test_page();
+      return;
+    case model::AppPage::FIRE_IN_THE_PI:
+      show_fire_in_the_pi_page();
       return;
     case model::AppPage::AUDIO_TEST:
       show_audio_test_page();

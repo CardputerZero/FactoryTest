@@ -7,13 +7,13 @@ This repository holds the factory test application of CardputerZero.
 + Download the debian release
 
 ```
-wget https://github.com/CardputerZero/FactoryTest/releases/download/0.3.1/FactoryTest_0.3.1_m5stack1_arm64.deb
+wget https://github.com/CardputerZero/FactoryTest/releases/download/0.3.3/FactoryTest_0.3.3_m5stack1_arm64.deb
 ```
 
 + Install the package
 
 ```
-sudo apt install ./FactoryTest_0.3.1_m5stack1_arm64.deb
+sudo apt install ./FactoryTest_0.3.3_m5stack1_arm64.deb
 ```
 
 The packaged systemd service enables exclusive evdev input for the built-in `tca8418c` keyboard
@@ -93,6 +93,22 @@ watchdog, resetting the system. Logs go to the journal instead.
 
 
 ## Changelog
+
+### 0.3.3 - 2026-09-07
+
+- Add controlled EXT 5V power-up, settling delay, failure reporting, and cleanup to the CC1101 and LoRa-1262 tests.
+- Add Grove 5V power control for Grove I2C testing and disable both EXT and Grove 5V outputs during fixture cleanup.
+- Use `/dev/dri/card1` as the default product DRM device and align the CMake preset, systemd dependency, and LCD smoke test with the device path.
+- Simplify product DRM initialization to use the configured device directly, removing the previous retry and multi-device fallback behavior.
+
+### 0.3.2 - 2026-09-03
+
+- Add the "Fire in the Pi" stress-test page with CPU, memory, and storage workloads, thermal/battery telemetry, live charts, rotating cycles, and JSONL metrics.
+- Expand CAP fixture validation from six to eight checks with Grove I2C/UART routing, protocol handshakes, fixed settling delays, USB hub recovery, and deterministic cleanup.
+- Identify CAP USB devices by physical sysfs port topology instead of volatile device numbers, and add desktop coverage for port matching.
+- Improve keyboard-layer accounting and delayed automatic progression, with timer cleanup when leaving the page.
+- Make DRM startup more resilient with device-open retries and an immediate first frame; wait for the configured DRM alias in the systemd service.
+- Enhance HDMI precheck with an eight-item CAP summary, physical USB-port checks, scrollable results, and updated controls/localization.
 
 ### 0.3.1 - 2026-08-13
 

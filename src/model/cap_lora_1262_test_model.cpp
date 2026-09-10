@@ -8,12 +8,17 @@
 
 #include <chrono>
 #include <cstdio>
+#include <thread>
 #include <utility>
 
 #include "logger.h"
+#include "gpio_service.h"
 
 namespace model {
 namespace {
+
+constexpr const char* K_EXT_5V_PATH = "/sys/class/leds/ext_5v_out/brightness";
+constexpr unsigned int K_EXT_5V_SETTLE_MS = 300;
 
 constexpr std::size_t K_LORA_ITEM = 0;
 constexpr std::size_t K_GPS_ITEM  = 1;
@@ -75,6 +80,33 @@ CapLora1262Snapshot CapLora1262TestModel::snapshot() const {
 
 void CapLora1262TestModel::run_() {
   platform::cap_lora_1262::RadioConfig radio_config;
+  radio_config.power.configured = false;
+  std::string power_error;
+  const bool power_enabled = platform::gpio::write_sysfs_binary_value(K_EXT_5V_PATH, true, power_error);
+  if (!power_enabled) {
+    std::string disable_error;
+    if (!platform::gpio::write_sysfs_binary_value(K_EXT_5V_PATH, false, disable_error)) {
+      LOG_ERROR("[CAP-LORA-1262][POWER] failed to roll back EXT 5V after enable failure: {}",
+                disable_error);
+    }
+    publish_([&](auto& snapshot) {
+      snapshot.state = CapLora1262RunState::FAILED;
+      snapshot.headline = "CAP LoRa-1262 test failed";
+      snapshot.error_message = "EXT 5V enable failed: " + power_error;
+      snapshot.items[K_LORA_ITEM].state = CapLora1262ItemState::FAILED;
+      snapshot.items[K_LORA_ITEM].detail = snapshot.error_message;
+    });
+    return;
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(K_EXT_5V_SETTLE_MS));
+  struct PowerCleanup {
+    ~PowerCleanup() {
+      std::string error;
+      if (!platform::gpio::write_sysfs_binary_value(K_EXT_5V_PATH, false, error)) {
+        LOG_ERROR("[CAP-LORA-1262][POWER] failed to disable EXT 5V: {}", error);
+      }
+    }
+  } power_cleanup;
   const auto radio = platform::cap_lora_1262::run_radio_test(
       radio_config,
       cancel_requested_,

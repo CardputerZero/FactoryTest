@@ -16,6 +16,8 @@ const char* AppModel::app_title() const {
       return "Input Test";
     case AppPage::LCD_TEST:
       return "Display Test";
+    case AppPage::FIRE_IN_THE_PI:
+      return "Fire in the Pi";
     case AppPage::AUDIO_TEST:
       return "Audio Test";
     case AppPage::CAMERA_TEST:

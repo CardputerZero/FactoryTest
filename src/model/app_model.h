@@ -39,6 +39,7 @@ enum class AppPage {
   CAP_CC1101_TEST  = 27,
   IR_FIXTURE_TEST  = 28,
   PY32_UPGRADE     = 29,
+  FIRE_IN_THE_PI   = 30,
 };
 
 class AppModel {

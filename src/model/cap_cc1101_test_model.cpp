@@ -8,11 +8,17 @@
 
 #include <iomanip>
 #include <sstream>
+#include <chrono>
+#include <thread>
 
+#include "gpio_service.h"
 #include "logger.h"
 
 namespace model {
 namespace {
+
+constexpr const char* K_EXT_5V_PATH = "/sys/class/leds/ext_5v_out/brightness";
+constexpr unsigned int K_EXT_5V_SETTLE_MS = 300;
 
 constexpr std::size_t K_CC_CHIP_ITEM = 0;
 constexpr std::size_t K_ST_CHIP_ITEM = 1;
@@ -63,6 +69,31 @@ CapCc1101Snapshot CapCc1101TestModel::snapshot() const {
 }
 
 void CapCc1101TestModel::run_() {
+  std::string power_error;
+  if (!platform::gpio::write_sysfs_binary_value(K_EXT_5V_PATH, true, power_error)) {
+    std::string disable_error;
+    if (!platform::gpio::write_sysfs_binary_value(K_EXT_5V_PATH, false, disable_error)) {
+      LOG_ERROR("[CAP-CC1101][POWER] failed to roll back EXT 5V after enable failure: {}",
+                disable_error);
+    }
+    publish_([&](auto& snapshot) {
+      snapshot.state = CapCc1101RunState::FAILED;
+      snapshot.headline = "CAP-CC1101 test failed";
+      snapshot.error_message = "EXT 5V enable failed: " + power_error;
+      snapshot.items[K_CC_CHIP_ITEM].state = CapCc1101ItemState::FAILED;
+      snapshot.items[K_CC_CHIP_ITEM].detail = snapshot.error_message;
+    });
+    return;
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(K_EXT_5V_SETTLE_MS));
+  struct PowerCleanup {
+    ~PowerCleanup() {
+      std::string error;
+      if (!platform::gpio::write_sysfs_binary_value(K_EXT_5V_PATH, false, error)) {
+        LOG_ERROR("[CAP-CC1101][POWER] failed to disable EXT 5V: {}", error);
+      }
+    }
+  } power_cleanup;
   const auto cc = platform::cap_cc1101::run_cc1101_test(
       {},
       cancel_requested_,

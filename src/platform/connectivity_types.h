@@ -33,10 +33,10 @@ struct UsbDeviceInfo {
   std::string sys_path;
 };
 
-
 struct UsbPortDeviceInfo {
   uint32_t bus{0};
   uint32_t device{0};
+  std::string port_path;
   std::string vid;
   std::string pid;
   std::string name;

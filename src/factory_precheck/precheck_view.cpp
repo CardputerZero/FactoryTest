@@ -15,6 +15,8 @@
 namespace precheck {
 namespace {
 
+constexpr int32_t kScrollStep = 48;
+
 lv_color_t color_for(CheckState state, const view::ThemePalette& colors) {
   switch (state) {
     case CheckState::RUNNING: return colors.info;
@@ -193,6 +195,7 @@ void PrecheckView::build(lv_display_t* display) {
                     "本程序为工厂内部检测程序，"
                     "请按照下方按键提示进行操作。\n"
                     "Enter 开始 / 停止自动初检；\n"
+                    "上 / 下方向键滚动检测列表；\n"
                     "R 重试失败项目，Esc 取消；\n"
                     "P 打开电源菜单（关机 / 重启）；\n"
                     "Q 退出程序。\n"
@@ -210,6 +213,18 @@ void PrecheckView::build(lv_display_t* display) {
   refresh_timer_ = lv_timer_create(refresh_timer_cb, 100, this);
   refresh_();
   LV_UNUSED(display);
+}
+
+void PrecheckView::scroll_list_(int32_t direction) {
+  if (!list_ || direction == 0) return;
+
+  lv_obj_update_layout(list_);
+  const int32_t current_y = lv_obj_get_scroll_y(list_);
+  const int32_t max_y     = current_y + lv_obj_get_scroll_bottom(list_);
+  const int32_t target_y  = std::clamp(current_y + direction * kScrollStep, 0, max_y);
+  if (target_y != current_y) {
+    lv_obj_scroll_to_y(list_, target_y, LV_ANIM_ON);
+  }
 }
 
 void PrecheckView::refresh_() {
@@ -257,7 +272,7 @@ void PrecheckView::refresh_() {
     }
   }
 
-  lv_label_set_text_fmt(summary_, "进度 %zu/%zu    通过 %zu    失败 %zu    Enter 开始  R 重试  Esc 取消  P 电源 Q 退出",
+  lv_label_set_text_fmt(summary_, "进度 %zu/%zu    通过 %zu    失败 %zu    上/下滚动  Enter 开始  R 重试  Esc 取消  P 电源 Q 退出",
                         snapshot.completed, snapshot.items.size(), snapshot.passed, snapshot.failed);
 }
 
@@ -274,7 +289,11 @@ void PrecheckView::key_listener(uint32_t key, bool pressed, void* user_data) {
     view->power_dialog_->handle_key(key);
     return;
   }
-  if (key == 'p' || key == 'P') {
+  if (key == LV_KEY_UP) {
+    view->scroll_list_(-1);
+  } else if (key == LV_KEY_DOWN) {
+    view->scroll_list_(1);
+  } else if (key == 'p' || key == 'P') {
     view->open_power_dialog_();
   } else if (key == LV_KEY_ENTER) {
     const auto state = view->view_model_.snapshot().state;
