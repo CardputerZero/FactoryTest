@@ -160,7 +160,7 @@ void PrecheckView::build(lv_display_t* display) {
     item_rows_.push_back(text);
     item_rows_.push_back(detail);
 
-    // CAP 治具聚合检测展开到左侧待检区：在父行下方逐项列出治具子项。
+
     if (item.id == "cap_fixture") {
       build_sub_rows(item.cap_sub_items, cap_sub_rows_);
     } else if (item.id == "ir_fixture") {
@@ -177,7 +177,7 @@ void PrecheckView::build(lv_display_t* display) {
   lv_obj_set_style_pad_all(detail_panel_, 12, 0);
   lv_obj_set_style_pad_row(detail_panel_, 10, 0);
 
-  // 右侧为静态说明：这是一个内部检测程序，按照下方按键提示操作。
+
   detail_title_ = lv_label_create(detail_panel_);
   lv_obj_set_width(detail_title_, LV_PCT(100));
   lv_obj_set_style_text_align(detail_title_, LV_TEXT_ALIGN_CENTER, 0);
@@ -228,7 +228,7 @@ void PrecheckView::refresh_() {
     lv_label_set_text(item_rows_[i * 3 + 2], item.detail.c_str());
   }
 
-  // 当前检测项变化时，自动滚动到对应行（列表较长，避免检测项在视野之外）。
+
   if (snapshot.current_index != displayed_current_index_ &&
       snapshot.current_index * 3 + 2 < item_rows_.size()) {
     displayed_current_index_ = snapshot.current_index;

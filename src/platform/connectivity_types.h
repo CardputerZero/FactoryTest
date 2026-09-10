@@ -33,7 +33,7 @@ struct UsbDeviceInfo {
   std::string sys_path;
 };
 
-// USB 设备按总线枚举位置描述：对应 lsusb 输出中的 "Bus 001 Device 004"。
+
 struct UsbPortDeviceInfo {
   uint32_t bus{0};
   uint32_t device{0};

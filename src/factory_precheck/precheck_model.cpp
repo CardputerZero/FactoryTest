@@ -31,14 +31,14 @@ constexpr const char* K_AUDIO_RECORDING = "/tmp/factory-precheck-audio.wav";
 constexpr unsigned int K_CAMERA_FRAME_TIMEOUT_MS = 3000;
 constexpr unsigned int K_CAMERA_FRAME_POLL_INTERVAL_MS = 20;
 
-// 左侧 USB-C / USB-A 端口绑定固定的 USB 枚举位置。正常开机加载完成后：
+
 // USB-C = Bus 001 Device 004，USB-A = Bus 001 Device 005。
 constexpr uint32_t K_USB_C_BUS    = 1;
 constexpr uint32_t K_USB_C_DEVICE = 4;
 constexpr uint32_t K_USB_A_BUS    = 1;
 constexpr uint32_t K_USB_A_DEVICE = 5;
 
-// 固定索引，与 make_items() 中的顺序一一对应。
+
 constexpr std::size_t K_DEVICE_INFO_ITEM     = 0;
 constexpr std::size_t K_GROVE_I2C_ITEM       = 1;
 constexpr std::size_t K_GROVE_UART_ITEM      = 2;
@@ -95,7 +95,7 @@ std::vector<CheckItem> make_items() {
   };
 }
 
-// 专用 model 和 service 尚未实现、以“跳过/待添加”占位的条目。
+
 bool is_placeholder_item(const std::string& id) {
   return id == "grove_i2c" || id == "grove_uart";
 }
@@ -324,8 +324,8 @@ bool PrecheckModel::run_check_(std::size_t index) {
       snapshot_.items[index].detail = error.empty() ? info.status : error;
       return error.empty() && info.connected;
     }
-    // 占位条目：run_() 中已标记为“跳过/待添加”，正常流程不会到达这里；
-    // 后续补充 model 和 service 时替换为真实检测。
+
+
     case K_GROVE_I2C_ITEM:
     case K_GROVE_UART_ITEM:
       return false;
@@ -542,8 +542,8 @@ bool PrecheckModel::run_ir_fixture_check_(std::size_t index) {
   }
 }
 
-// 检查 USB 端口是否在固定的总线枚举位置（Bus/Device 编号）正确枚举出来，
-// 读取该位置设备的 VID:PID 和设备名称，通过条件为枚举成功。
+
+
 bool PrecheckModel::run_usb_port_check_(std::size_t index,
                                         uint32_t expected_bus,
                                         uint32_t expected_device) {
