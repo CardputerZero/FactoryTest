@@ -7,13 +7,13 @@ This repository holds the factory test application of CardputerZero.
 + Download the debian release
 
 ```
-wget https://github.com/CardputerZero/FactoryTest/releases/download/0.3.4/FactoryTest_0.3.4_m5stack1_arm64.deb
+wget https://github.com/CardputerZero/FactoryTest/releases/download/1.0.0/FactoryTest_1.0.0_m5stack1_arm64.deb
 ```
 
 + Install the package
 
 ```
-sudo apt install ./FactoryTest_0.3.4_m5stack1_arm64.deb
+sudo apt install ./FactoryTest_1.0.0_m5stack1_arm64.deb
 ```
 
 The packaged systemd service enables exclusive evdev input for the built-in `tca8418c` keyboard
@@ -94,6 +94,10 @@ watchdog, resetting the system. Logs go to the journal instead.
 
 
 ## Changelog
+
+### 1.0.0 - 2026-09-18
+
+- Mark the CardputerZero factory test application as the first formal release.
 
 ### 0.3.4 - 2026-09-18
 
