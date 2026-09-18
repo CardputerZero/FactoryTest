@@ -26,7 +26,7 @@ configure_file(
     @ONLY
 )
 
-if(APP_INSTALL_SYSTEMD_SERVICE)
+if(APP_INSTALL_SYSTEMD_SERVICE AND FACTORY_TEST_PRODUCT_MODE)
     configure_file(
         "${CMAKE_CURRENT_LIST_DIR}/templates/factory_test.service.in"
         "${APP_GENERATED_DIR}/${PROJECT_NAME}.service"
@@ -121,7 +121,7 @@ install(
     DESTINATION "${CMAKE_INSTALL_DATADIR}/APPLaunch/applications"
 )
 
-if(APP_INSTALL_SYSTEMD_SERVICE)
+if(APP_INSTALL_SYSTEMD_SERVICE AND FACTORY_TEST_PRODUCT_MODE)
     install(
         FILES "${APP_GENERATED_DIR}/${PROJECT_NAME}.service"
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/system"

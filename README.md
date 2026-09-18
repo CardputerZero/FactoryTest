@@ -7,13 +7,13 @@ This repository holds the factory test application of CardputerZero.
 + Download the debian release
 
 ```
-wget https://github.com/CardputerZero/FactoryTest/releases/download/0.3.3/FactoryTest_0.3.3_m5stack1_arm64.deb
+wget https://github.com/CardputerZero/FactoryTest/releases/download/0.3.4/FactoryTest_0.3.4_m5stack1_arm64.deb
 ```
 
 + Install the package
 
 ```
-sudo apt install ./FactoryTest_0.3.3_m5stack1_arm64.deb
+sudo apt install ./FactoryTest_0.3.4_m5stack1_arm64.deb
 ```
 
 The packaged systemd service enables exclusive evdev input for the built-in `tca8418c` keyboard
@@ -67,9 +67,10 @@ package is `dist/FactoryTest_<version>_m5stack1_arm64.deb`. Do not run
 `package` from a desktop build directory; desktop binaries are Mach-O and are
 not valid for the target device.
 
-The HDMI precheck service is enabled at boot (`WantedBy=multi-user.target`) and
-is also started by the DRM udev hotplug rule when an HDMI connector reports
-`status=connected`. The unit is gated by `ExecCondition=/usr/libexec/cardputerzero-hdmi-check`
+In `FACTORY_TEST_PRODUCT_MODE`, the HDMI precheck service is enabled at boot
+(`WantedBy=multi-user.target`) and is also started by the DRM udev hotplug rule
+when an HDMI connector reports `status=connected`. The unit is gated by
+`ExecCondition=/usr/libexec/cardputerzero-hdmi-check`
 (the package installs this helper under `/usr/libexec`); the check only passes
 when at least one DRM HDMI connector reports `connected`, so no HDMI means the
 service is skipped rather than started. It connects to the PulseAudio user
@@ -93,6 +94,10 @@ watchdog, resetting the system. Logs go to the journal instead.
 
 
 ## Changelog
+
+### 0.3.4 - 2026-09-18
+
+- Enable and package systemd/DRM hotplug services only in product mode; app mode remains launch-on-demand.
 
 ### 0.3.3 - 2026-09-07
 
