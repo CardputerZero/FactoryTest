@@ -64,6 +64,9 @@ class KeyboardTestPage : public BaseScreen {
   viewmodel::KeyboardTestViewModel& keyboard_view_model_;
   std::vector<std::unique_ptr<view::widgets::IconButton>> key_buttons_{};
   std::vector<KeyState> key_states_{};
+  // Number of times each key was triggered, capped at three. Repeated presses
+  // usually mean a mechanically mis-aligned key triggered a neighbour.
+  std::vector<std::uint8_t> key_press_counts_{};
   std::vector<lv_obj_t*> layer_tiles_{};
   std::array<bool, K_LAYER_COUNT> layer_built_{};
   std::array<std::size_t, K_LAYER_COUNT> layer_pressed_counts_{};

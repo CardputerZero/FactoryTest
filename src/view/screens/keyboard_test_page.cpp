@@ -54,6 +54,12 @@ constexpr int32_t K_ROW_STRIDE             = 20;
 constexpr int32_t K_LAYOUT_WIDTH           = K_KEY_SIZE + 10 * K_KEY_STRIDE;
 constexpr int32_t K_LAYOUT_HEIGHT          = K_KEY_SIZE + 4 * K_ROW_STRIDE;
 constexpr uint32_t K_AUTO_ADVANCE_DELAY_MS = 300;
+// Press levels shown to the operator: 1st press keeps the layer color, the 2nd
+// and 3rd (or later) presses use dedicated highlight colors so that ghost
+// presses caused by mechanical tolerances are immediately visible.
+constexpr std::uint8_t K_PRESS_COUNT_ONCE  = 1;
+constexpr std::uint8_t K_PRESS_COUNT_TWICE = 2;
+constexpr std::uint8_t K_PRESS_COUNT_MAX   = 3;
 
 constexpr const char* K_MATCH_0               = "0";
 constexpr const char* K_MATCH_1               = "1";
@@ -509,6 +515,22 @@ lv_color_t pressed_color_for_layer(KeyLayer layer, bool dark_mode) {
   }
 }
 
+// Color of a key depending on how often it was triggered. The second and third
+// press colors are picked so they never match the layer's first-press color:
+//   STANDARD_KEY: success -> warning -> error
+//   FN_KEY:       warning_pressed -> info -> error
+//   SYM_KEY:      info -> warning -> error
+lv_color_t pressed_color_for_press_count(KeyLayer layer, std::uint8_t press_count, bool dark_mode) {
+  const auto colors = view::palette(dark_mode);
+  if (press_count <= K_PRESS_COUNT_ONCE) {
+    return pressed_color_for_layer(layer, dark_mode);
+  }
+  if (press_count == K_PRESS_COUNT_TWICE) {
+    return layer == FN_KEY ? colors.info : colors.warning;
+  }
+  return colors.error;
+}
+
 }  // namespace
 
 KeyboardTestPage::KeyboardTestPage(viewmodel::AppViewModel& app_view_model,
@@ -542,6 +564,7 @@ void KeyboardTestPage::build_content(lv_obj_t* content) {
 
   key_buttons_.resize(K_KEYS.size());
   key_states_.assign(K_KEYS.size(), KeyState::IDLE);
+  key_press_counts_.assign(K_KEYS.size(), 0);
   layer_tiles_.assign(K_LAYER_COUNT, nullptr);
   layer_built_.fill(false);
   layer_pressed_counts_.fill(0);
@@ -599,10 +622,14 @@ void KeyboardTestPage::update_button_state_(std::size_t index) {
   }
 
   switch (key_states_[index]) {
-    case KeyState::PRESSED:
-      key_buttons_[index]->set_color(pressed_color_for_layer(K_KEYS[index].layer, false),
-                                     pressed_color_for_layer(K_KEYS[index].layer, true));
+    case KeyState::PRESSED: {
+      const auto press_count =
+          index < key_press_counts_.size() ? key_press_counts_[index] : K_PRESS_COUNT_ONCE;
+      key_buttons_[index]->set_color(
+          pressed_color_for_press_count(K_KEYS[index].layer, press_count, false),
+          pressed_color_for_press_count(K_KEYS[index].layer, press_count, true));
       break;
+    }
     case KeyState::FAILED:
       key_buttons_[index]->set_color(view::palette(false).error, view::palette(true).error);
       break;
@@ -826,8 +853,14 @@ void KeyboardTestPage::mark_key_pressed_(uint32_t key, const char* key_name) {
                                                              model::EvidenceValue::boolean(true));
         }
       }
-      update_button_state_(i);
     }
+
+    // Every additional trigger of the same key is counted so repeated presses
+    // (including ghost presses from neighbouring keys) can be highlighted.
+    if (i < key_press_counts_.size() && key_press_counts_[i] < K_PRESS_COUNT_MAX) {
+      ++key_press_counts_[i];
+    }
+    update_button_state_(i);
 
     const auto index          = layer_index(K_KEYS[i].layer);
     const bool layer_complete = counted && K_KEYS[i].layer == active_layer_ &&

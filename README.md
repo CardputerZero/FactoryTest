@@ -7,13 +7,13 @@ This repository holds the factory test application of CardputerZero.
 + Download the debian release
 
 ```
-wget https://github.com/CardputerZero/FactoryTest/releases/download/1.0.0/FactoryTest_1.0.0_m5stack1_arm64.deb
+wget https://github.com/CardputerZero/FactoryTest/releases/download/1.0.1/FactoryTest_1.0.1_m5stack1_arm64.deb
 ```
 
 + Install the package
 
 ```
-sudo apt install ./FactoryTest_1.0.0_m5stack1_arm64.deb
+sudo apt install ./FactoryTest_1.0.1_m5stack1_arm64.deb
 ```
 
 The packaged systemd service enables exclusive evdev input for the built-in `tca8418c` keyboard
@@ -94,6 +94,12 @@ watchdog, resetting the system. Logs go to the journal instead.
 
 
 ## Changelog
+
+### 1.0.1 - 2026-11-03
+
+- Highlight repeated presses on the Input Test page: the first press keeps the layer's original color, the second press switches to the warning color, and the third (or later) press to the error color, so ghost presses caused by mechanical tolerances are visible at a glance.
+- Use blue instead of amber for the second FN-layer press, so the repeat highlight never matches the layer's own first-press color.
+- Bump the CMake project version, the SCons version header, the vcpkg manifest, and the Debian package version and download instructions to 1.0.1.
 
 ### 1.0.0 - 2026-09-18
 
