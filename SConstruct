@@ -129,7 +129,7 @@ if is_desktop:
 DEFINITIONS = [
     '-DFACTORY_TEST_SCONS_BUILD',
     '-DFACTORY_TEST_PRODUCT_MODE={}'.format(1 if is_product_mode else 0),
-    '-std=c++17',
+    '-std=c++20',
     '-g',
 ]
 if not toolchain_sysroot:

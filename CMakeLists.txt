@@ -31,7 +31,7 @@ target_include_directories(factory_test_version INTERFACE
     "${FACTORY_TEST_GENERATED_INCLUDE_DIR}"
 )
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
@@ -340,6 +340,33 @@ else()
     cm0_find_library(LIBCAMERA_LIBRARY camera libcamera.so)
     cm0_find_library(LIBCAMERA_BASE_LIBRARY camera-base libcamera-base.so)
     if(LIBCAMERA_INCLUDE_DIR AND LIBCAMERA_LIBRARY AND LIBCAMERA_BASE_LIBRARY)
+        # libcamera 0.7.2 changed the public API from libcamera::Span to
+        # std::span without bumping the SONAME. Headers and libraries from
+        # opposite sides of that change link successfully but fail on the
+        # device with "undefined symbol: ...generateConfigurationENS_4SpanI...",
+        # so refuse to configure against the older headers.
+        file(STRINGS "${LIBCAMERA_INCLUDE_DIR}/libcamera/version.h" _libcamera_version_defines
+            REGEX "^#define LIBCAMERA_VERSION_(MAJOR|MINOR|PATCH)")
+        foreach(_libcamera_define IN LISTS _libcamera_version_defines)
+            if(_libcamera_define MATCHES "MAJOR[ \t]+([0-9]+)")
+                set(_libcamera_version_major "${CMAKE_MATCH_1}")
+            elseif(_libcamera_define MATCHES "MINOR[ \t]+([0-9]+)")
+                set(_libcamera_version_minor "${CMAKE_MATCH_1}")
+            elseif(_libcamera_define MATCHES "PATCH[ \t]+([0-9]+)")
+                set(_libcamera_version_patch "${CMAKE_MATCH_1}")
+            endif()
+        endforeach()
+        if("${_libcamera_version_major}" STREQUAL "")
+            message(FATAL_ERROR "Cannot read the libcamera version from ${LIBCAMERA_INCLUDE_DIR}/libcamera/version.h")
+        endif()
+        math(EXPR _libcamera_version_number
+            "${_libcamera_version_major} * 10000 + ${_libcamera_version_minor} * 100 + ${_libcamera_version_patch}")
+        if(_libcamera_version_number LESS 702)
+            message(FATAL_ERROR
+                "Found libcamera ${_libcamera_version_major}.${_libcamera_version_minor}.${_libcamera_version_patch} headers in "
+                "${LIBCAMERA_INCLUDE_DIR}/libcamera, but the device runtime exports the 0.7.2 std::span ABI. "
+                "Install the 0.7.2 headers into the flat include layout (${CM0_SYSROOT}/usr/include/libcamera/*.h).")
+        endif()
         cm0_add_imported_library(CM0::Libcamera "${LIBCAMERA_LIBRARY}" "${LIBCAMERA_INCLUDE_DIR}")
         cm0_add_imported_library(CM0::LibcameraBase "${LIBCAMERA_BASE_LIBRARY}" "${LIBCAMERA_INCLUDE_DIR}")
         list(APPEND PLATFORM_INCLUDE_DIR "${LIBCAMERA_INCLUDE_DIR}")
