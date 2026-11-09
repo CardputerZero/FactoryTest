@@ -95,6 +95,10 @@ watchdog, resetting the system. Logs go to the journal instead.
 
 ## Changelog
 
+### 1.0.2 - 2026-11-09
+
+- Fix the systemd auto start issue.
+
 ### 1.0.1 - 2026-11-03
 
 - Highlight repeated presses on the Input Test page: the first press keeps the layer's original color, the second press switches to the warning color, and the third (or later) press to the error color, so ghost presses caused by mechanical tolerances are visible at a glance.

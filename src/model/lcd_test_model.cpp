@@ -31,7 +31,7 @@ void LcdTestModel::advance_color_index() {
     return;
   }
 
-  if (color_index_ < K_TOTAL_VISUAL_STEP_COUNT) {
+  if (color_index_ < K_COLOR_STEP_COUNT) {
     ++color_index_;
     return;
   }
@@ -41,7 +41,7 @@ void LcdTestModel::advance_color_index() {
 
 void LcdTestModel::start_brightness_test() {
   brightness_test_active_ = true;
-  color_index_            = K_TOTAL_VISUAL_STEP_COUNT + 1;
+  color_index_            = K_COLOR_STEP_COUNT + 1;
 }
 
 void LcdTestModel::increase_brightness() {

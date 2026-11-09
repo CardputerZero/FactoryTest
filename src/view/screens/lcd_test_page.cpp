@@ -48,28 +48,6 @@ const std::array<LcdColorStep, model::LcdTestModel::K_COLOR_STEP_COUNT>& lcd_col
 constexpr uint32_t K_BRIGHTNESS_COMMIT_DELAY_MS = 320;
 constexpr uint32_t K_BRIGHTNESS_SMOOTH_STEP_MS  = 20;
 constexpr int32_t K_BRIGHTNESS_SMOOTH_STEP      = 2;
-constexpr int32_t K_CROSS_HATCH_CORNER_SIZE     = 5;
-constexpr int32_t K_CROSS_HATCH_LINE_WIDTH      = 1;
-constexpr int32_t K_CROSS_HATCH_RIGHT_EDGE      = view::K_SCREEN_WIDTH - 1;
-constexpr int32_t K_CROSS_HATCH_BOTTOM_EDGE     = view::K_SCREEN_HEIGHT - 1;
-
-const std::array<lv_point_precise_t, 5> K_CROSS_HATCH_RECT_POINTS = {{
-    {0, 0},
-    {K_CROSS_HATCH_RIGHT_EDGE, 0},
-    {K_CROSS_HATCH_RIGHT_EDGE, K_CROSS_HATCH_BOTTOM_EDGE},
-    {0, K_CROSS_HATCH_BOTTOM_EDGE},
-    {0, 0},
-}};
-
-const std::array<lv_point_precise_t, 2> K_CROSS_HATCH_DIAG_A_POINTS = {{
-    {0, 0},
-    {K_CROSS_HATCH_RIGHT_EDGE, K_CROSS_HATCH_BOTTOM_EDGE},
-}};
-
-const std::array<lv_point_precise_t, 2> K_CROSS_HATCH_DIAG_B_POINTS = {{
-    {K_CROSS_HATCH_RIGHT_EDGE, 0},
-    {0, K_CROSS_HATCH_BOTTOM_EDGE},
-}};
 
 bool is_tab_input(uint32_t key, const char* key_name) {
   if (key == '\t') {
@@ -219,64 +197,6 @@ void LcdTestPage::build_content(lv_obj_t* content) {
                              0);
   lv_obj_center(color_label_);
 
-  cross_hatch_rect_ = lv_line_create(color_layer_);
-  if (cross_hatch_rect_) {
-    lv_obj_remove_style_all(cross_hatch_rect_);
-    lv_obj_set_size(cross_hatch_rect_, view::K_SCREEN_WIDTH, view::K_SCREEN_HEIGHT);
-    lv_obj_align(cross_hatch_rect_, LV_ALIGN_TOP_LEFT, 0, 0);
-    lv_obj_set_style_line_width(cross_hatch_rect_, K_CROSS_HATCH_LINE_WIDTH, 0);
-    lv_obj_set_style_line_rounded(cross_hatch_rect_, false, 0);
-    lv_line_set_points(cross_hatch_rect_,
-                       K_CROSS_HATCH_RECT_POINTS.data(),
-                       K_CROSS_HATCH_RECT_POINTS.size());
-  }
-
-  cross_hatch_diag_a_ = lv_line_create(color_layer_);
-  if (cross_hatch_diag_a_) {
-    lv_obj_remove_style_all(cross_hatch_diag_a_);
-    lv_obj_set_size(cross_hatch_diag_a_, view::K_SCREEN_WIDTH, view::K_SCREEN_HEIGHT);
-    lv_obj_align(cross_hatch_diag_a_, LV_ALIGN_TOP_LEFT, 0, 0);
-    lv_obj_set_style_line_width(cross_hatch_diag_a_, K_CROSS_HATCH_LINE_WIDTH, 0);
-    lv_obj_set_style_line_rounded(cross_hatch_diag_a_, false, 0);
-    lv_line_set_points(cross_hatch_diag_a_,
-                       K_CROSS_HATCH_DIAG_A_POINTS.data(),
-                       K_CROSS_HATCH_DIAG_A_POINTS.size());
-  }
-
-  cross_hatch_diag_b_ = lv_line_create(color_layer_);
-  if (cross_hatch_diag_b_) {
-    lv_obj_remove_style_all(cross_hatch_diag_b_);
-    lv_obj_set_size(cross_hatch_diag_b_, view::K_SCREEN_WIDTH, view::K_SCREEN_HEIGHT);
-    lv_obj_align(cross_hatch_diag_b_, LV_ALIGN_TOP_LEFT, 0, 0);
-    lv_obj_set_style_line_width(cross_hatch_diag_b_, K_CROSS_HATCH_LINE_WIDTH, 0);
-    lv_obj_set_style_line_rounded(cross_hatch_diag_b_, false, 0);
-    lv_line_set_points(cross_hatch_diag_b_,
-                       K_CROSS_HATCH_DIAG_B_POINTS.data(),
-                       K_CROSS_HATCH_DIAG_B_POINTS.size());
-  }
-
-  const std::array<lv_point_t, 4> corner_positions = {{
-      {0, 0},
-      {view::K_SCREEN_WIDTH - K_CROSS_HATCH_CORNER_SIZE, 0},
-      {0, view::K_SCREEN_HEIGHT - K_CROSS_HATCH_CORNER_SIZE},
-      {view::K_SCREEN_WIDTH - K_CROSS_HATCH_CORNER_SIZE,
-       view::K_SCREEN_HEIGHT - K_CROSS_HATCH_CORNER_SIZE},
-  }};
-  for (std::size_t i = 0; i < cross_hatch_corners_.size(); ++i) {
-    auto* corner = lv_obj_create(color_layer_);
-    if (!corner) {
-      continue;
-    }
-    lv_obj_remove_style_all(corner);
-    lv_obj_set_size(corner, K_CROSS_HATCH_CORNER_SIZE, K_CROSS_HATCH_CORNER_SIZE);
-    lv_obj_set_pos(corner, corner_positions[i].x, corner_positions[i].y);
-    lv_obj_set_style_bg_opa(corner, LV_OPA_COVER, 0);
-    lv_obj_clear_flag(corner, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_clear_flag(corner, LV_OBJ_FLAG_CLICKABLE);
-    cross_hatch_corners_[i] = corner;
-  }
-  set_cross_hatch_visible_(false);
-
   color_observer_handle_ = reactive::observe_obj(color_layer_,
                                                  lcd_view_model_.color_index_subject(),
                                                  color_observer,
@@ -322,12 +242,7 @@ void LcdTestPage::apply_color_index_(int32_t index) {
     return;
   }
 
-  if (index <= model::LcdTestModel::K_CROSS_HATCH_STEP_COUNT) {
-    apply_cross_hatch_(index == 1);
-    return;
-  }
-
-  if (index > model::LcdTestModel::K_TOTAL_VISUAL_STEP_COUNT) {
+  if (index > model::LcdTestModel::K_COLOR_STEP_COUNT) {
     const auto text = app_view_model_ref_().tr("LCD color test complete.");
     lv_label_set_text(prompt_, text.c_str());
     lv_obj_remove_flag(prompt_, LV_OBJ_FLAG_HIDDEN);
@@ -335,14 +250,12 @@ void LcdTestPage::apply_color_index_(int32_t index) {
     return;
   }
 
-  const auto& steps = lcd_color_steps();
-  const auto color_step_index =
-      static_cast<std::size_t>(index - model::LcdTestModel::K_CROSS_HATCH_STEP_COUNT - 1);
+  const auto& steps                  = lcd_color_steps();
+  const auto color_step_index        = static_cast<std::size_t>(index - 1);
   const auto& step                   = steps[color_step_index];
   const bool was_color_layer_visible = !lv_obj_has_flag(color_layer_, LV_OBJ_FLAG_HIDDEN);
   lv_obj_add_flag(prompt_, LV_OBJ_FLAG_HIDDEN);
   lv_obj_remove_flag(color_layer_, LV_OBJ_FLAG_HIDDEN);
-  set_cross_hatch_visible_(false);
   if (color_label_) {
     lv_obj_remove_flag(color_label_, LV_OBJ_FLAG_HIDDEN);
   }
@@ -362,72 +275,6 @@ void LcdTestPage::apply_color_index_(int32_t index) {
       lv_obj_set_style_text_color(color_label_, step.text_color, 0);
     }
     lv_obj_center(color_label_);
-  }
-}
-
-void LcdTestPage::apply_cross_hatch_(bool dark_background) {
-  if (!prompt_ || !color_layer_ || !color_label_) {
-    return;
-  }
-
-  const auto background = dark_background ? lv_color_black() : lv_color_white();
-  const auto foreground = dark_background ? lv_color_white() : lv_color_black();
-
-  lv_obj_add_flag(prompt_, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_remove_flag(color_layer_, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_set_style_bg_opa(color_layer_, LV_OPA_COVER, 0);
-  lv_obj_set_style_bg_color(color_layer_, background, 0);
-  lv_obj_add_flag(color_label_, LV_OBJ_FLAG_HIDDEN);
-  set_cross_hatch_visible_(true);
-
-  const std::array<lv_obj_t*, 3> lines = {{
-      cross_hatch_rect_,
-      cross_hatch_diag_a_,
-      cross_hatch_diag_b_,
-  }};
-  for (auto* line : lines) {
-    if (!line) {
-      continue;
-    }
-    lv_obj_set_style_line_color(line, foreground, 0);
-    lv_obj_set_style_line_opa(line, LV_OPA_COVER, 0);
-  }
-
-  for (auto* corner : cross_hatch_corners_) {
-    if (!corner) {
-      continue;
-    }
-    lv_obj_set_style_bg_color(corner, foreground, 0);
-    lv_obj_set_style_bg_opa(corner, LV_OPA_COVER, 0);
-  }
-}
-
-void LcdTestPage::set_cross_hatch_visible_(bool visible) {
-  const std::array<lv_obj_t*, 3> lines = {{
-      cross_hatch_rect_,
-      cross_hatch_diag_a_,
-      cross_hatch_diag_b_,
-  }};
-  for (auto* line : lines) {
-    if (!line) {
-      continue;
-    }
-    if (visible) {
-      lv_obj_remove_flag(line, LV_OBJ_FLAG_HIDDEN);
-    } else {
-      lv_obj_add_flag(line, LV_OBJ_FLAG_HIDDEN);
-    }
-  }
-
-  for (auto* corner : cross_hatch_corners_) {
-    if (!corner) {
-      continue;
-    }
-    if (visible) {
-      lv_obj_remove_flag(corner, LV_OBJ_FLAG_HIDDEN);
-    } else {
-      lv_obj_add_flag(corner, LV_OBJ_FLAG_HIDDEN);
-    }
   }
 }
 
@@ -522,7 +369,7 @@ void LcdTestPage::show_tile_(std::size_t index, bool animate) {
   update_nav_actions_();
   if (color_layer_) {
     if (active_tile_index_ == K_COLOR_TILE_INDEX && current_color_index_ > 0 &&
-        current_color_index_ <= model::LcdTestModel::K_TOTAL_VISUAL_STEP_COUNT &&
+        current_color_index_ <= model::LcdTestModel::K_COLOR_STEP_COUNT &&
         !lcd_view_model_.is_brightness_test_active()) {
       lv_obj_remove_flag(color_layer_, LV_OBJ_FLAG_HIDDEN);
     } else {
@@ -554,7 +401,7 @@ void LcdTestPage::sync_active_tile_() {
       update_nav_actions_();
       if (color_layer_) {
         if (active_tile_index_ == K_COLOR_TILE_INDEX && current_color_index_ > 0 &&
-            current_color_index_ <= model::LcdTestModel::K_TOTAL_VISUAL_STEP_COUNT &&
+            current_color_index_ <= model::LcdTestModel::K_COLOR_STEP_COUNT &&
             !lcd_view_model_.is_brightness_test_active()) {
           lv_obj_remove_flag(color_layer_, LV_OBJ_FLAG_HIDDEN);
         } else {
