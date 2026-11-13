@@ -187,7 +187,7 @@ set(CPACK_DEBIAN_PACKAGE_DESCRIPTION "${APP_PACKAGE_LONG_DESCRIPTION}")
 
 set(APP_DEBIAN_PACKAGE_DEPENDS
     "libc6 (>= 2.38)"
-    "libcamera0.7 (>= 0.7.2+rpt20261009)"
+    "libcamera0.8"
     "libcjson1 (>= 1.7.13)"
     "libfmt10 (>= 10.1.1+ds1)"
     "libfreetype6 (>= 2.2.1)"

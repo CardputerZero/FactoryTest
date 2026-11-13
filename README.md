@@ -95,6 +95,11 @@ watchdog, resetting the system. Logs go to the journal instead.
 
 ## Changelog
 
+### 1.0.3 - 2026-11-13
+
+- Build against libcamera 0.8 (`libcamera.so.0.8`, public control enums renamed upstream), require 0.8.0 headers at configure time, and depend on `libcamera0.8` at install time.
+- Bump the CMake project version and the SCons version header to 1.0.3.
+
 ### 1.0.2 - 2026-11-09
 
 - Fix the systemd auto start issue.

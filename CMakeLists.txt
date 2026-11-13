@@ -6,7 +6,7 @@
 
 cmake_minimum_required(VERSION 3.23)
 
-project(factory_test VERSION 1.0.2 LANGUAGES C CXX)
+project(factory_test VERSION 1.0.3 LANGUAGES C CXX)
 
 string(TIMESTAMP FACTORY_TEST_BUILD_TIME "%Y-%m-%d %H:%M:%S")
 execute_process(
@@ -340,11 +340,9 @@ else()
     cm0_find_library(LIBCAMERA_LIBRARY camera libcamera.so)
     cm0_find_library(LIBCAMERA_BASE_LIBRARY camera-base libcamera-base.so)
     if(LIBCAMERA_INCLUDE_DIR AND LIBCAMERA_LIBRARY AND LIBCAMERA_BASE_LIBRARY)
-        # libcamera 0.7.2 changed the public API from libcamera::Span to
-        # std::span without bumping the SONAME. Headers and libraries from
-        # opposite sides of that change link successfully but fail on the
-        # device with "undefined symbol: ...generateConfigurationENS_4SpanI...",
-        # so refuse to configure against the older headers.
+        # libcamera 0.8 renamed the public control enums and bumped the SONAME
+        # to libcamera.so.0.8, so headers and runtime must both come from the
+        # 0.8 line.
         file(STRINGS "${LIBCAMERA_INCLUDE_DIR}/libcamera/version.h" _libcamera_version_defines
             REGEX "^#define LIBCAMERA_VERSION_(MAJOR|MINOR|PATCH)")
         foreach(_libcamera_define IN LISTS _libcamera_version_defines)
@@ -361,11 +359,11 @@ else()
         endif()
         math(EXPR _libcamera_version_number
             "${_libcamera_version_major} * 10000 + ${_libcamera_version_minor} * 100 + ${_libcamera_version_patch}")
-        if(_libcamera_version_number LESS 702)
+        if(_libcamera_version_number LESS 800)
             message(FATAL_ERROR
                 "Found libcamera ${_libcamera_version_major}.${_libcamera_version_minor}.${_libcamera_version_patch} headers in "
-                "${LIBCAMERA_INCLUDE_DIR}/libcamera, but the device runtime exports the 0.7.2 std::span ABI. "
-                "Install the 0.7.2 headers into the flat include layout (${CM0_SYSROOT}/usr/include/libcamera/*.h).")
+                "${LIBCAMERA_INCLUDE_DIR}/libcamera, but FactoryTest requires libcamera 0.8.0 or newer. "
+                "Install the 0.8 headers into the flat include layout (${CM0_SYSROOT}/usr/include/libcamera/*.h).")
         endif()
         cm0_add_imported_library(CM0::Libcamera "${LIBCAMERA_LIBRARY}" "${LIBCAMERA_INCLUDE_DIR}")
         cm0_add_imported_library(CM0::LibcameraBase "${LIBCAMERA_BASE_LIBRARY}" "${LIBCAMERA_INCLUDE_DIR}")
