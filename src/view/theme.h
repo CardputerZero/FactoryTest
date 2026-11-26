@@ -41,6 +41,8 @@ struct ThemePalette {
   lv_color_t warning_pressed;
   lv_color_t error_hover;
   lv_color_t error_pressed;
+  // Readout accent, independent of the state colors above.
+  lv_color_t accent;
 };
 
 ThemePalette palette(bool dark_mode);

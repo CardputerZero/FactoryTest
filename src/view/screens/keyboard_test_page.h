@@ -47,6 +47,12 @@ class KeyboardTestPage : public BaseScreen {
 
   void update_progress_();
   void update_button_state_(std::size_t index);
+  void flash_key_(std::size_t index);
+  void build_counter_(lv_obj_t* layout, KeyLayer layer);
+  void update_counter_(KeyLayer layer);
+  void note_key_conflict_(std::size_t index);
+  void flash_conflict_(std::size_t first, std::size_t second);
+  void show_multi_key_warning_();
   void build_layer_(KeyLayer layer);
   void mark_key_pressed_(uint32_t key, const char* key_name);
   void transition_to_(KeyLayer layer, bool animate = true);
@@ -64,9 +70,20 @@ class KeyboardTestPage : public BaseScreen {
   viewmodel::KeyboardTestViewModel& keyboard_view_model_;
   std::vector<std::unique_ptr<view::widgets::IconButton>> key_buttons_{};
   std::vector<KeyState> key_states_{};
-  // Number of times each key was triggered, capped at three. Repeated presses
-  // usually mean a mechanically mis-aligned key triggered a neighbour.
-  std::vector<std::uint8_t> key_press_counts_{};
+  // Number of times each key was triggered. From ten presses on the key keeps
+  // the layer color, so a key that keeps firing stays visible on the layout.
+  std::vector<std::uint32_t> key_press_counts_{};
+  // Live counter of each layer: the most recent key of that layer and its press
+  // count, so a key of another layer never shows up in the active readout.
+  std::array<std::unique_ptr<view::widgets::IconButton>, K_LAYER_COUNT> counter_keys_{};
+  std::array<lv_obj_t*, K_LAYER_COUNT> counter_labels_{};
+  std::array<std::size_t, K_LAYER_COUNT> counter_key_indices_{};
+  std::array<bool, K_LAYER_COUNT> counter_has_key_{};
+  // Last key press, used to catch one press that triggers several keys and two
+  // keys hit at the same time.
+  std::size_t last_press_index_{0};
+  uint32_t last_press_tick_{0};
+  bool has_last_press_{false};
   std::vector<lv_obj_t*> layer_tiles_{};
   std::array<bool, K_LAYER_COUNT> layer_built_{};
   std::array<std::size_t, K_LAYER_COUNT> layer_pressed_counts_{};
@@ -78,6 +95,7 @@ class KeyboardTestPage : public BaseScreen {
   lv_obj_t* tileview_{nullptr};
   lv_timer_t* auto_advance_timer_{nullptr};
   std::unique_ptr<view::widgets::Popup> hold_popup_{};
+  std::unique_ptr<view::widgets::Popup> conflict_popup_{};
   view::widgets::PopupTone hold_popup_tone_{view::widgets::PopupTone::DEFAULT};
 };
 

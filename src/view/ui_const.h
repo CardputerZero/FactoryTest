@@ -192,4 +192,12 @@ constexpr uint32_t LIGHT_ERROR_PRESSED = 0xAB1F3F;
 constexpr uint32_t DARK_ERROR          = 0xE88080;
 constexpr uint32_t DARK_ERROR_HOVER    = 0xE98B8B;
 constexpr uint32_t DARK_ERROR_PRESSED  = 0xE57272;
+// ====================
+// Accent
+// ====================
+// Neutral UI accent for readouts that must not be confused with the state colors
+// (primary/success green, info blue, warning amber, error red). Violet keeps the
+// same 5.5:1+ contrast on both the light body and the dark body.
+constexpr uint32_t LIGHT_ACCENT = 0x6A45CC;
+constexpr uint32_t DARK_ACCENT  = 0xC0A8F5;
 }  // namespace view

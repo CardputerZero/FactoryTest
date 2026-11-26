@@ -59,6 +59,7 @@ ThemePalette palette(bool dark_mode) {
         lv_color_hex(DARK_WARNING_PRESSED),
         lv_color_hex(DARK_ERROR_HOVER),
         lv_color_hex(DARK_ERROR_PRESSED),
+        lv_color_hex(DARK_ACCENT),
     };
   }
 
@@ -86,6 +87,7 @@ ThemePalette palette(bool dark_mode) {
       lv_color_hex(LIGHT_WARNING_PRESSED),
       lv_color_hex(LIGHT_ERROR_HOVER),
       lv_color_hex(LIGHT_ERROR_PRESSED),
+      lv_color_hex(LIGHT_ACCENT),
   };
 }
 

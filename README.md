@@ -95,6 +95,14 @@ watchdog, resetting the system. Logs go to the journal instead.
 
 ## Changelog
 
+### Unreleased
+
+- Input Test page: replace the multi-press highlight colors with a single press flash. Each trigger blends the key toward its layer color and back to the idle color, so a press is visible without leaving a latched color behind.
+- Keep the layer color lit once a key was pressed ten times, and keep flashing on top of that lit color when the key fires again, so an over-triggered key stands out from the keys that were only pressed once.
+- Add a live press counter to the free space in the middle of the first key row, one per layout. It shows the most recently pressed key of that layout as the same key cap used by the layout next to `× <count>`, so digit keys cannot be confused with the count, and a key that only exists on another layout never shows up in the readout that is on screen.
+- Report multiple keys triggered at once on the Input Test page: when two different keys of the same layout fire within 80 ms, both keys blink once in the error color and a "Multiple keys triggered" popup with the warning tone appears in the free part of the first key row, so the operator sees the conflict without the popup covering the grid.
+- Add an `accent` color to the theme palette (light `#6A45CC`, dark `#C0A8F5`) and use it for the press counter. Green, amber and blue already identify the standard, FN and SYM key layouts, so the readout uses a violet accent that keeps its contrast on both the light and the dark body.
+
 ### 1.0.3 - 2026-11-13
 
 - Build against libcamera 0.8 (`libcamera.so.0.8`, public control enums renamed upstream), require 0.8.0 headers at configure time, and depend on `libcamera0.8` at install time.

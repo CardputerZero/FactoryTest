@@ -14,6 +14,7 @@ namespace view::widgets {
 namespace {
 
 constexpr int32_t K_HOLD_PROGRESS_MAX = 255;
+constexpr int32_t K_FLASH_VALUE_MAX   = 255;
 constexpr int32_t K_INDICATOR_WIDTH   = 2;
 constexpr int32_t K_INDICATOR_HEIGHT  = 6;
 constexpr int32_t K_LABEL_Y           = -3;
@@ -43,6 +44,12 @@ IconButton::IconButton(lv_obj_t* parent,
       click_cb_(click_cb),
       user_data_(user_data),
       show_indicator_(show_indicator) {}
+
+IconButton::~IconButton() {
+  // Animations target this widget as their variable, so they must not outlive it.
+  lv_anim_delete(this, set_flash_value);
+  lv_anim_delete(this, set_hold_progress_value);
+}
 
 void IconButton::build() {
   if (core_obj_) {
@@ -110,6 +117,45 @@ void IconButton::set_color(lv_color_t light_color, lv_color_t dark_color) {
   apply_text_color_();
 }
 
+void IconButton::flash(lv_color_t light_color, lv_color_t dark_color, uint32_t duration_ms) {
+  if (!label_) {
+    return;
+  }
+
+  lv_anim_delete(this, set_flash_value);
+  flash_light_color_ = light_color;
+  flash_dark_color_  = dark_color;
+  flash_value_       = 0;
+  flash_active_      = true;
+  apply_text_color_();
+
+  lv_anim_t animation{};
+  lv_anim_init(&animation);
+  lv_anim_set_var(&animation, this);
+  lv_anim_set_values(&animation, 0, K_FLASH_VALUE_MAX);
+  lv_anim_set_time(&animation, duration_ms);
+  lv_anim_set_path_cb(&animation, lv_anim_path_linear);
+  lv_anim_set_exec_cb(&animation, set_flash_value);
+  lv_anim_start(&animation);
+}
+
+void IconButton::stop_flash() {
+  lv_anim_delete(this, set_flash_value);
+  flash_active_ = false;
+  flash_value_  = 0;
+  apply_text_color_();
+}
+
+void IconButton::set_flash_value(void* obj, int32_t value) {
+  auto* button = static_cast<IconButton*>(obj);
+  if (!button) {
+    return;
+  }
+
+  button->flash_value_ = std::clamp(value, 0, K_FLASH_VALUE_MAX);
+  button->apply_text_color_();
+}
+
 void IconButton::set_enabled(bool enabled) {
   enabled_ = enabled;
   if (!core_obj_) {
@@ -121,6 +167,7 @@ void IconButton::set_enabled(bool enabled) {
   } else {
     lv_obj_clear_flag(core_obj_, LV_OBJ_FLAG_CLICKABLE);
     reset_hold_progress();
+    stop_flash();
   }
   apply_theme_(view_model_.is_dark_mode());
 }
@@ -192,6 +239,18 @@ lv_color_t IconButton::disabled_text_color_() const {
   return view::palette(view_model_.is_dark_mode()).text_disabled;
 }
 
+lv_color_t IconButton::flash_peak_color_() const {
+  return view_model_.is_dark_mode() ? flash_dark_color_ : flash_light_color_;
+}
+
+// 0 at both ends of the animation and 255 in the middle, so one flash leaves the
+// label at its base color again.
+uint8_t IconButton::flash_blend_amount_() const {
+  const auto value = std::clamp(flash_value_, 0, K_FLASH_VALUE_MAX);
+  const auto peak  = value <= K_FLASH_VALUE_MAX / 2 ? value * 2 : (K_FLASH_VALUE_MAX - value) * 2;
+  return static_cast<uint8_t>(std::clamp(peak, 0, K_FLASH_VALUE_MAX));
+}
+
 void IconButton::apply_text_color_() {
   if (!label_) {
     return;
@@ -209,6 +268,9 @@ void IconButton::apply_text_color_() {
         hold_target_color_,
         color,
         static_cast<uint8_t>(std::clamp(hold_progress_value_, 0, K_HOLD_PROGRESS_MAX)));
+  }
+  if (flash_active_) {
+    color = lv_color_mix(flash_peak_color_(), color, flash_blend_amount_());
   }
   lv_obj_set_style_text_color(label_, color, 0);
   apply_indicator_style_();

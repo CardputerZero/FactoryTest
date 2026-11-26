@@ -54,12 +54,42 @@ constexpr int32_t K_ROW_STRIDE             = 20;
 constexpr int32_t K_LAYOUT_WIDTH           = K_KEY_SIZE + 10 * K_KEY_STRIDE;
 constexpr int32_t K_LAYOUT_HEIGHT          = K_KEY_SIZE + 4 * K_ROW_STRIDE;
 constexpr uint32_t K_AUTO_ADVANCE_DELAY_MS = 300;
-// Press levels shown to the operator: 1st press keeps the layer color, the 2nd
-// and 3rd (or later) presses use dedicated highlight colors so that ghost
-// presses caused by mechanical tolerances are immediately visible.
-constexpr std::uint8_t K_PRESS_COUNT_ONCE  = 1;
-constexpr std::uint8_t K_PRESS_COUNT_TWICE = 2;
-constexpr std::uint8_t K_PRESS_COUNT_MAX   = 3;
+// Every press flashes the key once; from K_PRESS_COUNT_LIT presses on the key
+// keeps its layer color lit so an over-triggered key stays visible on the
+// layout. K_PRESS_COUNT_MAX only keeps the live counter label a fixed width.
+constexpr std::uint32_t K_PRESS_COUNT_LIT = 10;
+constexpr std::uint32_t K_PRESS_COUNT_MAX = 999;
+constexpr uint32_t K_PRESS_FLASH_MS       = 180;
+// Two different keys of the same layout triggered within this window count as
+// one press that produced several key events (ghost press) or as two keys hit
+// at the same time. Both cases are reported to the operator.
+constexpr uint32_t K_MULTI_KEY_WINDOW_MS  = 80;
+constexpr uint32_t K_MULTI_KEY_WARNING_MS = 1400;
+// Both keys of a conflict blink in the error color once, long enough to be seen
+// next to the popup that explains it.
+constexpr uint32_t K_CONFLICT_FLASH_MS    = 320;
+constexpr const char* K_MULTI_KEY_WARNING = "Multiple keys triggered";
+// The warning sits in the free part of the first key row (between ESC and TAB)
+// so the red key flashes stay visible while it is on screen.
+constexpr int32_t K_CONFLICT_POPUP_WIDTH  = 208;
+constexpr int32_t K_CONFLICT_POPUP_HEIGHT = 24;
+// Flash peak colors: an unlit key blends the layer accent toward white, an
+// already lit key gets a stronger white highlight so the flash stays visible.
+constexpr uint8_t K_FLASH_ACCENT_MIX = 176;
+constexpr uint8_t K_FLASH_LIT_MIX    = 128;
+// The live press counter sits in the free space of the first key row, between
+// the ESC/TAB positions. It shows the pressed key as a key cap, so the digits of
+// the counter can never be mistaken for the key name. The counter is drawn in
+// the palette accent color, which keeps it apart from the muted key caps and
+// from the layer colors (success/warning/info) used by pressed keys.
+constexpr const char* K_COUNTER_FORMAT = "\u00D7 %u";
+constexpr int32_t K_COUNTER_Y          = 0;
+constexpr int32_t K_COUNTER_ICON_GAP   = 2;
+// The key cap glyph sits right of its box center, so the whole readout is nudged
+// left to stay optically centered on the layout.
+constexpr int32_t K_COUNTER_X            = -2;
+constexpr int32_t K_COUNTER_TEXT_SHIFT_Y = 2;
+constexpr int32_t K_COUNTER_TEXT_SHIFT_X = -5;
 
 constexpr const char* K_MATCH_0               = "0";
 constexpr const char* K_MATCH_1               = "1";
@@ -502,6 +532,8 @@ lv_dir_t tile_dirs(std::size_t index) {
   }
 }
 
+// Color of the layer a key belongs to. It is the resting color once the key was
+// pressed K_PRESS_COUNT_LIT times and the source of the press flash before that.
 lv_color_t pressed_color_for_layer(KeyLayer layer, bool dark_mode) {
   const auto colors = view::palette(dark_mode);
   switch (layer) {
@@ -515,20 +547,43 @@ lv_color_t pressed_color_for_layer(KeyLayer layer, bool dark_mode) {
   }
 }
 
-// Color of a key depending on how often it was triggered. The second and third
-// press colors are picked so they never match the layer's first-press color:
-//   STANDARD_KEY: success -> warning -> error
-//   FN_KEY:       warning_pressed -> info -> error
-//   SYM_KEY:      info -> warning -> error
-lv_color_t pressed_color_for_press_count(KeyLayer layer, std::uint8_t press_count, bool dark_mode) {
-  const auto colors = view::palette(dark_mode);
-  if (press_count <= K_PRESS_COUNT_ONCE) {
-    return pressed_color_for_layer(layer, dark_mode);
+// Peak color of the one-shot press flash. A key that is not lit yet flashes in
+// a light blend of its layer color, a lit key flashes brighter than its resting
+// color so the flash is still visible after ten presses.
+lv_color_t flash_color_for_key(KeyLayer layer, bool lit, bool dark_mode) {
+  const auto layer_color = pressed_color_for_layer(layer, dark_mode);
+  if (lit) {
+    return lv_color_mix(lv_color_white(), layer_color, K_FLASH_LIT_MIX);
   }
-  if (press_count == K_PRESS_COUNT_TWICE) {
-    return layer == FN_KEY ? colors.info : colors.warning;
+  return lv_color_mix(layer_color, lv_color_white(), K_FLASH_ACCENT_MIX);
+}
+
+// Keeps the counter text in the palette accent color and follows theme changes,
+// because ThemeRole only covers the neutral text colors. The accent is used
+// because green, amber and blue already identify the three key layers.
+void counter_text_color_observer(lv_observer_t* observer, lv_subject_t* subject) {
+  auto* label = lv_observer_get_target_obj(observer);
+  if (!label) {
+    return;
   }
-  return colors.error;
+  const auto colors = view::palette(lv_subject_get_int(subject) != 0);
+  lv_obj_set_style_text_color(label, colors.accent, 0);
+}
+
+// Font used to draw a key cap. Shared by the key layout and the live press
+// counter so the counter shows exactly the same glyph as the key itself.
+const lv_font_t* font_for_key(const KeySpec& spec,
+                              const lv_font_t* key_font,
+                              const lv_font_t* extra_key_font) {
+  switch (spec.font) {
+    case KeyFont::EXTRA:
+      return extra_key_font ? extra_key_font : (key_font ? key_font : &lv_font_montserrat_14);
+    case KeyFont::KENNEY:
+      return key_font ? key_font : &lv_font_montserrat_14;
+    case KeyFont::TEXT:
+    default:
+      return &lv_font_montserrat_12;
+  }
 }
 
 }  // namespace
@@ -555,6 +610,7 @@ KeyboardTestPage::~KeyboardTestPage() {
     auto_advance_timer_ = nullptr;
   }
   hold_popup_.reset();
+  conflict_popup_.reset();
 }
 
 void KeyboardTestPage::build_content(lv_obj_t* content) {
@@ -565,6 +621,15 @@ void KeyboardTestPage::build_content(lv_obj_t* content) {
   key_buttons_.resize(K_KEYS.size());
   key_states_.assign(K_KEYS.size(), KeyState::IDLE);
   key_press_counts_.assign(K_KEYS.size(), 0);
+  has_last_press_   = false;
+  last_press_index_ = 0;
+  last_press_tick_  = 0;
+  for (std::size_t layer = 0; layer < K_LAYER_COUNT; ++layer) {
+    counter_keys_[layer].reset();
+    counter_labels_[layer]      = nullptr;
+    counter_key_indices_[layer] = 0;
+    counter_has_key_[layer]     = false;
+  }
   layer_tiles_.assign(K_LAYER_COUNT, nullptr);
   layer_built_.fill(false);
   layer_pressed_counts_.fill(0);
@@ -621,24 +686,174 @@ void KeyboardTestPage::update_button_state_(std::size_t index) {
     return;
   }
 
-  switch (key_states_[index]) {
-    case KeyState::PRESSED: {
-      const auto press_count =
-          index < key_press_counts_.size() ? key_press_counts_[index] : K_PRESS_COUNT_ONCE;
-      key_buttons_[index]->set_color(
-          pressed_color_for_press_count(K_KEYS[index].layer, press_count, false),
-          pressed_color_for_press_count(K_KEYS[index].layer, press_count, true));
-      break;
-    }
-    case KeyState::FAILED:
-      key_buttons_[index]->set_color(view::palette(false).error, view::palette(true).error);
-      break;
-    case KeyState::IDLE:
-    default:
-      key_buttons_[index]->set_color(view::palette(false).text_muted,
-                                     view::palette(true).text_muted);
-      break;
+  if (key_states_[index] == KeyState::FAILED) {
+    key_buttons_[index]->set_color(view::palette(false).error, view::palette(true).error);
+    return;
   }
+
+  // Resting color: muted until the key was triggered often enough, then the
+  // layer color stays lit to mark the key that keeps firing.
+  const bool lit =
+      index < key_press_counts_.size() && key_press_counts_[index] >= K_PRESS_COUNT_LIT;
+  if (lit) {
+    key_buttons_[index]->set_color(pressed_color_for_layer(K_KEYS[index].layer, false),
+                                   pressed_color_for_layer(K_KEYS[index].layer, true));
+    return;
+  }
+
+  key_buttons_[index]->set_color(view::palette(false).text_muted, view::palette(true).text_muted);
+}
+
+void KeyboardTestPage::flash_key_(std::size_t index) {
+  if (index >= key_buttons_.size() || !key_buttons_[index] || index >= K_KEYS.size()) {
+    return;
+  }
+
+  const auto& spec = K_KEYS[index];
+  if (spec.disabled) {
+    return;
+  }
+
+  const bool lit =
+      index < key_press_counts_.size() && key_press_counts_[index] >= K_PRESS_COUNT_LIT;
+  key_buttons_[index]->flash(flash_color_for_key(spec.layer, lit, false),
+                             flash_color_for_key(spec.layer, lit, true),
+                             K_PRESS_FLASH_MS);
+}
+
+void KeyboardTestPage::build_counter_(lv_obj_t* layout, KeyLayer layer) {
+  const auto index = layer_index(layer);
+  if (!layout || index >= K_LAYER_COUNT) {
+    return;
+  }
+
+  // Each layer owns its readout, so a key that only exists on another layer can
+  // never show up here. The key itself is an IconButton, so the counter shows
+  // the very same key cap as the layout and never relies on letter names.
+  auto* row = lv_obj_create(layout);
+  lv_obj_remove_style_all(row);
+  lv_obj_set_size(row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+  lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_column(row, K_COUNTER_ICON_GAP, 0);
+  lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_clear_flag(row, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_align(row, LV_ALIGN_TOP_MID, K_COUNTER_X, K_COUNTER_Y);
+
+  counter_keys_[index] = std::make_unique<view::widgets::IconButton>(row,
+                                                                     app_view_model_ref_(),
+                                                                     K_KEY_SIZE,
+                                                                     K_KEY_SIZE,
+                                                                     ICON_KB_EXTRA_BLANK,
+                                                                     extra_key_font_,
+                                                                     view::palette(false).accent,
+                                                                     view::palette(true).accent);
+  counter_keys_[index]->build();
+  if (counter_keys_[index]->root()) {
+    lv_obj_clear_flag(counter_keys_[index]->root(), LV_OBJ_FLAG_CLICKABLE);
+  }
+
+  counter_labels_[index] = lv_label_create(row);
+  auto* counter_font =
+      assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 14);
+  lv_obj_set_style_text_font(counter_labels_[index],
+                             counter_font ? counter_font : &lv_font_montserrat_12,
+                             0);
+  lv_subject_add_observer_obj(app_view_model_ref_().dark_mode_subject(),
+                              counter_text_color_observer,
+                              counter_labels_[index],
+                              nullptr);
+  lv_obj_set_style_translate_y(counter_labels_[index], K_COUNTER_TEXT_SHIFT_Y, 0);
+  lv_obj_set_style_translate_x(counter_labels_[index], K_COUNTER_TEXT_SHIFT_X, 0);
+  lv_obj_clear_flag(counter_labels_[index], LV_OBJ_FLAG_CLICKABLE);
+
+  update_counter_(layer);
+}
+
+void KeyboardTestPage::update_counter_(KeyLayer layer) {
+  const auto index = layer_index(layer);
+  if (index >= K_LAYER_COUNT || !counter_labels_[index] || !counter_keys_[index]) {
+    return;
+  }
+
+  auto& counter_key  = counter_keys_[index];
+  const bool has_key = counter_has_key_[index] && counter_key_indices_[index] < K_KEYS.size();
+  if (!has_key) {
+    // Before the first press on this layer the counter keeps an empty key cap,
+    // so the field reads as "no key yet" instead of a number without a key.
+    counter_key->set_text(ICON_KB_EXTRA_BLANK);
+    counter_key->set_font(extra_key_font_ ? extra_key_font_ : &lv_font_montserrat_14);
+    counter_key->set_color(view::palette(false).accent, view::palette(true).accent);
+    lv_label_set_text_fmt(counter_labels_[index], K_COUNTER_FORMAT, 0);
+    return;
+  }
+
+  const auto key_index = counter_key_indices_[index];
+  const auto& spec     = K_KEYS[key_index];
+  const auto count     = std::min(key_press_counts_[key_index], K_PRESS_COUNT_MAX);
+
+  counter_key->set_font(font_for_key(spec, key_font_, extra_key_font_));
+  counter_key->set_text(spec.text);
+  counter_key->set_color(view::palette(false).accent, view::palette(true).accent);
+  lv_label_set_text_fmt(counter_labels_[index], K_COUNTER_FORMAT, count);
+}
+
+void KeyboardTestPage::note_key_conflict_(std::size_t index) {
+  const auto now      = lv_tick_get();
+  const auto previous = last_press_index_;
+  const bool conflict = has_last_press_ && previous != index && previous < K_KEYS.size() &&
+                        K_KEYS[previous].layer == K_KEYS[index].layer &&
+                        lv_tick_elaps(last_press_tick_) <= K_MULTI_KEY_WINDOW_MS;
+
+  last_press_index_ = index;
+  last_press_tick_  = now;
+  has_last_press_   = true;
+
+  if (conflict) {
+    flash_conflict_(previous, index);
+    show_multi_key_warning_();
+  }
+}
+
+void KeyboardTestPage::flash_conflict_(std::size_t first, std::size_t second) {
+  const auto colors_light = view::palette(false);
+  const auto colors_dark  = view::palette(true);
+  for (const auto index : {first, second}) {
+    if (index >= key_buttons_.size() || index >= K_KEYS.size() || !key_buttons_[index] ||
+        K_KEYS[index].disabled) {
+      continue;
+    }
+    // Replaces the press flash of the key that was just triggered, so both keys
+    // of the conflict blink red at the same time.
+    key_buttons_[index]->flash(colors_light.error, colors_dark.error, K_CONFLICT_FLASH_MS);
+  }
+}
+
+void KeyboardTestPage::show_multi_key_warning_() {
+  if (!root()) {
+    return;
+  }
+
+  // The warning is placed in the empty space of the first key row: the operator
+  // has to see the two red key flashes, so the popup must not cover the grid.
+  if (!conflict_popup_) {
+    view::widgets::PopupConfig config;
+    config.width       = K_CONFLICT_POPUP_WIDTH;
+    config.height      = K_CONFLICT_POPUP_HEIGHT;
+    config.align       = LV_ALIGN_TOP_MID;
+    config.offset_y    = view::K_TITLE_BAR_HEIGHT;
+    config.radius      = 10;
+    config.pad_all     = 2;
+    config.label_width = K_CONFLICT_POPUP_WIDTH - 8;
+    config.message     = app_view_model_ref_().tr(K_MULTI_KEY_WARNING);
+    config.tone        = view::widgets::PopupTone::WARNING;
+    config.font =
+        assets_ref_().load_font(app_view_model_ref_().ui_font_name("inter-semibold.ttf"), 12);
+    conflict_popup_ = std::make_unique<view::widgets::Popup>(root(), app_view_model_ref_(), config);
+    conflict_popup_->build();
+  }
+
+  conflict_popup_->show_for(K_MULTI_KEY_WARNING_MS);
 }
 
 void KeyboardTestPage::build_layer_(KeyLayer layer) {
@@ -658,6 +873,7 @@ void KeyboardTestPage::build_layer_(KeyLayer layer) {
   lv_obj_set_size(layout, metrics.layout_width, metrics.layout_height);
   lv_obj_clear_flag(layout, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_align(layout, LV_ALIGN_TOP_MID, 0, 0);
+  build_counter_(layout, layer);
 
   for (std::size_t i = 0; i < K_KEYS.size(); ++i) {
     const auto& spec = K_KEYS[i];
@@ -665,18 +881,7 @@ void KeyboardTestPage::build_layer_(KeyLayer layer) {
       continue;
     }
 
-    const lv_font_t* font = &lv_font_montserrat_12;
-    switch (spec.font) {
-      case KeyFont::EXTRA:
-        font = extra_key_font_ ? extra_key_font_ : (key_font_ ? key_font_ : &lv_font_montserrat_14);
-        break;
-      case KeyFont::KENNEY:
-        font = key_font_ ? key_font_ : &lv_font_montserrat_14;
-        break;
-      case KeyFont::TEXT:
-      default:
-        break;
-    }
+    const lv_font_t* font = font_for_key(spec, key_font_, extra_key_font_);
 
     key_buttons_[i] = std::make_unique<view::widgets::IconButton>(layout,
                                                                   app_view_model_ref_(),
@@ -855,14 +1060,19 @@ void KeyboardTestPage::mark_key_pressed_(uint32_t key, const char* key_name) {
       }
     }
 
-    // Every additional trigger of the same key is counted so repeated presses
-    // (including ghost presses from neighbouring keys) can be highlighted.
+    // Every trigger of the key is counted. From K_PRESS_COUNT_LIT presses on
+    // the key keeps the layer color, and the live counter shows the number.
     if (i < key_press_counts_.size() && key_press_counts_[i] < K_PRESS_COUNT_MAX) {
       ++key_press_counts_[i];
     }
+    const auto index            = layer_index(K_KEYS[i].layer);
+    counter_key_indices_[index] = i;
+    counter_has_key_[index]     = true;
     update_button_state_(i);
+    flash_key_(i);
+    update_counter_(K_KEYS[i].layer);
+    note_key_conflict_(i);
 
-    const auto index          = layer_index(K_KEYS[i].layer);
     const bool layer_complete = counted && K_KEYS[i].layer == active_layer_ &&
                                 layer_pressed_counts_[index] >= layer_total_counts_[index];
     update_progress_();
